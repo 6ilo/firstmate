@@ -1,0 +1,30 @@
+
+ Warning: Could not restore model anthropic/claude-sonnet-4-5. Using calm-e2e/delayed
+
+ Warning: CALM_TRANSIENT_DIAGNOSTIC
+
+ Error: CALM_OPERATIONAL_E2E_ERROR
+
+ Error: CALM_OPERATIONAL_E2E_ERROR
+
+ Error: CALM_OPERATIONAL_E2E_ERROR
+
+ Error: CALM_OPERATIONAL_E2E_ERROR
+
+ Error: CALM_OPERATIONAL_E2E_ERROR
+
+ Session exported to:
+ /private/var/folders/5x/4nqprlbx0518k3ybcb1sz6gr0000gn/T/fm-calm-pi-extension.MnYspl/calm-export.h
+ tml
+
+
+ CALM_BOAT_E2E_PROMPT
+
+
+   ◿│◣
+▁▁╲▁▁▁╱▁▁▁▁▁▂▂▂▃▃▄▄▄▄▄▃▃▃▂▂▁▁▁▁▁▁▂▂▂▃▃▃▄▄▄▄▄▄▄▃▃▃▂▂▂▁▁▁▁▁▁▂▂▃▃▃▄▄▄▄▄▄▃▃▂▂▂▁▁▁▁▁▁▂▂▂▃▃▃▄▄▄▄▄▃▃▂▂▁▁▁▁▁
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+/private/var/folders/5x/4nqprlbx0518k3ybcb1sz6gr0000gn/T/fm-calm-pi-extension.MnYspl/e2e-project ...
+↑7 ↓4 2.8%/4.1k (auto)                                                                  delayed-boat

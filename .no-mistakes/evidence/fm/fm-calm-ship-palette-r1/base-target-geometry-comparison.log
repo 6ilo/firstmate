@@ -1,0 +1,1 @@
+Compared 7200 rendered target frames with the base executable modulo ANSI color: glyph geometry, row count, position, direction, water phase, 220ms tick, and 4-tick movement cadence are identical.
