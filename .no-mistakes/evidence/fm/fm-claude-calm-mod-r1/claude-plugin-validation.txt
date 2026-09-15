@@ -1,0 +1,10 @@
+Validating plugin manifest: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2K56KCD8PG0JN17929XZ894/.claude/skills/firstmate-calm/.claude-plugin/plugin.json
+
+Validating hooks: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2K56KCD8PG0JN17929XZ894/.claude/skills/firstmate-calm/hooks/hooks.json
+
+  ❯ ./register.ts hooks: session.start, command.run{command=calm}, turn.step, ui.render{component=Spinner}, ui.render{component=ToolUse}, ui.render{component=ToolResult}, ui.render{component=ToolGroup}, ui.render{component=UserMessage}, ui.render{component=AssistantMessage}
+  ❯ ./register.ts calls: $.clock.every (via load), $.command.register, $.env.get (via isActivated, load), $.fs.read (via readPreference), $.fs.write, $.session.messages (via load), $.ui.blit (via repaintShip), $.ui.invalidate, $.ui.resolve, $.ui.toast
+  ❯ ./register.ts env writes: nothing
+  ❯ ./register.ts env reads: CLAUDE_CODE_ENABLE_FUNCTION_HOOKS, FM_CONFIG_OVERRIDE, FM_HOME, FM_ROOT_OVERRIDE
+
+✔ Validation passed
