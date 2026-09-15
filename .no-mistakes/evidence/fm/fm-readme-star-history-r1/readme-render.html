@@ -1,0 +1,209 @@
+<!doctype html><meta charset="utf-8"><meta name="color-scheme" content="light dark"><title>Firstmate README rendered by GitHub Markdown API</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.8.1/github-markdown.min.css"><style>body{margin:0}.markdown-body{box-sizing:border-box;min-width:200px;max-width:980px;margin:0 auto;padding:45px}@media(max-width:767px){.markdown-body{padding:15px}}</style><article class="markdown-body"><h1 align="center" dir="auto">firstmate</h1>
+<p align="center" dir="auto">
+  <a href="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue?style=flat-square" rel="nofollow"><img alt="Platform" src="https://camo.githubusercontent.com/327833a4b2517f62308828d78f2103971d56414626d5adb1391396278e63eeb6/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f706c6174666f726d2d6d61634f532532302537432532304c696e75782d626c75653f7374796c653d666c61742d737175617265" data-canonical-src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue?style=flat-square" style="max-width: 100%;"></a>
+  <a href="https://x.com/kunchenguid" rel="nofollow"><img alt="X" src="https://camo.githubusercontent.com/758198a034b7ac6257103933f6320aab2366ec20e24f6c1dfea5a105eeefd1ce/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f582d406b756e6368656e677569642d626c61636b3f7374796c653d666c61742d737175617265" data-canonical-src="https://img.shields.io/badge/X-@kunchenguid-black?style=flat-square" style="max-width: 100%;"></a>
+  <a href="https://discord.gg/Wsy2NpnZDu" rel="nofollow"><img alt="Discord" src="https://camo.githubusercontent.com/3eb64fccfb56bff0f7bcb6f4f7c563d48298802e5ebaab7604de88ba219a3338/68747470733a2f2f696d672e736869656c64732e696f2f646973636f72642f313433393930313833313033383736333039323f7374796c653d666c61742d737175617265266c6162656c3d646973636f7264" data-canonical-src="https://img.shields.io/discord/1439901831038763092?style=flat-square&amp;label=discord" style="max-width: 100%;"></a>
+</p>
+<h3 align="center" dir="auto">Talk to one agent. Ship with a crew.</h3>
+<p align="center" dir="auto">
+  <a target="_blank" rel="noopener noreferrer" href="assets/banner.png"><img alt="firstmate - talk to one agent, ship with a crew" src="assets/banner.png" width="100%" style="max-width: 100%;"></a>
+</p>
+<h2 dir="auto">What it is</h2>
+<p dir="auto">You can run one coding agent easily.<br>
+But the moment you want three project tasks done in parallel - fixes, investigations, plans, audits - you become a tab-juggler: babysitting sessions, copy-pasting context between repos, forgetting which terminal had the failing test.</p>
+<p dir="auto">firstmate flips the model.<br>
+You talk to a single agent - the first mate - and it runs the crew for you: spawning autonomous agents in a visible session backend, giving each a clean git worktree, supervising them to completion, and handing you finished PRs, approved local merges, or standalone investigation reports.<br>
+For larger fleets, you can opt in to persistent secondmates: second mates that are still ordinary direct reports, but run from their own isolated firstmate homes on this machine or another SSH-reachable host.</p>
+<p dir="auto">firstmate is not a model, not a harness, not a skill, not an MCP server, and not a CLI.<br>
+firstmate is an agent distro for running a crew of agents.<br>
+An agent distro is a portable directory of instructions, skills, tooling, policies, and state conventions that turns a general-purpose agent into a specialized one.<br>
+There is no app to install: the cloned repo is the distro - <code class="notranslate">AGENTS.md</code>, bundled firstmate skills, and helper scripts that any terminal coding agent can follow.<br>
+Launching a supported harness inside it for your primary session instantiates your first mate - and makes you the captain.</p>
+<h2 dir="auto">Features</h2>
+<ul dir="auto">
+<li><strong>One liaison</strong> - you talk only to the first mate; it dispatches, supervises, escalates only real decisions, and reports plain outcomes.</li>
+<li><strong>A visible crew</strong> - every crewmate works in its own tmux window, Herdr tab, or experimental zellij tab, cmux workspace, or Orca terminal you can watch or type into; the first mate reconciles.</li>
+<li><strong>Disposable worktrees</strong> - each task runs in a clean <a href="https://github.com/kunchenguid/treehouse">treehouse</a> git worktree, or an Orca-managed worktree when <code class="notranslate">backend=orca</code>, so parallel work on one repo never collides.</li>
+<li><strong>Two task shapes</strong> - ship tasks deliver authorized changes; scout tasks leave standalone investigation reports when the intake contract warrants separate research.</li>
+<li><strong>Explicit project modes</strong> - each project ships via <code class="notranslate">no-mistakes</code>, <code class="notranslate">direct-PR</code>, or <code class="notranslate">local-only</code>, with an optional <code class="notranslate">+yolo</code> merge-autonomy flag.</li>
+<li><strong>Optional secondmates</strong> - opt in to persistent second mates that run from isolated firstmate homes with their own <code class="notranslate">FM_HOME</code>, state, projects, and session lock, either locally or as a whole home on an SSH-reachable host, with guarded updates and recovery that never turns an unavailable remote route into a local replacement.</li>
+<li><strong>Event-driven, zero-token supervision</strong> - a bash watcher sleeps on the fleet and wakes the first mate only when something needs you; verified primary harnesses also get a turn-end backstop that blocks or follows up on a blind stop when work is under way and supervision is not live.</li>
+<li><strong>Optional Relay</strong> - opt in with one local <code class="notranslate">.env</code> pairing token so firstmate can answer your public mentions on X and Discord alike, act on normal reversible mention requests through the same lifecycle as chat requests, acknowledge spawned work, and post up to three public-safe completion follow-ups within seven days for genuine milestones and the final outcome without changing non-Relay behavior; a final reply promised in a thread becomes durable state that is reconciled from disk, so a restart or a compacted conversation cannot lose it; dry-run preview records would-be replies and dismissals locally before go-live.</li>
+<li><strong>Strict project boundary</strong> - the first mate is read-only over your projects except for the narrow guarded and captain-approved operations authorized by <a href="AGENTS.md#1-identity-and-prime-directives">hard rule 1</a>, including fleet sync's guarded safe branch pruning; crewmates make every other project change behind the configured merge authority.</li>
+<li><strong>Restart-proof</strong> - all state lives on disk and in the active session backend (tmux by hard default, herdr or cmux when selected or auto-detected, zellij/orca when explicitly selected); kill the session anytime and the next one reconciles, including confirmed-dead secondmate agents, and carries on.</li>
+</ul>
+<p dir="auto">Full detail on every feature lives in <a href="docs/architecture.md">docs/architecture.md</a>.</p>
+<h2 dir="auto">Quick Start</h2>
+<h3 dir="auto">Requirements</h3>
+<ul dir="auto">
+<li>A verified primary agent harness: Claude Code, Grok, Pi, <code class="notranslate">pi-signed</code>, Oh My Pi (<code class="notranslate">omp</code>), Codex, OpenCode, or Cursor Agent CLI.</li>
+<li>Git and the GitHub CLI, authenticated through <code class="notranslate">gh auth login</code>.</li>
+<li>The CLI and dependencies for your selected runtime backend; tmux is the reference default.</li>
+</ul>
+<p dir="auto">The first mate detects and offers to install supported missing tools after you approve.<br>
+Backend-specific setup is linked in <a href="#documentation">Documentation</a>.</p>
+<h3 dir="auto">Recommended harnesses</h3>
+<p dir="auto"><strong>Claude Code, Grok, and Pi are equal co-primary recommendations</strong> for running the primary firstmate session, with <code class="notranslate">pi-signed</code> supported as Pi's distinct signed-wrapper identity.<br>
+Claude Code uses a tracked Stop hook for tokenless watcher re-arm and rewake, Grok uses background-notify wake cycles, and Pi uses its tracked primary watcher extension.<br>
+All three have verified turn-end guard paths when launched with their documented setup.<br>
+Pick whichever one matches your subscription and workflow.</p>
+<p dir="auto">Oh My Pi (<code class="notranslate">omp</code>), a Pi fork, is verified as a primary with the same extension-owned watcher model as Pi and a stronger turn-end guard: its blocking <code class="notranslate">session_stop</code> hook compels a continuation instead of requesting one.<br>
+Codex and OpenCode are also verified and supported as primary harnesses; Codex uses bounded foreground checkpoints, and OpenCode uses a TUI plugin, so both carry more harness-specific supervision tradeoffs than the three co-primaries.<br>
+Cursor Agent CLI is verified as a primary too, using a tracked project-scope <code class="notranslate">.cursor/hooks.json</code> whose <code class="notranslate">stop</code> hook parks on the watcher between turns, closest in shape to Claude Code's.<br>
+Launch it with <code class="notranslate">--trust</code>, or none of its project hooks load; it also has no turn-end hook in headless <code class="notranslate">cursor-agent -p</code>, so run the primary session interactively.</p>
+<h3 dir="auto">Install and launch</h3>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">gh auth login
+git clone https://github.com/kunchenguid/firstmate
+<span class="pl-c1">cd</span> firstmate</pre></div>
+<p dir="auto">Then launch one of the co-primary harnesses; AGENTS.md takes over from there:</p>
+<p dir="auto"><strong>Claude Code</strong></p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">claude</pre></div>
+<p dir="auto"><strong>Grok</strong></p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">grok --trust</pre></div>
+<p dir="auto"><strong>Pi</strong></p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">pi
+<span class="pl-c"><span class="pl-c">#</span> or, when the signed wrapper is installed</span>
+FM_PI_HARNESS=pi-signed pi-signed</pre></div>
+<p dir="auto"><strong>Oh My Pi</strong></p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">omp
+<span class="pl-c"><span class="pl-c">#</span> or, when starting from inside a Claude Code pane</span>
+FM_OMP_HARNESS=omp omp</pre></div>
+<p dir="auto">Start <code class="notranslate">omp</code> with this checkout as its working directory: it auto-discovers the tracked <code class="notranslate">.omp/extensions/*.ts</code> files with no trust dialog, and naming them with <code class="notranslate">-e</code> as well would load each twice.</p>
+<p dir="auto">For Grok, <code class="notranslate">--trust</code> is needed once per clone so project hooks and the turn-end guard load; <code class="notranslate">/hooks-trust</code> inside Grok works too.<br>
+For Pi, approve the project trust prompt once per clone on first launch so the tracked <code class="notranslate">.pi/extensions/*.ts</code> files auto-load.<br>
+Pi's <code class="notranslate">/calm</code> toggle hides supported transcript chrome, including canonically classified Firstmate operational user rows, and uses a Calm-only animated working boat during active runs while preserving all model context and session data.<br>
+Those Calm-hidden operational inputs remain ordinary user-role messages with unchanged delivery, ordering, authority, persistence, and exports.<br>
+The preference persists for the effective Firstmate home, and toggling it off restores ordinary rendering.<br>
+<a href="docs/calm.md">Calm's current behavior and supported limits</a> are separate from its <a href="docs/calm-mode-feasibility.md">version-scoped maintainer evidence</a>.<br>
+Pi's <code class="notranslate">/supervision-model</code> command pins a cheaper model and a shallower reasoning effort for the supervision branch alone, from the eligible models and thinking levels Pi itself reports, and with no pin the branch normally follows your own conversation's model and effort; see the <a href="docs/configuration.md#pi-supervision-branch-model-and-effort-configsupervision-branch-model-configsupervision-branch-effort">configuration schema</a>.</p>
+<h3 dir="auto">Talk to it</h3>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate"><span class="pl-k">&gt;</span> ahoy<span class="pl-k">!</span> look at my github project xyz, <span class="pl-k">then</span> fix the flaky login <span class="pl-c1">test</span> and add dark mode
+
+<span class="pl-c"><span class="pl-c">#</span> firstmate checks its toolchain (asking your consent before installing anything),</span>
+<span class="pl-c"><span class="pl-c">#</span> clones the project under projects/ and spawns two isolated workers in the active backend.</span>
+<span class="pl-c"><span class="pl-c">#</span> Minutes later:</span>
+
+  PR ready <span class="pl-k">for</span> review, captain: https://github.com/you/xyz/pull/42
+  (fix flaky login <span class="pl-c1">test</span> - risk: low - CI green)
+
+<span class="pl-k">&gt;</span> alright merge it</pre></div>
+<h3 dir="auto">More backends</h3>
+<p dir="auto">Setup guides for tmux (the default) and every other supported backend (herdr, zellij, Orca, cmux) are linked in <a href="#documentation">Documentation</a> below.</p>
+<h2 dir="auto">How It Works</h2>
+<pre class="notranslate"><code class="notranslate">            you (the captain)
+                  │  chat: requests, decisions, "merge it"
+                  ▼
+ ┌─────────────────────────────────────┐
+ │ firstmate            (this repo)    │
+ │ reads projects/ + firstmate routes  │
+ │ writes guarded backlog/briefs/state │
+ └──┬──────────────┬───────────────┬───┘
+    │ backend sends / status files │
+    ▼              ▼               ▼
+ ┌────────┐   ┌────────┐      ┌────────┐
+ │fm-task1│   │fm-task2│  ... │fm-taskN│   tmux windows, herdr/zellij tabs, cmux workspaces, or Orca terminals
+ │crewmate│   │crewmate│      │crewmate│   one autonomous agent each
+ └───┬────┘   └───┬────┘      └───┬────┘
+     ▼            ▼               ▼
+  treehouse worktree, Orca worktree, or isolated secondmate home
+     │
+     ├─ ship: project mode ► PR/local merge ► teardown
+     │
+     └─ scout: report at data/&lt;id&gt;/report.md ► decision inventory ► relay findings ► teardown
+</code></pre>
+<p dir="auto">You chat with the first mate.<br>
+It routes each request to a crewmate in its own session endpoint and git worktree, supervises the fleet with a zero-token event-driven watcher, and brings you finished PRs, approved local merges, or investigation reports.<br>
+Optional secondmates extend this to persistent local or whole-home remote second mates, dispatch profiles let you steer which harness handles which task, and opt-in Relay lets the same fleet answer public mentions.<br>
+<code class="notranslate">codex-app</code> is not a runtime backend yet; <a href="docs/codex-app-backend.md">docs/codex-app-backend.md</a> owns the Codex App boundary.</p>
+<p dir="auto">Full architecture - the supervision engine, worktree isolation, secondmates, dispatch profiles, project modes, optional Relay, fleet sync, and self-update - is in <a href="docs/architecture.md">docs/architecture.md</a>.</p>
+<h2 dir="auto">Built-in skills</h2>
+<p dir="auto">Firstmate ships these user-invocable built-in skills.<br>
+Claude and grok use the slash form shown here; codex uses the same names with <code class="notranslate">$</code>, such as <code class="notranslate">$afk</code>.</p>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Skill</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="notranslate">/afk</code></td>
+<td>Enter away-mode supervision: the sub-supervisor self-handles routine notifications in bash, escalates captain-relevant events and bounded declared-external-wait rechecks as batched digests, and actively alerts if delivery gets stuck while you step away</td>
+</tr>
+<tr>
+<td><code class="notranslate">/quiet</code></td>
+<td>Enter quiet supervision mode: the same token-saving sub-supervisor tradeoff as <code class="notranslate">/afk</code>, for a captain who is staying and chatting - ordinary messages do not exit it, only an explicit <code class="notranslate">/quiet off</code> does</td>
+</tr>
+<tr>
+<td><code class="notranslate">/ahoy</code></td>
+<td>Recap visible session events since the prior real captain message plus visibly unanswered captain decisions, then guide the captain through any open decisions one at a time in agent-judged impact order; fall back to Bearings when invoked as the session's first real captain message</td>
+</tr>
+<tr>
+<td><code class="notranslate">/bearings</code></td>
+<td>Generate a concise four-section chat digest from bounded fleet state, including registered remote-home ledgers; use <code class="notranslate">/bearings file</code> to also replace today's dated report in <code class="notranslate">data/</code>, and add <code class="notranslate">include PRs</code> for live GitHub enrichment</td>
+</tr>
+<tr>
+<td><code class="notranslate">/updatefirstmate</code></td>
+<td>Guardedly update the running firstmate and its secondmates - fast-forward, or reconcile a redundant post-squash-merge divergence - then persist and restart every live mate successfully left on the target commit - including already-current homes - with an honest re-read nudge only when restart cannot be proven</td>
+</tr>
+<tr>
+<td><code class="notranslate">/stow</code></td>
+<td>Sweep the session for uncaptured durable knowledge, persist the open work records this session knows are unfiled or now wrong, curate tiered startup memory with decay and cold archival, enforce each home's budget or surface the required decision, cascade to registered second mates, and report what is safe to reset</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">Bearings invocation examples:</p>
+<ul dir="auto">
+<li><code class="notranslate">/bearings</code> returns the fresh four-section digest in chat only.</li>
+<li><code class="notranslate">/bearings include PRs</code> keeps chat-only mode and opts into live PR enrichment.</li>
+<li><code class="notranslate">/bearings file</code> replaces today's <code class="notranslate">data/status-report-&lt;YYYY-MM-DD&gt;.md</code> from scratch and links it from the four-section chat digest.</li>
+<li><code class="notranslate">/bearings file include PRs</code> combines the dated report with live PR enrichment.</li>
+</ul>
+<p dir="auto">Agent-only reference skills live under <code class="notranslate">.agents/skills/</code> and are loaded by firstmate at the trigger points named in <a href="AGENTS.md"><code class="notranslate">AGENTS.md</code></a>.</p>
+<h3 dir="auto">Two-tier skill layout</h3>
+<p dir="auto">Firstmate's skills live in two separate places with different audiences:</p>
+<ul dir="auto">
+<li><code class="notranslate">.agents/skills/</code> - agent-loaded skills (this section's table, plus firstmate's agent-only reference skills). Every one of these assumes a live firstmate home and is meaningless, or actively misleading, installed anywhere else, so each carries <code class="notranslate">metadata.internal: true</code> in its frontmatter. That flag hides them from installer discovery (tools like the <a href="https://skills.sh" rel="nofollow">skills.sh</a> <code class="notranslate">npx skills add</code> installer) without affecting how firstmate itself loads them - frontmatter metadata is inert to the agent's own skill loader.</li>
+<li><code class="notranslate">skills/</code> - public, installer-facing skills meant to be installed standalone into any project, independent of firstmate.<br>
+Each one is a self-contained skill with no dependency on firstmate's paths, tools, or vocabulary.<br>
+Today that is <code class="notranslate">skills/stow</code>, a generic session-knowledge-sweep skill that routes findings by explicit instruction first, then existing local conventions, then a private <code class="notranslate">.stow-notes.md</code> fallback, and curates tiered entries through decay, local archival, and user-approved on-demand offload proposals.<br>
+It intentionally shares no code with the firstmate-internal <code class="notranslate">.agents/skills/stow</code> it is named after, so the two can evolve independently.</li>
+</ul>
+<h2 dir="auto">Documentation</h2>
+<ul dir="auto">
+<li><a href="docs/architecture.md">docs/architecture.md</a> - maintainer architecture for the crew, supervision, worktrees, secondmates, and project modes.</li>
+<li><a href="docs/configuration.md">docs/configuration.md</a> - environment variables, <code class="notranslate">FM_HOME</code>, runtime backend selection, optional Relay and its X and Discord setup steps, trusted external process-event adapter setup, the files you set, and harness support.</li>
+<li><a href="docs/extension-bindings.md">docs/extension-bindings.md</a> - maintainer architecture for the narrow trusted external <code class="notranslate">process-event-adapter/1</code> package, binding, handshake, and evidence boundary.</li>
+<li><a href="docs/remote-secondmates.md">docs/remote-secondmates.md</a> - current setup, routing, transfer, recovery, and safety behavior for whole-home remote second mates.</li>
+<li><a href="docs/calm.md">docs/calm.md</a> - current Pi <code class="notranslate">/calm</code> behavior and supported presentation limits.</li>
+<li><a href="docs/voice-relay.md">docs/voice-relay.md</a> - the optional spoken interface: setup on both machines, measured round-trip cost, what a spoken answer may read, and what this build does not do yet.</li>
+<li><a href="docs/wedge-alarm.md">docs/wedge-alarm.md</a> - configure the active alert for an away-mode escalation delivery that gets stuck.</li>
+<li><a href="docs/tmux-backend.md">docs/tmux-backend.md</a> - current setup and limits for the tmux reference backend.</li>
+<li><a href="docs/herdr-backend.md">docs/herdr-backend.md</a> - current setup, CI coverage, safety boundaries, and limits for the Herdr backend.</li>
+<li><a href="docs/zellij-backend.md">docs/zellij-backend.md</a> - current setup and limits for the experimental Zellij backend.</li>
+<li><a href="docs/orca-backend.md">docs/orca-backend.md</a> - current setup and limits for the experimental Orca backend.</li>
+<li><a href="docs/cmux-backend.md">docs/cmux-backend.md</a> - current setup, socket security, and limits for the experimental cmux backend.</li>
+<li><a href="docs/codex-app-backend.md">docs/codex-app-backend.md</a> - the current blocked Codex App backend boundary and rollout contract.</li>
+<li><a href="docs/verification/runtime-backends.md">docs/verification/runtime-backends.md</a> - active maintainer verification for runtime backend guarantees.</li>
+<li><a href="docs/gitlab-merge-watch.md">docs/gitlab-merge-watch.md</a> - maintainer verification for watching and merging GitLab merge requests on arbitrary instances.</li>
+<li><a href="docs/turnend-guard.md">docs/turnend-guard.md</a> - the primary session's current "no turn ends blind" backstop, scope, loop safety, and compatibility limits.</li>
+<li><a href="docs/verification/supervision.md">docs/verification/supervision.md</a> - active maintainer verification for session-start, guard, continuity, and wedge integrations.</li>
+<li><a href="docs/supervision-protocols/">docs/supervision-protocols/</a> - rendered primary-harness watcher protocols for Claude, Codex, OpenCode, Pi and <code class="notranslate">pi-signed</code>, omp, Grok, Cursor, and unknown harness fallback.</li>
+<li><a href="docs/scripts.md">docs/scripts.md</a> - the <code class="notranslate">bin/</code> toolbelt reference.</li>
+<li><a href="docs/documentation-audiences.md">docs/documentation-audiences.md</a> - documentation audiences and the machine-checked placement boundary.</li>
+<li><a href="AGENTS.md"><code class="notranslate">AGENTS.md</code></a> - the supervisor contract, role boundary, and routing index for conditional procedures.</li>
+<li><a href="CONTRIBUTING.md">CONTRIBUTING.md</a> - how to contribute, including the dev/test commands.</li>
+</ul>
+<h2 dir="auto">Contributing</h2>
+<p dir="auto">Contributions are welcome - see <a href="CONTRIBUTING.md">CONTRIBUTING.md</a> for the workflow, repo conventions, and how to run the tests.</p>
+<h2 dir="auto">License</h2>
+<p dir="auto">MIT - see <a href="LICENSE">LICENSE</a>.</p>
+<h2 dir="auto">Star History</h2>
+<a href="https://www.star-history.com/?repos=kunchenguid%2Ffirstmate&amp;type=date&amp;legend=top-left" rel="nofollow">
+ <themed-picture data-catalyst-inline="true"><picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://camo.githubusercontent.com/740a57a0e7b92588958f9b40841f636f349eabde2569e61d5e512cd1d466cf6a/68747470733a2f2f6170692e737461722d686973746f72792e636f6d2f63686172743f7265706f733d6b756e6368656e677569642f66697273746d61746526747970653d64617465267468656d653d6461726b266c6567656e643d746f702d6c656674" data-canonical-src="https://api.star-history.com/chart?repos=kunchenguid/firstmate&amp;type=date&amp;theme=dark&amp;legend=top-left">
+   <source media="(prefers-color-scheme: light)" srcset="https://camo.githubusercontent.com/d5c9f78e8565bb60d31243c8892fe7570c8ed37800352181c079461b45441e71/68747470733a2f2f6170692e737461722d686973746f72792e636f6d2f63686172743f7265706f733d6b756e6368656e677569642f66697273746d61746526747970653d64617465266c6567656e643d746f702d6c656674" data-canonical-src="https://api.star-history.com/chart?repos=kunchenguid/firstmate&amp;type=date&amp;legend=top-left">
+   <img alt="Star History Chart" src="https://camo.githubusercontent.com/d5c9f78e8565bb60d31243c8892fe7570c8ed37800352181c079461b45441e71/68747470733a2f2f6170692e737461722d686973746f72792e636f6d2f63686172743f7265706f733d6b756e6368656e677569642f66697273746d61746526747970653d64617465266c6567656e643d746f702d6c656674" data-canonical-src="https://api.star-history.com/chart?repos=kunchenguid/firstmate&amp;type=date&amp;legend=top-left">
+ </picture></themed-picture>
+</a></article>
