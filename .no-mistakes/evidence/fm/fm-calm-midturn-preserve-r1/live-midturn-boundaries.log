@@ -1,0 +1,1 @@
+PASS: live Claude Code TUI hid short and 239-character single-line mid-turn rows, preserved multiline and 240-character rows, and restored the same visibility after --continue.
