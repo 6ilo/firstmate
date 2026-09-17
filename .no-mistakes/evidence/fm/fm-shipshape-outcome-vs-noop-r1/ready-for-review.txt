@@ -1,0 +1,1 @@
+Captain, the Claude mod implementation is complete and ready for your review. Please approve the merge when you’re satisfied.

@@ -1,0 +1,1 @@
+Captain, the Claude mod implementation is complete and merged. No further action is needed.
