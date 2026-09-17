@@ -1,0 +1,40 @@
+=== repeat 1 ===
+SETUP live synthetic owner= 71235 lock= 71235
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== repeat 2 ===
+SETUP live synthetic owner= 75371 lock= 75371
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== repeat 3 ===
+SETUP live synthetic owner= 79816 lock= 79816
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== repeat 4 ===
+SETUP live synthetic owner= 84480 lock= 84480
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== repeat 5 ===
+SETUP live synthetic owner= 89005 lock= 89005
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== repeat 6 ===
+SETUP live synthetic owner= 93577 lock= 93577
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== repeat 7 ===
+SETUP live synthetic owner= 97812 lock= 97812
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== repeat 8 ===
+SETUP live synthetic owner= 3214 lock= 3214
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== repeat 9 ===
+SETUP live synthetic owner= 7764 lock= 7764
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== repeat 10 ===
+SETUP live synthetic owner= 12380 lock= 12380
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE

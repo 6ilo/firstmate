@@ -1,0 +1,21 @@
+debconf: delaying package configuration, since apt-utils is not installed
+=== linux repeat 1 ===
+SETUP live synthetic owner= 3629 lock= 3629
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== linux repeat 2 ===
+SETUP live synthetic owner= 5606 lock= 5606
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== linux repeat 3 ===
+SETUP live synthetic owner= 7583 lock= 7583
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== linux repeat 4 ===
+SETUP live synthetic owner= 9560 lock= 9560
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE
+=== linux repeat 5 ===
+SETUP live synthetic owner= 11537 lock= 11537
+FIXED repeated non-owner Stops: all five ended safely
+COMPLETE

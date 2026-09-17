@@ -1,0 +1,3 @@
+Linux procfs executable-name probe (debian:bookworm-slim)
+claude comm=claude
+synthetic-claude comm=synthetic-claud

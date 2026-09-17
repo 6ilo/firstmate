@@ -1,0 +1,17 @@
+Host: Darwin Kuns-Mac-mini.local 25.5.0 Darwin Kernel Version 25.5.0: Tue Jun  9 22:28:34 PDT 2026; root:xnu-12377.121.10~1/RELEASE_ARM64_T6041 arm64
+
+=== target regression run 1 ===
+SETUP live synthetic owner= 59759 lock= 59759
+second-session acquisition rc=0 stdout='lock_rc=1\n' stderr='error: another live firstmate session holds the lock (pid 59759); operate read-only until resolved\n'
+nonowner autoarm rc=0 stdout='autoarm_rc=0\n' stderr=''
+nonowner stop 1 rc=0 stdout='{"systemMessage":"FIRSTMATE SUPERVISION IS OWNED BY ANOTHER LIVE SESSION: this read-only session cannot and should not arm or repair the watcher (lock owner pid 59759). Allowing this turn to end safely; the owning session must restore supervision."}\n' stderr=''
+nonowner stop 2 rc=0 stdout='{"systemMessage":"FIRSTMATE SUPERVISION IS OWNED BY ANOTHER LIVE SESSION: this read-only session cannot and should not arm or repair the watcher (lock owner pid 59759). Allowing this turn to end safely; the owning session must restore supervision."}\n' stderr=''
+nonowner stop 3 rc=0 stdout='{"systemMessage":"FIRSTMATE SUPERVISION IS OWNED BY ANOTHER LIVE SESSION: this read-only session cannot and should not arm or repair the watcher (lock owner pid 59759). Allowing this turn to end safely; the owning session must restore supervision."}\n' stderr=''
+nonowner stop 4 rc=0 stdout='{"systemMessage":"FIRSTMATE SUPERVISION IS OWNED BY ANOTHER LIVE SESSION: this read-only session cannot and should not arm or repair the watcher (lock owner pid 59759). Allowing this turn to end safely; the owning session must restore supervision."}\n' stderr=''
+nonowner stop 5 rc=0 stdout='{"systemMessage":"FIRSTMATE SUPERVISION IS OWNED BY ANOTHER LIVE SESSION: this read-only session cannot and should not arm or repair the watcher (lock owner pid 59759). Allowing this turn to end safely; the owning session must restore supervision."}\n' stderr=''
+FIXED repeated non-owner Stops: all five ended safely
+fresh-beat-only counterfactual rc=0 stdout='{"systemMessage":"FIRSTMATE SUPERVISION IS OWNED BY ANOTHER LIVE SESSION: this read-only session cannot and should not arm or repair the watcher (lock owner pid 59759). Allowing this turn to end safely; the owning session must restore supervision."}\n' stderr=''
+COUNTERFACTUAL dead original owner: watcher= 64673
+replacement-owned healthy watcher rc=0 stdout='{"systemMessage":"FIRSTMATE SUPERVISION IS OWNED BY ANOTHER LIVE SESSION: this read-only session cannot and should not arm or repair the watcher (lock owner pid 63608). Allowing this turn to end safely; the owning session must restore supervision."}\n' stderr=''
+single owner, no autoarm firing rc=0 stdout='lock acquired: harness pid 65540\nsingle_owner_verified=1\nsingle_owner_guard_rc=2\n' stderr='●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n●  TURN WOULD END BLIND - SUPERVISION IS OFF\n●  1 task(s) in flight, but no live watcher holds this home lock (last beat: 603s ago).\n●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.\n●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.\n●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+COMPLETE
