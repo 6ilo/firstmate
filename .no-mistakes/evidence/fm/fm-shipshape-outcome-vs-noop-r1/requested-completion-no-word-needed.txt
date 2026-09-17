@@ -1,0 +1,6 @@
+SCENARIO: requested completion with no remaining decision
+PROMPT:
+This is a supervision processing request delivered automatically by the supervision branch. It was not typed by the captain. The outcome below is already stored durably and already shown to the captain as a dim anchor entry in this transcript; the fleet event is already handled, so do not re-drain, re-run, or acknowledge the wake. Process the outcome now as firstmate: give the captain a visible response where one is due. [seq 42] release-fix: the fix the captain requested is complete and already landed under the project standing merge authority; no review, approval, merge, design pick, or other captain decision remains.
+
+PRODUCT RESPONSE:
+Captain, the requested release fix is complete and landed.

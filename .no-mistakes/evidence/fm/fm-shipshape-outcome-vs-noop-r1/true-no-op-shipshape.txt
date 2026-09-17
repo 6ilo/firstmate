@@ -1,0 +1,6 @@
+SCENARIO: true no-op operational update
+PROMPT:
+This is a routine operational update delivered automatically, not a captain message. An idle re-read found no new work, no changed state, no consequence, and no decision or action for the captain. A response must still be sent.
+
+PRODUCT RESPONSE:
+Captain, shipshape.
