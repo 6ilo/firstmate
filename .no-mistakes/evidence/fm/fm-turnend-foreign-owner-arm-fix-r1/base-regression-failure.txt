@@ -1,0 +1,11 @@
+SETUP live synthetic owner= 50329 lock= 50329
+second-session acquisition rc=0 stdout='lock_rc=1\n' stderr='error: another live firstmate session holds the lock (pid 50329); operate read-only until resolved\n'
+nonowner autoarm rc=0 stdout='autoarm_rc=0\n' stderr=''
+nonowner stop 1 rc=2 stdout='' stderr='●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n●  TURN WOULD END BLIND - SUPERVISION IS OFF\n●  1 task(s) in flight, but no live watcher holds this home lock (last beat: 601s ago).\n●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.\n●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.\n●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+Traceback (most recent call last):
+  File "/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2RJSMX43VA8SG59D40PWSN2/./.nm-base-repro.uLE2uI/tests/fm-turnend-foreign-owner-repro.py", line 158, in <module>
+    require(result.returncode == 0, f"foreign-owner Stop {number} must end safely")
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2RJSMX43VA8SG59D40PWSN2/./.nm-base-repro.uLE2uI/tests/fm-turnend-foreign-owner-repro.py", line 126, in require
+    raise RuntimeError(message)
+RuntimeError: foreign-owner Stop 1 must end safely
