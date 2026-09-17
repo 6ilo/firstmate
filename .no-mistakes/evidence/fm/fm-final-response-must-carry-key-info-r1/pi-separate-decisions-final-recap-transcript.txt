@@ -1,0 +1,22 @@
+Live Pi transcript — separate asks plus final visibility recap
+==============================================================
+ASSISTANT: Captain, should I merge the ready authentication PR at https://github.com/example/harbor/pull/314?
+
+Approval is needed now. Options: **merge** or **wait**. I recommend **merge** because all checks passed.
+TOOL CALL: bash {"command":"printf \"first decision recorded\\n\""}
+TOOL RESULT: bash => first decision recorded
+
+ASSISTANT: Captain, should the dashboard use **light** or **dark** mode?
+
+Implementation is waiting on this choice. I recommend **dark** for accessibility.
+TOOL CALL: bash {"command":"printf \"second decision recorded\\n\""}
+TOOL RESULT: bash => second decision recorded
+
+ASSISTANT: Captain, two separate decisions remain outstanding:
+
+1. Authentication PR: **merge or wait**  
+   https://github.com/example/harbor/pull/314
+
+2. Dashboard theme: **light or dark mode**
+
+Each requires its own decision.

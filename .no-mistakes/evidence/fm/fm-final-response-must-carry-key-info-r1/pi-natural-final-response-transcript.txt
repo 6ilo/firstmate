@@ -1,0 +1,7 @@
+Live Pi transcript — natural branch-outcome turn
+================================================
+ASSISTANT: Captain, the authentication fix is complete and ready for review: https://github.com/example/harbor/pull/314. Would you like me to merge it?
+TOOL CALL: bash {"command":"printf \"branch processed\\n\""}
+TOOL RESULT: bash => branch processed
+
+ASSISTANT: Captain, the authentication fix is complete and ready for review: https://github.com/example/harbor/pull/314. Would you like me to merge it?
