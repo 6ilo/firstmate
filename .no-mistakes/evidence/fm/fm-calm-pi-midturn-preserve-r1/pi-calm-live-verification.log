@@ -1,0 +1,10 @@
+Pi version: 0.82.0
+Calm persisted state: on
+Visible markers:
+ AT_240_PRESERVED_MARKER
+ LONG_PRESERVED_MARKER context context context context context context context context context context context context context context context context context context context
+ MULTILINE_PRESERVED_MARKER
+ Second captain-facing line.
+ MIXED_LONG_PRESERVED_MARKER context context context context context context context context context context context context context context context context context context
+ FINAL_REPLY_VISIBLE_MARKER
+Hidden-marker search (expected no output):

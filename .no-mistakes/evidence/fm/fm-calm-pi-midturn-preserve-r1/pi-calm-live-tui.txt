@@ -1,0 +1,50 @@
+
+ pi v0.82.0
+ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more
+ Press ctrl+o to show full startup help and loaded resources.
+
+ Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.
+
+[Extensions]
+  fm-calm.ts
+
+
+ Calm preservation fixture
+
+
+ AT_240_PRESERVED_MARKER
+ tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt
+ tttttttttttttttttttttttttttttttttttttt
+
+ LONG_PRESERVED_MARKER context context context context context context context context context context context context context context context context context context context
+ context context context context context context context context context context context context context context context
+
+ MULTILINE_PRESERVED_MARKER
+ Second captain-facing line.
+
+ MIXED_LONG_PRESERVED_MARKER context context context context context context context context context context context context context context context context context context
+ context context context context context context context context context context context context context context context context
+
+ FINAL_REPLY_VISIBLE_MARKER
+
+ Warning: No models available. Use /login to log into a provider via OAuth or API key. See:
+   /Applications/Pi Launcher.app/Contents/Resources/pi/docs/providers.md
+   /Applications/Pi Launcher.app/Contents/Resources/pi/docs/models.md
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~/.no-mistakes/evidence/01M2RQ0HNB8TVJYJ1DKYJDQ8A5/live-pi-calm/project (main)
+0.0%/0 (auto)                                                                                                                                                                unknown
+
+
+
+
+
+
+
+
+
+
+
+
