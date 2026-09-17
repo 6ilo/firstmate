@@ -1,0 +1,19 @@
+SCENARIO: no key preserves legacy routing
+$ env -u TYPESAFE_API_KEY FM_HOME=<isolated-home> bin/fm-dispatch-resolve.sh <brief>
+dispatch-resolve: off (TYPESAFE_API_KEY absent from the environment and /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M2PC6R7J66RVCNQWSHW91VPK/state/dispatch-live/.env)
+exit=0
+
+SCENARIO: opted in but rules file absent
+$ TYPESAFE_API_KEY=<nonempty> FM_HOME=<empty-home> bin/fm-dispatch-resolve.sh <brief>
+dispatch-resolve:
+  status: escalate
+  reason: no rules to match
+exit=0
+
+SCENARIO: real endpoint rejects invalid credential without blocking intake
+$ TYPESAFE_API_KEY=<invalid-test-value> FM_HOME=<isolated-home> bin/fm-dispatch-resolve.sh <brief>
+dispatch-resolve: error (http 401 after 138 ms: {"detail":{"error_type":"authentication_error","message":"Cannot authenticate with the server. Please check your API key and try again."}})
+dispatch-resolve:
+  status: error
+  reason: http 401 after 138 ms: {"detail":{"error_type":"authentication_error","message":"Cannot authenticate with the server. Please check your API key and try again."}}
+exit=0
