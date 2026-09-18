@@ -1,0 +1,7 @@
+$ bin/fm-test-run.sh --check-coverage
+FM_TEST_COVERAGE ok total=216 parallel=24 parallel_max_ms=417163 parallel_imbalance_ms=2894 parallel_unhinted=0 serial=176 serial_shards=9 serial_unhinted=0 herdr=16
+
+$ lint partition inventory summary (public --list-files interface)
+1of2 roots=204
+2of2 roots=204
+partition union exactly matches canonical inventory
