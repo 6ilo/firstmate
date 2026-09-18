@@ -1,0 +1,6 @@
+ok - ship launch with no allowlist starts its agent with the compact-adviser switch on
+ok - ship launch under an enabled allowlist keeps the compact-adviser switch through the cleared environment
+ok - the launch command sets the switch on its own, whichever allowlist posture is in force
+ok - a secondmate launch carries the compact-adviser switch in both allowlist postures
+ok - relaunch rebuilds the compact-adviser switch for the replacement agent in both allowlist postures
+ok - a compound raw launch-command still starts its agent with the compact-adviser switch on

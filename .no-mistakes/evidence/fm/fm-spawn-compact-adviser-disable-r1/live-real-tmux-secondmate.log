@@ -1,0 +1,7 @@
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+warning: secondmate live-sm sync skipped before launch: primary default-branch commit cannot be resolved
+spawned live-sm harness=probe kind=secondmate mode=secondmate yolo=off window=firstmate:fm-live-sm worktree=/Users/kunchen/.no-mistakes/evidence/01M2V8J3GWDPSBQ26ER6NE61XE/.live-runtime/second
+spawn_exit=0
+agent_COMPACT_ADVISER_DISABLE=1
+captain_COMPACT_ADVISER_DISABLE=0
