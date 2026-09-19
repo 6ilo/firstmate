@@ -1,0 +1,62 @@
+AFK slice 1 live CLI exercise
+
+$ env FM_HOME=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home FM_SUPERVISION_ACTOR=branch /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-pr-merge.sh task-x https://github.com/o/r/pull/1
+error: PR merge (fm-pr-merge) refused - the supervision branch never performs this action; report the outcome and leave it to main (role partition: docs/pi-supervision-branch.md)
+[exit 6]
+
+$ env FM_HOME=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-afk-contract.sh propose --spend 2 --grant task-x
+Away posture read-back (proposed, not yet confirmed):
+  entered: 2026-09-19T01:21:40Z
+  expected return: not given
+  spend cap: 2 concurrent workers
+  merge when green (task ids): task-x
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words: (none)
+  accepted clauses:
+    (none)
+  refused clauses:
+    (none)
+  everything else waits for your return: no red merge without its named check, no discard without a named object and condition, never credentials, legal, financial, or attended prompts, nothing by analogy, and every clause expires at return.
+  hard rule: forbidden, destructive, irreversible, and security-sensitive actions are never pre-authorizable regardless of clause text; no recorded clause is authority by itself.
+  recorded clauses are held for the return brief and are not executed by this release.
+Say go to confirm; restate any refused clause first if you want it recorded.
+[exit 0]
+
+$ env FM_HOME=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-afk-contract.sh confirm
+Away posture confirmed at 2026-09-19T01:21:41Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. No mandate clauses recorded. Forbidden, destructive, irreversible, and security-sensitive actions are never pre-authorizable regardless of clause text, and no recorded clause is authority by itself. Expected return: not given. Spend cap: 2 concurrent workers.
+[exit 0]
+
+$ env FM_HOME=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home FM_SUPERVISION_ACTOR=branch /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-pr-merge.sh task-x https://github.com/o/r/pull/1
+note: PR merge (fm-pr-merge) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+error: task metadata is unavailable
+[exit 1]
+
+$ env -u NO_MISTAKES_GATE FM_HOME=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home FM_ROOT_OVERRIDE=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/root FM_SUPERVISION_ACTOR=branch /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-spawn.sh task-arbitrary /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/missing-project --mode no-mistakes --yolo off
+note: new-task spawn (fm-spawn) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+note: new-task spawn (fm-spawn) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+error: spawn refused - the supervision branch under the away-posture record may dispatch only already-queued unblocked work; task task-arbitrary has no dispatchable backlog item in this home
+[exit 1]
+
+$ env -u NO_MISTAKES_GATE FM_HOME=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home FM_ROOT_OVERRIDE=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/root FM_SUPERVISION_ACTOR=branch /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-spawn.sh task-inflight /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/missing-project --mode no-mistakes --yolo off
+note: new-task spawn (fm-spawn) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+note: new-task spawn (fm-spawn) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+error: spawn refused - the supervision branch under the away-posture record may dispatch only already-queued unblocked work; task task-inflight has no dispatchable backlog item in this home
+[exit 1]
+
+$ env -u NO_MISTAKES_GATE FM_HOME=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home FM_ROOT_OVERRIDE=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/root FM_SUPERVISION_ACTOR=branch /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-spawn.sh task-queued /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/missing-project --mode no-mistakes --yolo off
+note: new-task spawn (fm-spawn) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+note: new-task spawn (fm-spawn) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-spawn.sh: line 2590: cd: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/missing-project: No such file or directory
+[exit 1]
+
+$ env FM_HOME=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home FM_SUPERVISION_ACTOR=branch /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-merge-local.sh task-x
+error: local-only landing (fm-merge-local) refused - the supervision branch never performs this action; report the outcome and leave it to main (role partition: docs/pi-supervision-branch.md)
+[exit 6]
+
+$ env FM_HOME=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-afk-contract.sh archive
+/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home/state/afk-contracts/1789780901.afk-contract
+[exit 0]
+
+$ env FM_HOME=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/.test-afk-live-13160/home FM_SUPERVISION_ACTOR=branch /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2VB5T940WFC0K4A7GWAG11C/bin/fm-pr-merge.sh task-x https://github.com/o/r/pull/1
+error: PR merge (fm-pr-merge) refused - the supervision branch never performs this action; report the outcome and leave it to main (role partition: docs/pi-supervision-branch.md)
+[exit 6]
