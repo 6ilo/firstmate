@@ -1,0 +1,3 @@
+lock acquired: harness pid 44032
+sidecar=session:with punctuation
+lock: held by live harness pid 44032

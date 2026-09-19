@@ -1,0 +1,3 @@
+phase A: signal restored OLD beside unchanged pid 1
+phase B: signal removed sidecar beside unverified new pid 83246
+phase C: signal preserved NEW beside verified new pid 83951
