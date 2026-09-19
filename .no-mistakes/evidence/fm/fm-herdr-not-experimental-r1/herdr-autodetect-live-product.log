@@ -1,0 +1,10 @@
+FM_TEST_BEGIN 2026-09-19T20:34:27Z tests/fm-backend-autodetect-smoke.test.sh family=real-herdr-gated expected_gate_skip=herdr
+ok - real herdr: fm-spawn.sh auto-detects verified herdr from HERDR_ENV=1 (no explicit config) without an opt-out steer
+ok - real herdr: auto-detected spawn records backend=herdr and herdr_session/workspace/tab/pane fields in meta
+ok - real herdr: the auto-detected spawn's launch command actually ran in the herdr pane
+ok - real herdr: teardown completes the auto-detected spawn/teardown cycle (meta cleared, pane closed)
+ok - real herdr: isolated lab session removed and default fleet session unchanged
+FM_TEST_END 2026-09-19T20:34:41Z tests/fm-backend-autodetect-smoke.test.sh exit=0 duration_ms=13452 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=13523
+FM_TEST_SUMMARY_FAMILY family=real-herdr-gated count=1 duration_ms=13452 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-backend-autodetect-smoke.test.sh duration_ms=13452
