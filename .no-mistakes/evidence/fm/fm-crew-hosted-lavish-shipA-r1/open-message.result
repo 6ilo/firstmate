@@ -1,0 +1,5 @@
+session:
+  file: /review.html
+  status: feedback
+prompts[1]{uid,prompt,selector,tag,text}:
+  "","captain is still reviewing","",message,""

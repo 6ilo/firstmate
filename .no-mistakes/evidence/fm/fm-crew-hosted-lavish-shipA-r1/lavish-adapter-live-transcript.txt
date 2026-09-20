@@ -1,0 +1,39 @@
+classify feedback             => feedback
+classify ended                => ended
+classify waiting              => waiting
+classify browser_disconnected => disconnected
+silent browser_disconnected => exit 0 (silent)
+
+--- open-session read ---
+CAPTAIN MESSAGE
+| captain is still reviewing
+END CAPTAIN MESSAGE
+
+declared_items: 1
+presented_items: 1
+malformed_items: 0
+complete: yes
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+session_ending_message_count: 1
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (1 of 1)
+
+--- session-ending read ---
+SESSION-ENDING MESSAGE
+| ship this version
+END SESSION-ENDING MESSAGE
+
+declared_items: 1
+presented_items: 1
+malformed_items: 0
+complete: yes
+lifecycle: feedback
+session_ended: true
+annotation_count: 0
+session_ending_message_count: 1
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (1 of 1)
