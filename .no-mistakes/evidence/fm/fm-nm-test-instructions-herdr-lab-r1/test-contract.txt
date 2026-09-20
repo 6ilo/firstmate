@@ -1,0 +1,14 @@
+$ bash tests/fm-nm-test-contract.test.sh
+ok - no-mistakes does not configure commands.test
+ok - no-mistakes configures non-empty test.instructions
+
+$ ruby semantic config comparison (base vs target; instruction prose not inspected)
+{
+  "target_yaml_parses": true,
+  "commands.test_absent": true,
+  "test.instructions_nonempty_string": true,
+  "commands.lint_unchanged": true,
+  "document.instructions_unchanged": true,
+  "disable_project_settings_unchanged": true,
+  "test.evidence_unchanged": true
+}
