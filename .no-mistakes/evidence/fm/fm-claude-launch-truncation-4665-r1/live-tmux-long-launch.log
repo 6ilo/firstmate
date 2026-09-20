@@ -1,0 +1,40 @@
+scenario=real tmux long launch through fm-spawn
+spawn_exit=0
+input_command_bytes=1511
+expected_payload_bytes=1400
+actual_payload_bytes=1400
+expected_sha256=48201fa27303770b97bce3d5900f85b55b00595c085bc8c7138217a3fdfa9f97
+actual_sha256=48201fa27303770b97bce3d5900f85b55b00595c085bc8c7138217a3fdfa9f97
+launch_dir=/tmp/fm-live-long-launch-14395+f8b4e04d2368de6b4bf15c68d805f83f74593fa41792e6787573ec6b57ef5c20
+launch_dir_mode=700
+launch_file=/tmp/fm-live-long-launch-14395+f8b4e04d2368de6b4bf15c68d805f83f74593fa41792e6787573ec6b57ef5c20/launch.s1789868603.15245.29900.sh
+launch_file_mode=600
+launch_file_bytes=1951
+--- spawn output ---
+warning: secondmate live-long-launch-14395 sync skipped before launch: primary default-branch commit cannot be resolved
+spawned live-long-launch-14395 harness=printf kind=secondmate mode=secondmate yolo=off window=firstmate:fm-live-long-launch-14395 worktree=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M2Y4S6BR4CPJZ8XAFWZMK70E/.test-live-launch/secondmate
+--- pane ---
+01M2Y4S6BR4CPJZ8XAFWZMK70E/.test-live-launch/secondmate HEAD*?
+❯ export GOTMPDIR=/tmp/fm-live-long-launch-14395/gotmp
+export COMPACT_ADVISER_DISABLE=1
+01M2Y4S6BR4CPJZ8XAFWZMK70E/.test-live-launch/secondmate HEAD*?
+❯ export COMPACT_ADVISER_DISABLE=1
+01M2Y4S6BR4CPJZ8XAFWZMK70E/.test-live-launch/secondmate HEAD*?
+❯ . '/tmp/fm-live-long-launch-14395+f8b4e04d2368de6b4bf15c68d805f83f74593fa41792
+e6787573ec6b57ef5c20/launch.s1789868603.15245.29900.sh'
+01M2Y4S6BR4CPJZ8XAFWZMK70E/.test-live-launch/secondmate HEAD*?
+❯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
