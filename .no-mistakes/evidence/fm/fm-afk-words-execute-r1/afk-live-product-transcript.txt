@@ -1,0 +1,59 @@
+SCENARIO 1 — captain enters verbatim away words and confirms the plain-language read-back
+$ fm-afk-contract.sh propose --words-file words.txt --expected-return 2026-09-21T08:00Z --spend 2
+Away posture read-back (proposed, not yet confirmed):
+  entered: 2026-09-20T21:34:37Z
+  expected return: 2026-09-21T08:00Z
+  spend cap: 2 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    merge the windows fix when green, then cut a prerelease
+    
+Say go to confirm; restate your instructions first if this reading is not what you meant.
+
+$ fm-afk-contract.sh confirm
+Away posture confirmed at 2026-09-20T21:34:37Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: 2026-09-21T08:00Z. Spend cap: 2 concurrent workers.
+
+Persisted words bytes (od -An -tx1; final 0a 0a proves both trailing newlines):
+           6d  65  72  67  65  20  74  68  65  20  77  69  6e  64  6f  77
+           73  20  66  69  78  20  77  68  65  6e  20  67  72  65  65  6e
+           2c  20  74  68  65  6e  20  63  75  74  20  61  20  70  72  65
+           72  65  6c  65  61  73  65  0a  0a                            
+
+
+SCENARIO 2 — damaged v2 and v1 words tails are rejected rather than silently truncated
+$ fm-afk-contract.sh validate  # damaged v2
+fm-afk-contract: record /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M3092XBFQFWA9M1TXSEBEPNJ/.test-afk-live-39216/state/.afk-contract has an invalid words block: the line after the stored words is neither a stored line nor a section this record version ends the block at: hold B until I return
+exit=1
+$ fm-afk-contract.sh archive   # damaged v2
+fm-afk-contract: record /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M3092XBFQFWA9M1TXSEBEPNJ/.test-afk-live-39216/state/.afk-contract has an invalid words block: the line after the stored words is neither a stored line nor a section this record version ends the block at: hold B until I return
+fm-afk-contract: confirmed away-posture record at /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M3092XBFQFWA9M1TXSEBEPNJ/.test-afk-live-39216/state/.afk-contract is invalid; refusing to archive
+exit=1
+$ fm-afk-contract.sh validate  # damaged v1 before recognized clauses section
+fm-afk-contract: record /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M3092XBFQFWA9M1TXSEBEPNJ/.test-afk-live-39216/state/.afk-contract has an invalid words block: the line after the stored words is neither a stored line nor a section this record version ends the block at: hold B until I return
+exit=1
+
+SCENARIO 3 — return brief shows verbatim instructions and only exact action-marker outcomes
+$ fm-afk-return.sh begin
+fm-afk-launch: away-posture record archived at /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M3092XBFQFWA9M1TXSEBEPNJ/.test-afk-live-39216/state/afk-contracts/1789940078.afk-contract
+fm-afk-launch: away mode stopped; daemon terminal torn down, .afk cleared, and the posture record archived
+=== Return brief (away 2026-09-20T21:34:38Z -> 2026-09-20T21:34:39Z, 1s) ===
+Supervisor health:
+  - supervision ran through the away window with no detected gap (watcher beat 0s old at return)
+Your instructions:
+  your words at entry:
+    merge the windows fix when green, then cut a prerelease
+    
+  the away session acted on them:
+    - windows: per your away instructions: merged the windows fix after checks went green
+Waiting on you:
+  (nothing)
+Tried and failed, or could not be fixed:
+  (nothing)
+Handled while away:
+  2 outcome(s) handled by the away session (2 routine, 0 escalated above)
+  2 routine outcome(s) recorded; the latest:
+    - windows: per your away instructions were unclear, so I held
+    - windows: per your away instructions: merged the windows fix after checks went green
+Cost: 2 supervision outcome(s) recorded (2 routine, 0 captain); 0 task(s) live at return.
+catch-up health: supervision ran through the away window with no detected gap (watcher beat 0s old at return)
+fm-afk-return: catch-up clear; ordinary captain work may proceed
