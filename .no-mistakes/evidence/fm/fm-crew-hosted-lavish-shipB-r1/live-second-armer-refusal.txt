@@ -1,0 +1,4 @@
+status=1
+stdout:
+stderr:
+error: cannot arm task-owned Lavish source lavish-b00b4ff70941981a owned by task worker-live; steer that task to re-arm its board

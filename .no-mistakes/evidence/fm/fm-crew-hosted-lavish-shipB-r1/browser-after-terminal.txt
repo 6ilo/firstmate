@@ -1,0 +1,20 @@
+page:
+  title: Worker-owned board live validation · Lavish
+  refs: 11
+snapshot:
+uid=g11:1_0 RootWebArea "Worker-owned board live validation · Lavish" url="http://100.99.161.42:4387/session/b00b4ff70941981a"
+  uid=g11:1_1 StaticText "Lavish"
+  uid=g11:1_2 StaticText "EDITOR"
+  uid=g11:1_3 button "Annotate" description="Toggle annotate/explore mode (⌘I / Ctrl+I)" disableable disabled pressed
+  uid=g11:1_4 button "More" disableable disabled expandable haspopup="menu"
+  uid=g11:1_10 complementary
+    uid=g11:1_11 heading "Conversation" level="2"
+  uid=g11:10_0 StaticText "Session ended."
+  uid=g11:10_1 LineBreak "
+"
+  uid=g11:10_2 StaticText "Return to your agent to continue."
+  uid=g11:10_3 StaticText "/Users/kunchen/.no-mistakes/evidence/01M30G6BW5H1R6GPJDGE0VACGA/live-board.html"
+help[3]:
+  Run `chrome-devtools-axi click @g11:1_3` to click the "Annotate" button
+  Run `chrome-devtools-axi scroll down` to scroll down
+  Use `chrome-devtools-axi eval <expr>` for JS expressions. For multi-statement code, pass a function: `eval "() => { ...; return result }"`

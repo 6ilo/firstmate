@@ -1,0 +1,29 @@
+page:
+  title: Worker-owned board live validation · Lavish
+  refs: 20
+snapshot:
+uid=g6:1_0 RootWebArea "Worker-owned board live validation · Lavish" url="http://100.99.161.42:4387/session/b00b4ff70941981a"
+  uid=g6:1_1 StaticText "Lavish"
+  uid=g6:1_2 StaticText "EDITOR"
+  uid=g6:1_3 button "Annotate" description="Toggle annotate/explore mode (⌘I / Ctrl+I)" pressed
+  uid=g6:1_4 button "More" expandable haspopup="menu"
+  uid=g6:1_5 Iframe
+    uid=g6:1_6 RootWebArea "Worker-owned board live validation" url="http://100.99.161.42:4387/artifact/b00b4ff70941981a/index.html?artifact_revision=3&artifact_load_token=09gn9-QRTAijq6dwKUFZcYQodVKiMOg3"
+      uid=g6:1_7 main
+        uid=g6:1_8 heading "Worker-owned Lavish listener" level="1"
+        uid=g6:1_9 StaticText "Captain feedback should route directly to the owning worker."
+  uid=g6:1_10 complementary
+    uid=g6:1_11 heading "Conversation" level="2"
+    uid=g6:6_0 StaticText "YOU"
+    uid=g6:6_1 StaticText "Round one: tighten the direct worker routing proof."
+    uid=g6:6_2 StaticText "Working..."
+    uid=g6:1_13 textbox "Write a message for the agent..." multiline
+    uid=g6:1_14 button "Attach images"
+    uid=g6:1_15 status atomic live="polite" relevant="additions text"
+    uid=g6:1_16 button "Send & End"
+    uid=g6:1_17 button "Send to Agent" focusable focused
+help[4]:
+  Run `chrome-devtools-axi fill @g6:1_13 "text"` to fill the "Write a message for the agent..." field
+  Run `chrome-devtools-axi click @g6:1_3` to click the "Annotate" button
+  Run `chrome-devtools-axi scroll down` to scroll down
+  Use `chrome-devtools-axi eval <expr>` for JS expressions. For multi-statement code, pass a function: `eval "() => { ...; return result }"`

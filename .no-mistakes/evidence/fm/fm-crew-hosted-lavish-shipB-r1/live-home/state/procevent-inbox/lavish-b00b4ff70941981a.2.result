@@ -1,0 +1,9 @@
+session:
+  file: /Users/kunchen/.no-mistakes/evidence/01M30G6BW5H1R6GPJDGE0VACGA/live-board.html
+  status: feedback
+  session_ended: true
+  ended_by: user
+prompts[1]{uid,prompt,selector,tag,text}:
+  "","Terminal round: conclude this review now.","",message,Freeform message
+next_step: This was the last feedback before the user ended the session. Stop polling /Users/kunchen/.no-mistakes/evidence/01M30G6BW5H1R6GPJDGE0VACGA/live-board.html and do not reopen it - deliver any remaining updates directly in this conversation instead. Only run `lavish-axi /Users/kunchen/.no-mistakes/evidence/01M30G6BW5H1R6GPJDGE0VACGA/live-board.html --reopen` if the user explicitly asks for further review or something genuinely important needs their visual attention.
+dom_snapshot: "uid=1 body \"Worker-owned Lavish listener Captain feedback should route directly to the ownin\"\n  uid=2 main \"Worker-owned Lavish listener Captain feedback should route directly to the ownin\"\n    uid=3 h1 \"Worker-owned Lavish listener\"\n    uid=4 p \"Captain feedback should route directly to the owning worker.\"\n  uid=5 script"

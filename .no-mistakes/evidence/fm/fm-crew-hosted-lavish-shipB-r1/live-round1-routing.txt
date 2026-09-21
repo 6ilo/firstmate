@@ -1,0 +1,22 @@
+=== worker inbox ===
+schema=fm-task-inbox.v1
+at=2026-09-21T03:34:03Z
+--
+Lavish review feedback is captured for task worker-live at /Users/kunchen/.no-mistakes/evidence/01M30G6BW5H1R6GPJDGE0VACGA/live-home/state/procevent-inbox/lavish-b00b4ff70941981a.1.result. Read it with bin/fm-procevent-lavish.sh read /Users/kunchen/.no-mistakes/evidence/01M30G6BW5H1R6GPJDGE0VACGA/live-home/state/procevent-inbox/lavish-b00b4ff70941981a.1.result, apply the round, and re-arm the board with the reply.=== captured Lavish result ===
+CAPTAIN MESSAGE
+| Round one: tighten the direct worker routing proof.
+END CAPTAIN MESSAGE
+
+declared_items: 1
+presented_items: 1
+malformed_items: 0
+complete: yes
+lifecycle: feedback
+session_ended: (unset)
+annotation_count: 0
+session_ending_message_count: 1
+
+ANNOTATIONS: (none)
+END LAVISH RESULT (1 of 1)
+=== firstmate wake queue ===
+<absent>

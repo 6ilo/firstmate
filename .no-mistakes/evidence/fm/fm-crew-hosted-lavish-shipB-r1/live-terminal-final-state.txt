@@ -1,0 +1,4 @@
+registration_after_ack=absent
+handled_round2=yes
+reconcile_after_ack:
+reconciled: published=0 started=0 stopped=0 uncertain=0 failed=0

@@ -1,0 +1,4 @@
+schema=fm-task-inbox.v1
+at=2026-09-21T03:34:47Z
+--
+Lavish review result lavish-b00b4ff70941981a sequence 2 is terminal at /Users/kunchen/.no-mistakes/evidence/01M30G6BW5H1R6GPJDGE0VACGA/live-home/state/procevent-inbox/lavish-b00b4ff70941981a.2.result. Read it with bin/fm-procevent-lavish.sh read /Users/kunchen/.no-mistakes/evidence/01M30G6BW5H1R6GPJDGE0VACGA/live-home/state/procevent-inbox/lavish-b00b4ff70941981a.2.result, stop and conclude the review, and do not re-arm the board. The board stays yours until you acknowledge this round with bin/fm-procevent.sh handled lavish-b00b4ff70941981a 2, which retires it.

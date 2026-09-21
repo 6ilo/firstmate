@@ -1,0 +1,2 @@
+handled: lavish-b00b4ff70941981a 2
+retired: lavish-b00b4ff70941981a (owner acknowledged its terminal round)

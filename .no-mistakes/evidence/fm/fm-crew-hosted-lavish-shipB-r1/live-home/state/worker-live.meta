@@ -1,0 +1,15 @@
+window=fm-lab-lavish-live-56223-23765:w1:p1
+endpoint_task_id=worker-live
+worktree=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M30G6BW5H1R6GPJDGE0VACGA
+project=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M30G6BW5H1R6GPJDGE0VACGA
+harness=pi
+kind=ship
+mode=no-mistakes
+yolo=off
+model=default
+effort=default
+backend=herdr
+herdr_session=fm-lab-lavish-live-56223-23765
+herdr_workspace_id=w1
+herdr_tab_id=w1:t1
+herdr_pane_id=w1:p1
