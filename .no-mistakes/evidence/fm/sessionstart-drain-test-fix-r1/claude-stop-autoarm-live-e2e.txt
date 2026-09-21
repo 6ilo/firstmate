@@ -1,0 +1,4 @@
+$ claude --version
+2.1.278 (Claude Code)
+$ FM_CLAUDE_LIVE_E2E=1 tests/fm-claude-stop-autoarm-live-e2e.test.sh
+ok - Claude 2.1.278 (Claude Code) live E2E reclaimed a stale session lock through session start, completed two tokenless Stop-owned rewake cycles, and preserved the competing-live-owner boundary
