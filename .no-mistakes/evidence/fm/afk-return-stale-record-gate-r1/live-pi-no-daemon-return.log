@@ -1,0 +1,20 @@
+$ bin/fm-afk-launch.sh propose
+Away posture read-back (proposed, not yet confirmed):
+  entered: 2026-09-22T03:33:59Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words: (none)
+Say go to confirm; restate your instructions first if this reading is not what you meant.
+$ bin/fm-afk-launch.sh confirm
+Away posture confirmed at 2026-09-22T03:33:59Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. No away instructions were recorded; the away session acts on standing authority only, and anything that needs you waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+$ state after confirm
+.afk=absent
+.afk-daemon-terminal=absent
+.supervise-daemon.log=absent
+$ bin/fm-afk-launch.sh stop
+fm-afk-launch: away-posture record archived at /Users/kunchen/.no-mistakes/evidence/01M33GF2PHGVGGVERHXPGMDVAH/live-pi-home/state/afk-contracts/1790048039.afk-contract
+fm-afk-launch: away mode stopped; no daemon terminal was running, .afk cleared, and the posture record archived
+$ state after stop
+.afk-contract=absent
+archived-contracts=1

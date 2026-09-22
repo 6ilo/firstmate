@@ -1,0 +1,10 @@
+version: 2
+entered: 2026-09-22T03:33:59Z
+entered_epoch: 1790048039
+expected_return: -
+reach_channels: none
+reach_announced: No phone channel is configured; anything that needs you waits for your return.
+spend_max_concurrent_workers: 4
+confirmed: 2026-09-22T03:33:59Z
+confirmed_epoch: 1790048039
+words: -
