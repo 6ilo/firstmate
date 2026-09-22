@@ -221,7 +221,7 @@ test_the_producer_gate_starts_no_writer_while_the_flag_is_absent() {
   dir="$TMP_ROOT/gate"
   home="$dir/home"
   mkdir -p "$home/state" "$home/config" "$dir/bin"
-  cp "$ROOT/bin/fm-fleet-ledger-lib.sh" "$dir/bin/fm-fleet-ledger-lib.sh"
+  cp "$ROOT/bin/fm-fleet-ledger-lib.sh" "$ROOT/bin/fm-timeout-lib.sh" "$dir/bin/"
   cat > "$dir/bin/fm-fleet-ledger.sh" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FM_STATE_OVERRIDE/writer-started"
@@ -259,7 +259,7 @@ test_enable_records_everything_after_it_and_disable_stops() {
     "the first capture after enable did not record exactly the post-enable line: $(cat "$ledger")"
   assert_equals "after opt-in" "$(jq -r 'select(.event == "task.status") | .text' "$ledger")" \
     "enable replayed history instead of baselining it"
-  run_ledger "$home" disable || fail "disable failed"
+  run_ledger "$home" disable >/dev/null || fail "disable failed"
   assert_absent "$home/config/fleet-ledger" "disable did not turn the ledger off"
   printf 'done: after disable\n' >> "$home/state/old.status"
   run_ledger "$home" capture || fail "a capture on a disabled home failed"
@@ -273,6 +273,125 @@ test_enable_records_everything_after_it_and_disable_stops() {
   assert_equals "1 2 3 4" "$(jq -r '.seq' "$ledger" | paste -sd' ' -)" \
     "the sequence did not continue across disable and enable"
   pass "enable baselines history and records from that moment, and disable stops the ledger"
+}
+
+# Hold the ledger's own lock the way the writer does, from a live process, so
+# the lock's stale-owner recovery cannot reclaim it. Returns once it is held.
+HOLDER_PID=
+hold_ledger_lock() {  # <home> <held-marker> <release-marker>
+  local home=$1 held=$2 release=$3 i=0
+  rm -f "$held" "$release"
+  bash -c '
+    . "$1/bin/fm-wake-lib.sh"
+    fm_lock_acquire_wait "$2/state/.fleet-ledger.lock" || exit 1
+    : > "$3"
+    i=0
+    while [ ! -e "$4" ] && [ "$i" -lt 600 ]; do sleep 0.05; i=$((i + 1)); done
+    fm_lock_release "$2/state/.fleet-ledger.lock"
+  ' _ "$ROOT" "$home" "$held" "$release" &
+  HOLDER_PID=$!
+  while [ ! -e "$held" ] && [ "$i" -lt 200 ]; do sleep 0.05; i=$((i + 1)); done
+  [ -e "$held" ] || fail "the ledger lock could not be taken for the test"
+}
+
+release_ledger_lock() {  # <release-marker>
+  : > "$1"
+  wait "$HOLDER_PID" 2>/dev/null || true
+}
+
+test_flag_changes_wait_for_the_ledger_lock() {
+  local home flag pid
+  home="$TMP_ROOT/serialize/home"
+  mkdir -p "$home/state" "$home/config"
+  flag="$home/config/fleet-ledger"
+  run_ledger "$home" enable >/dev/null || fail "enable failed"
+  hold_ledger_lock "$home" "$TMP_ROOT/off.held" "$TMP_ROOT/off.release"
+  run_ledger "$home" disable >/dev/null &
+  pid=$!
+  sleep 0.5
+  assert_present "$flag" "disable turned the ledger off without holding the ledger lock"
+  release_ledger_lock "$TMP_ROOT/off.release"
+  wait "$pid" || fail "disable failed"
+  assert_absent "$flag" "disable left the ledger on"
+  hold_ledger_lock "$home" "$TMP_ROOT/on.held" "$TMP_ROOT/on.release"
+  run_ledger "$home" enable >/dev/null &
+  pid=$!
+  sleep 0.5
+  assert_absent "$flag" "enable turned the ledger on without holding the ledger lock"
+  release_ledger_lock "$TMP_ROOT/on.release"
+  wait "$pid" || fail "re-enable failed"
+  assert_present "$flag" "enable left the ledger off"
+  pass "enable and disable change the flag only while they hold the ledger lock"
+}
+
+# The reported race: a producer passes the flag test, queues behind the lock,
+# and only reaches the ledger after the ledger was turned off. The flag is
+# removed here while the writer is parked, which is the state disable leaves
+# behind once it has returned.
+test_a_record_that_reaches_the_lock_after_opt_out_writes_nothing() {
+  local home ledger pid
+  home="$TMP_ROOT/optout/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  run_ledger "$home" enable >/dev/null || fail "enable failed"
+  hold_ledger_lock "$home" "$TMP_ROOT/optout.held" "$TMP_ROOT/optout.release"
+  run_ledger "$home" record session.started &
+  pid=$!
+  sleep 0.5
+  assert_equals 1 "$(wc -l < "$ledger" | tr -d ' ')" \
+    "a record was appended while another process held the ledger lock"
+  rm -f "$home/config/fleet-ledger"
+  release_ledger_lock "$TMP_ROOT/optout.release"
+  wait "$pid" || fail "the queued record reported a failure"
+  assert_equals 1 "$(wc -l < "$ledger" | tr -d ' ')" \
+    "a record landed after the ledger was turned off: $(cat "$ledger")"
+  pass "a record that reaches the lock after opt-out writes nothing"
+}
+
+test_a_blocked_writer_does_not_block_its_producer() {
+  local home ledger out
+  home="$TMP_ROOT/bound/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  run_ledger "$home" enable >/dev/null || fail "enable failed"
+  hold_ledger_lock "$home" "$TMP_ROOT/bound.held" "$TMP_ROOT/bound.release"
+  out=$(FM_FLEET_LEDGER_TIMEOUT=1 bash -c '
+    . "$1/bin/fm-fleet-ledger-lib.sh"
+    fm_fleet_ledger "$2" "$2/state" record session.started
+    printf "producer-continued\n"' _ "$ROOT" "$home" 2>&1)
+  release_ledger_lock "$TMP_ROOT/bound.release"
+  assert_contains "$out" "producer-continued" \
+    "a ledger writer that could not proceed stopped its producer"
+  assert_contains "$out" "did not finish within 1s" \
+    "the dropped event was not reported to the producer"
+  assert_equals 1 "$(wc -l < "$ledger" | tr -d ' ')" \
+    "the bounded writer appended a record after it was stopped"
+  pass "a producer whose ledger write cannot proceed is bounded, told, and carries on"
+}
+
+test_invalid_utf8_status_text_is_dropped_with_and_without_iconv() {
+  local home ledger fakebin
+  home="$TMP_ROOT/utf8/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  run_ledger "$home" enable >/dev/null || fail "enable failed"
+  printf 'done: caf\xc3\xa9 \xff ok\n' >> "$home/state/t1.status"
+  run_ledger "$home" capture || fail "capture failed"
+  assert_equals "café  ok" "$(jq -r 'select(.task == "t1") | .text' "$ledger")" \
+    "an invalid byte survived, or valid UTF-8 did not"
+  fakebin=$(fm_fakebin "$TMP_ROOT/utf8")
+  cat > "$fakebin/iconv" <<'SH'
+#!/usr/bin/env bash
+exit 1
+SH
+  chmod +x "$fakebin/iconv"
+  printf 'done: plain \xff bytes\n' >> "$home/state/t2.status"
+  ( PATH="$fakebin:$PATH"; run_ledger "$home" capture ) || fail "capture without iconv failed"
+  assert_equals "plain  bytes" "$(jq -r 'select(.task == "t2") | .text' "$ledger")" \
+    "the fallback kept bytes it cannot prove are valid UTF-8"
+  iconv -f UTF-8 -t UTF-8 "$ledger" >/dev/null 2>&1 \
+    || fail "the ledger is not valid UTF-8: $(cat "$ledger")"
+  pass "invalid UTF-8 in a status line is dropped whether or not iconv works"
 }
 
 test_rotation_keeps_sequence_numbers_continuous() {
@@ -315,5 +434,9 @@ test_on_home_records_the_lifecycle_end_to_end
 test_opt_in_baselines_history_and_reads_new_logs_whole
 test_the_producer_gate_starts_no_writer_while_the_flag_is_absent
 test_enable_records_everything_after_it_and_disable_stops
+test_flag_changes_wait_for_the_ledger_lock
+test_a_record_that_reaches_the_lock_after_opt_out_writes_nothing
+test_a_blocked_writer_does_not_block_its_producer
+test_invalid_utf8_status_text_is_dropped_with_and_without_iconv
 test_rotation_keeps_sequence_numbers_continuous
 test_away_mode_entry_and_return_are_recorded

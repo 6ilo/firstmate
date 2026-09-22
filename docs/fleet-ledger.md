@@ -15,9 +15,9 @@ bin/fm-fleet-ledger.sh disable
 ```
 
 `enable` is the supported way in.
-It marks the current end of every status log, opens the ledger with `ledger.started`, and only then creates the optional, local, gitignored `config/fleet-ledger` presence flag, so everything that happens from the moment the ledger is on is recorded, including activity in tasks that are already running.
+In one locked step it marks the current end of every status log, opens the ledger with `ledger.started`, and creates the optional, local, gitignored `config/fleet-ledger` presence flag, so everything that happens from the moment the ledger is on is recorded, including activity in tasks that are already running, and nothing from before it is.
 Creating that flag by hand instead (`touch config/fleet-ledger`) also turns the ledger on, but the baseline is only taken when firstmate next writes to the ledger, so status lines appended between the touch and that first write are not recorded.
-`disable` removes the flag and leaves the ledger and its read positions in place, so turning it on again continues the same sequence rather than replaying what happened while it was off.
+`disable` takes the same lock to remove the flag, so once it returns no further record is written, not even by a producer that was already on its way; it leaves the ledger and its read positions in place, so turning it on again continues the same sequence rather than replaying what happened while it was off.
 
 With the flag absent, firstmate writes nothing and starts no process for the ledger: each producer pays one file-existence test, and nothing else.
 The flag is per home and is not inherited by secondmate homes; opt each home in whose activity you want to follow.
@@ -72,6 +72,7 @@ Member meanings:
 - `at` is the Unix time the worker stamped into the line with `[at=<epoch>]`, or `null` when the line carries no well-formed stamp.
 - `key` is the line's `[key=<slug>]` correlation key, or `null` when it has none.
 - `text` is the line's message after the first colon (the whole line when it has none), with the time and key stamps removed and at most 2000 bytes kept.
+  Bytes that are not valid UTF-8, including a character the 2000-byte bound cut in half, are dropped; on a host with no working `iconv` every non-ASCII byte is dropped instead, so the line stays valid UTF-8 either way.
 - `via` is `pr` for a merged pull or merge request, with `pr` its URL, or `local` for a local-only landing, with `pr` null.
 - `pr` is the canonical pull or merge request URL.
 
@@ -102,11 +103,12 @@ Records are produced at the existing single places where firstmate already recor
 
 - Records appear in `seq` order, one writer at a time, and each is appended as a whole line.
 - `ts` is when the record was written, so it rises with `seq` apart from clock adjustments; use `at` for when a worker says a status event happened.
-- Status records are at-least-once: an interruption between writing a status record and saving the read position can repeat that status record once under a new `seq`.
+- Status records are at-least-once: an interruption between writing a status record and saving the read position repeats that status record under a new `seq`, and an interruption at that same point on each following attempt repeats it again, with no bound on how many times.
+  A reader that must act on a status event only once has to recognize the repeat itself, by the task and the line's `at` and `text`.
   Lifecycle records are written once per occurrence.
 - A line is only recorded once it ends with a newline, so a worker's half-written line waits for the next pick-up.
 - Records are not synced to disk individually; a machine crash can lose the most recent records.
-- A record that cannot be written is reported on the producer's error output and never blocks the work itself.
+- A record that cannot be written is reported on the producer's error output and never blocks the work itself; a write that has not finished within `FM_FLEET_LEDGER_TIMEOUT` seconds (10 by default) is stopped and reported the same way, so a stuck ledger costs a producer that bound and nothing more.
   Such an event is simply absent: `seq` has no gap for it, because a sequence number is only spent on a record that was written.
 - `seq` restarts at 1 only if both ledger files are deleted.
 

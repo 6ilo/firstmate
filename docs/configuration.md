@@ -212,7 +212,7 @@ See [`trace-context.md`](trace-context.md) for carrier semantics, supported rout
 ## Fleet activity ledger (config/fleet-ledger)
 
 The optional local, gitignored `config/fleet-ledger` presence flag opts this home into the default-off fleet activity ledger, an append-only JSON Lines file at `state/fleet-ledger.jsonl` that outside tools can follow to see task dispatch, worker status events, PR recording and merges, cleanups, session starts, and away mode.
-Turn it on and off with `bin/fm-fleet-ledger.sh enable` and `bin/fm-fleet-ledger.sh disable`, which own the flag; `enable` baselines the status logs before creating it, so activity in tasks that are already running is recorded from that moment.
+Turn it on and off with `bin/fm-fleet-ledger.sh enable` and `bin/fm-fleet-ledger.sh disable`, which own the flag and change it under the ledger's own lock; `enable` baselines the status logs in that same locked step, so activity in tasks that are already running is recorded from that moment, and nothing is written once `disable` has returned.
 With the flag absent each producer performs one file test and nothing else: no process, no write.
 `FM_FLEET_LEDGER_MAX_BYTES` overrides the 8 MiB rotation threshold.
 The flag is per home and is not inherited by secondmate homes.
@@ -1193,6 +1193,7 @@ FM_WATCHER_STALE_GRACE=300   # defaults to FM_GUARD_GRACE if set, else the poll-
 FM_SIGNAL_GRACE=30      # seconds to coalesce nearby status and turn-end signals into one wake
 FM_TURNEND_CHURN_ABSORB_SECS=900   # longest one endpoint's bare turn-ends may be deferred on pane-churn evidence alone; only consulted when config/turnend-churn-absorb is present
 FM_FLEET_LEDGER_MAX_BYTES=8388608   # fleet activity ledger rotation threshold; only consulted when config/fleet-ledger is present (docs/fleet-ledger.md)
+FM_FLEET_LEDGER_TIMEOUT=10   # seconds a producer may spend writing one fleet activity ledger record before the write is stopped and the event reported as dropped; only consulted when config/fleet-ledger is present
 FM_CAPTAIN_RE='done:|needs-decision:|blocked:|failed:|PR ready|checks green|ready in branch|merged'   # captain-relevant status regex; nonterminal progress verbs remain excluded even when their prose matches
 FM_CLASSIFY_PAUSED_VERB=paused     # leading status verb for a declared external wait; excluded from FM_CAPTAIN_RE and distinct from blocked
 FM_STALE_ESCALATE_SECS=240         # idle seconds before a provably-working stale pane escalates, unless that pane's own worker declared a wait that has not elapsed, or, where config/wedge-defer-parked-gate arms it, that pane's crew is parked at a validation gate awaiting the supervisor's decision on it that the crew raised under that run's key and nobody has answered yet, either of which takes the FM_PAUSE_RESURFACE_SECS recheck below instead; stale panes whose crew is not provably working surface immediately unless admitted directly to the declared-wait cadence, while a live idle declared wait still surfaces once before that cadence bounds repeats; at that same escalation moment a recovery-grade agent-state probe (docs/architecture.md owns that dead-record contract) reports a pane whose endpoint is proven `dead` or `missing` once and stops re-escalating it while it stays that way

@@ -23,11 +23,12 @@
 #
 # Usage:
 #   fm-fleet-ledger.sh enable
-#     Turn the ledger on for this home: baseline every existing status log at
-#     its current end, append ledger.started, then create the presence flag, in
-#     that order, so nothing appended after the flag appears can be missed.
+#     Turn the ledger on for this home in one locked transition: baseline every
+#     existing status log at its current end, append ledger.started, and create
+#     the presence flag. Already on is a no-op that keeps the baseline.
 #   fm-fleet-ledger.sh disable
-#     Remove the presence flag. State is left in place, so a later enable
+#     Remove the presence flag, under the same lock, so once it returns no
+#     record can still be written. State is left in place, so a later enable
 #     continues the same sequence without replaying the off period.
 #   fm-fleet-ledger.sh record <event> [--task <id>] [--pr <url>] [--via pr|local]
 #     Append one record. A --task record first captures that task's unread
@@ -43,7 +44,9 @@
 #   fleet-ledger.jsonl     the ledger
 #   fleet-ledger.jsonl.1   the previous generation after one rotation
 #   .fleet-ledger-cursors  "<task>\t<dev:inode>\t<offset>" per status log read
-#   .fleet-ledger.lock     serializes every append, rotation, and cursor write
+#   .fleet-ledger.lock     serializes every append, rotation, cursor write, and
+#                          flag change, and is what record and capture recheck
+#                          the flag under, so nothing lands after disable
 # enable writes the baseline cursors. A flag created by hand leaves none, so
 # the first locked write baselines every existing status log at its current
 # size and appends ledger.started then; status lines appended between that bare
@@ -52,10 +55,13 @@
 # byte 0. A changed inode or a log shorter than its cursor is read from byte 0.
 # Only newline-terminated lines are consumed; a partial tail waits for the
 # next capture. Records are appended before cursors are saved, so a crash in
-# between can repeat those status records once (at-least-once), never lose one.
+# between repeats those status records on the next capture (at-least-once),
+# never loses one; a capture interrupted there repeatedly repeats them again.
 #
 # Environment:
 #   FM_FLEET_LEDGER_MAX_BYTES  rotation threshold in bytes (default 8388608)
+#   FM_FLEET_LEDGER_TIMEOUT    producer-side bound in seconds, read by
+#                              bin/fm-fleet-ledger-lib.sh (default 10)
 #
 # Exit status: 0 on success or when off, 2 on a usage error, 1 when a record
 # could not be written. Callers treat any failure as non-fatal.
@@ -82,12 +88,7 @@ usage() {
 
 case "${1:-}" in
   path) printf '%s\n' "$LEDGER"; exit 0 ;;
-  disable)
-    [ "$#" -eq 1 ] || usage
-    rm -f "$CONFIG/fleet-ledger" || exit 1
-    exit 0
-    ;;
-  enable) [ "$#" -eq 1 ] || usage ;;
+  enable|disable) [ "$#" -eq 1 ] || usage ;;
   record|capture) [ -e "$CONFIG/fleet-ledger" ] || exit 0 ;;
   *) usage ;;
 esac
@@ -121,14 +122,15 @@ json_str() { # <text> -> JSON string, or null when empty
 # Bound free text in bytes and drop invalid UTF-8, including a character the
 # byte cut split, so every record stays valid JSON text.
 bound_text() { # <text>
-  local text=$1
+  local text=$1 converted
   if [ "$(LC_ALL=C; printf '%s' "${#text}")" -gt "$TEXT_MAX_BYTES" ]; then
     text=$(LC_ALL=C; printf '%s' "${text:0:$TEXT_MAX_BYTES}")
   fi
-  if command -v iconv >/dev/null 2>&1; then
-    printf '%s' "$text" | iconv -c -f UTF-8 -t UTF-8 2>/dev/null || printf '%s' "$text"
+  if command -v iconv >/dev/null 2>&1 \
+    && converted=$(printf '%s' "$text" | iconv -c -f UTF-8 -t UTF-8 2>/dev/null); then
+    printf '%s' "$converted"
   else
-    printf '%s' "$text"
+    printf '%s' "$text" | LC_ALL=C tr -d '\200-\377'
   fi
 }
 
@@ -227,15 +229,22 @@ capture_file() { # <task> <file> <offset> <size>
 }
 
 # Opt in from this instant: every existing status log is baselined at its
-# current end, so nothing already in one is replayed and nothing appended after
-# the flag exists is skipped. Caller holds the lock.
+# current end, so nothing already in one is replayed and nothing appended once
+# the flag exists is skipped. The flag is created here, under the lock, so the
+# whole transition is atomic against every writer and against disable.
 enable_locked() {
   local listing
+  [ ! -e "$CONFIG/fleet-ledger" ] || return 0
   listing=$(status_listing)
   : > "$CURSORS.tmp.$$" || return 1
   [ -z "$listing" ] || printf '%s\n' "$listing" > "$CURSORS.tmp.$$" || return 1
   mv -f "$CURSORS.tmp.$$" "$CURSORS" || return 1
-  append ledger.started '' ''
+  append ledger.started '' '' || return 1
+  touch "$CONFIG/fleet-ledger"
+}
+
+disable_locked() {
+  rm -f "$CONFIG/fleet-ledger"
 }
 
 cursor_lookup() { # <cursor-data> <task> -> "<ident>\t<offset>"
@@ -246,6 +255,7 @@ cursor_lookup() { # <cursor-data> <task> -> "<ident>\t<offset>"
 # and keep every other cursor as it was.
 capture_locked() { # [only-task]
   local only=${1:-} listing cursors='' new='' task ident size prev prev_ident prev_off offset baseline=0
+  [ -e "$CONFIG/fleet-ledger" ] || return 0
   listing=$(status_listing)
   if [ -f "$CURSORS" ]; then
     cursors=$(cat "$CURSORS" 2>/dev/null) || return 1
@@ -297,6 +307,7 @@ locked() { # <command> [args...]
 }
 
 record_locked() { # <event> <task> <fragment>
+  [ -e "$CONFIG/fleet-ledger" ] || return 0
   if [ -n "$2" ] || [ ! -f "$CURSORS" ]; then
     capture_locked "$2" || return 1
   fi
@@ -319,13 +330,12 @@ fi
 
 case "$cmd" in
   enable)
-    if [ -e "$CONFIG/fleet-ledger" ]; then
-      printf 'the fleet activity ledger is already on; its records are at %s\n' "$LEDGER"
-      exit 0
-    fi
     locked enable_locked || exit 1
-    touch "$CONFIG/fleet-ledger" || exit 1
     printf 'fleet activity ledger on; its records are at %s\n' "$LEDGER"
+    ;;
+  disable)
+    locked disable_locked || exit 1
+    printf 'fleet activity ledger off; %s is left in place\n' "$LEDGER"
     ;;
   capture)
     locked capture_locked || exit 1
