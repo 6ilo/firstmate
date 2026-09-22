@@ -1,0 +1,1 @@
+ok - failed work on a pr-merged promise delivers its honest outcome exactly once

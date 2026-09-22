@@ -1,0 +1,6 @@
+Scenario: isolated Firstmate bootstrap with installed AXI-family versions
+tasks-axi: 0.2.6
+quota-axi: 0.1.49
+lavish-axi: 0.1.77
+lavish-compatible exit: 0
+bootstrap diagnostics: (none)

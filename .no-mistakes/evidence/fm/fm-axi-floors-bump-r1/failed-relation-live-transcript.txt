@@ -1,0 +1,4 @@
+Scenario: failed bound work on a promised pr-merged final
+tasks-axi version: 0.2.6
+consume output: ready pf-live-failed req-live-failed discord
+persisted public-followup state: {"id":"pf-live-failed","state":"queued","delivery":"ready","relation_state":"failed","accepted_outcome":"failed","error_code":"quota-exhausted","public_safe_outcome":"This work failed because the worker exhausted quota before opening a fix."}

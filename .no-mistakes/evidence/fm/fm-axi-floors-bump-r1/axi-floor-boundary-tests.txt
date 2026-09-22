@@ -1,0 +1,3 @@
+ok - bootstrap permits nonvisual work without compatible lavish-axi and retains its presentation floor
+ok - bootstrap enforces tasks-axi minimum version
+ok - bootstrap enforces quota-axi minimum version
