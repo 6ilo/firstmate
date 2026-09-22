@@ -114,6 +114,8 @@ FM_AFK_CONTRACT_STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 
 # shellcheck source=bin/fm-classify-lib.sh
 . "$FM_AFK_CONTRACT_DIR/fm-classify-lib.sh"
+# shellcheck source=bin/fm-fleet-ledger-lib.sh
+. "$FM_AFK_CONTRACT_DIR/fm-fleet-ledger-lib.sh"
 
 FM_AFK_CONTRACT_VERSION=2
 # Older record versions this script still reads (never writes).
@@ -483,6 +485,8 @@ fm_afk_contract_cmd_enter() {
   }
   if [ -n "${archived:-}" ]; then
     fm_afk_contract_log "replaced the earlier away posture; its record is archived at $archived"
+  else
+    fm_fleet_ledger "$FM_HOME" "$(dirname "$record")" record away.entered
   fi
   rm -f "$legacy"
   fm_afk_contract_render_announcement "$record" || return 1
@@ -499,6 +503,7 @@ fm_afk_contract_cmd_archive() {
   fi
   target=$(fm_afk_contract_archive_target "$record") || return 1
   mv "$record" "$target" || return 1
+  fm_fleet_ledger "$FM_HOME" "$(dirname "$record")" record away.returned
   printf '%s\n' "$target"
 }
 

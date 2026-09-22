@@ -313,6 +313,8 @@ SUB_HOME_PARENT_MARKER=".fm-secondmate-parent"
 . "$SCRIPT_DIR/fm-pending-reply-lib.sh"
 # shellcheck source=bin/fm-nm-run-lib.sh
 . "$SCRIPT_DIR/fm-nm-run-lib.sh"
+# shellcheck source=bin/fm-fleet-ledger-lib.sh
+. "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
 if [ "$#" -lt 1 ] || ! fm_task_id_path_safe "$1"; then
   echo "error: invalid teardown request" >&2
   exit 2
@@ -3698,6 +3700,9 @@ else
 fi
 fm_lock_release "$META_LOCK"
 META_LOCK_HELD=0
+if [ -d "$STATE" ]; then
+  fm_fleet_ledger "$FM_HOME" "$STATE" record task.cleaned_up --task "$ID"
+fi
 if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$MODE" != local-only ]; then
   "$FM_ROOT/bin/fm-fleet-sync.sh" "$PROJ" || true
 fi

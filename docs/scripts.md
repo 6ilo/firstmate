@@ -16,6 +16,8 @@ The shared no-mistakes gate refusal for fleet lifecycle entrypoints is summarize
 | `fm-fleet-sync.sh`       | Refresh project clones with safe fast-forwards, self-heals, `STUCK:` reports, branch pruning, and bounded recovery from an orphaned `.git/packed-refs.lock` |
 | `fm-fleet-snapshot.sh`   | Print structured fleet snapshot JSON and refresh only its parent-side remote-ledger cache (schema `fm-fleet-snapshot.v1`) |
 | `fm-home-summary-refresh.sh` | Atomically publish this home's structured summary ledger                         |
+| `fm-fleet-ledger.sh`     | Append the opt-in fleet activity ledger's records for outside tools ([contract](fleet-ledger.md)) |
+| `fm-fleet-ledger-lib.sh` | Producer-side gate that makes the fleet ledger a single file test while it is off  |
 | `fm-fleet-view.sh`       | Render the fleet snapshot as a human Markdown view                                   |
 | `fm-bearings-snapshot.sh` | Project the bounded remote-ledger fleet snapshot to compact TOON; `--include-prs` adds live GitHub enrichment |
 | `fm-bearings-board.sh`   | Build and arm the stable interactive `/bearings lavish` fleet board                  |

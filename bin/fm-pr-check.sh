@@ -27,6 +27,8 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 # shellcheck source=bin/fm-parent-channel-lib.sh
 . "$SCRIPT_DIR/fm-parent-channel-lib.sh"
+# shellcheck source=bin/fm-fleet-ledger-lib.sh
+. "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
 
 if [ "$#" -ne 2 ]; then
   echo "error: invalid PR check request" >&2
@@ -193,4 +195,5 @@ case "$READY_RC" in
   0|1) ;;
   *) printf 'actionable: PR %s is registered but its ready line did not reach the parent channel (rc=%s)\n' "$URL" "$READY_RC" >&2 ;;
 esac
+fm_fleet_ledger "$FM_HOME" "$STATE" record task.pr_recorded --task "$ID" --pr "$URL"
 printf 'armed: state/%s.check.sh\n' "$ID"
