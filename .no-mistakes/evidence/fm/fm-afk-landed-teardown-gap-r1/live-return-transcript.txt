@@ -1,0 +1,35 @@
+Scenario: returning captain sees landed workers that still need cleanup
+Herdr session: fm-lab-landed-return-42367-9883
+Live endpoint checks before return:
+{"pane_id":"w1:p1","label":null}
+{"pane_id":"w1:p2","label":null}
+
+Product output:
+=== Return brief (away 2026-09-22T17:16:40Z -> 2026-09-22T17:16:45Z, 5s) ===
+Supervisor health:
+  - supervision ran through the away window with no detected gap (watcher beat 1s old at return)
+Your instructions:
+  your words at entry:
+    all no-mistakes workflow changes should merge and complete
+  the away session took no action under them.
+Waiting on you:
+  (nothing)
+Tried and failed, or could not be fixed:
+  (nothing)
+Landed, cleanup due:
+  - landed: https://github.com/example/landed/pull/7 is merged and the worker is still up; close it with bin/fm-teardown.sh landed once catch-up clears
+Handled while away:
+  0 outcome(s) handled by the away session (0 routine, 0 escalated above)
+  (no routine outcomes recorded in the store for this window)
+Cost: 0 supervision outcome(s) recorded (0 routine, 0 captain); 2 task(s) live at return.
+catch-up health: supervision ran through the away window with no detected gap (watcher beat 1s old at return)
+catch-up wake: STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome):
+catch-up wake: landed done [at=1]: PR https://github.com/example/landed/pull/7
+catch-up wake: open done [at=1]: PR https://github.com/example/open/pull/8
+fm-afk-return: catch-up clear; ordinary captain work may proceed
+
+Postconditions:
+away contract archived: yes
+catch-up gate clear: yes
+landed worker still live for instructed teardown: yes
+unmerged control worker still live and not listed: yes

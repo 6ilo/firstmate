@@ -1,0 +1,15 @@
+LIVE SUPERVISION SCENARIO 1 — MERGE-LANDED CLEANUP
+1790099367	1	check	merge-landed:landed-live	check: merge landed: landed-live https://github.com/example/fixture/pull/71
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 90342.1790099371.CNqJWE
+teardown landed-live complete (window fm-lab-landed-supervisi-82929-24239:w1:p2, worktree /Users/kunchen/.treehouse/project-bfc76e/1/project)
+SCENARIO merge-landed: PASS - ordinary supervision removed the task record and exact Herdr pane
+
+LIVE SUPERVISION SCENARIO 2 — UNLANDED REFUSAL
+1790099427	2	check	merge-landed:unlanded-live	check: merge landed: unlanded-live https://github.com/example/fixture/pull/72
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 90342.1790099371.CNqJWE
+REFUSED: worktree /Users/kunchen/.treehouse/project-bfc76e/1/project has uncommitted changes.
+uncommitted changes present
+Commit them (or get the captain's explicit OK to discard, then --force).
+SCENARIO unlanded refusal: PASS - exact refusal surfaced; task record, pane, and dirty work remain
+
+VERSIONS herdr=herdr 0.9.0 pi=0.86.1 session=fm-lab-landed-supervisi-82929-24239

@@ -1,0 +1,60 @@
+Live AFK return validation
+Session: fm-lab-afk-return-r3-45092-8421 (isolated named Herdr lab; torn down after capture)
+
+REAL AWAY ENTRY COMMAND
+FM_HOME=<isolated-home> FM_STATE_OVERRIDE=<isolated-home>/state bin/fm-afk-launch.sh enter --words 'all no-mistakes workflow changes should merge and complete'
+Away posture recorded at 2026-09-22T18:02:39Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-09-22T18:02:39Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    all no-mistakes workflow changes should merge and complete
+
+LIVE WORKER ENDPOINTS BEFORE RETURN
+landed-live pane=w1:p1 process={"shell_pid":45254,"foreground_processes":[{"argv":["/nix/store/s0psayl7zvkvwdcqc8fy1sbv8rlf1yq8-bash-5.3p9/bin/bash","-e","/etc/profiles/per-user/kunchen/bin/manpath"],"argv0":"bash","cmdline":"/nix/store/s0psayl7zvkvwdcqc8fy1sbv8rlf1yq8-bash-5.3p9/bin/bash -e /etc/profiles/per-user/kunchen/bin/manpath","cwd":"/Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M351FDMW4618QZPN0N9NYHYV","name":"bash","pid":46259},{"argv":["-zsh"],"argv0":"zsh","cmdline":"-zsh","cwd":"/Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M351FDMW4618QZPN0N9NYHYV","name":"zsh","pid":45254}]}
+unproved-live pane=w2:p1 process={"shell_pid":45295,"foreground_processes":[{"argv":["-zsh"],"argv0":"zsh","cmdline":"-zsh","cwd":"/Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M351FDMW4618QZPN0N9NYHYV","name":"zsh","pid":46304},{"argv":["-zsh"],"argv0":"zsh","cmdline":"-zsh","cwd":"/Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M351FDMW4618QZPN0N9NYHYV","name":"zsh","pid":45295}]}
+
+REAL RETURN COMMAND (exit=0)
+FM_HOME=<isolated-home> FM_STATE_OVERRIDE=<isolated-home>/state FM_DATA_OVERRIDE=<isolated-home>/data bin/fm-afk-return.sh
+fm-afk-launch: away-posture record archived at /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M351FDMW4618QZPN0N9NYHYV/.live-afk-return-validation/home/state/afk-contracts/1790100159.afk-contract
+fm-afk-launch: away mode stopped; no daemon terminal was running, .afk cleared, and the posture record archived
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  2 task(s) in flight, but no live watcher process holds this home lock (last beat: 2s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M351FDMW4618QZPN0N9NYHYV/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M351FDMW4618QZPN0N9NYHYV/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+=== Return brief (away 2026-09-22T18:02:39Z -> 2026-09-22T18:02:42Z, 3s) ===
+Supervisor health:
+  - supervision ran through the away window with no detected gap (watcher beat 0s old at return)
+Your instructions:
+  your words at entry:
+    all no-mistakes workflow changes should merge and complete
+  the away session took no action under them.
+Waiting on you:
+  (nothing)
+Tried and failed, or could not be fixed:
+  (nothing)
+Landed, cleanup due:
+  - landed-live: https://github.com/example/landed/pull/7 is merged and the worker is still up; close it with bin/fm-teardown.sh landed-live once catch-up clears
+Handled while away:
+  0 outcome(s) handled by the away session (0 routine, 0 escalated above)
+  (no routine outcomes recorded in the store for this window)
+Cost: 0 supervision outcome(s) recorded (0 routine, 0 captain); 2 task(s) live at return.
+catch-up health: supervision ran through the away window with no detected gap (watcher beat 0s old at return)
+catch-up wake: STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome):
+catch-up wake: landed-live done [at=1]: PR https://github.com/example/landed/pull/7
+catch-up wake: unproved-live done [at=1]: PR https://github.com/example/open/pull/8
+fm-afk-return: catch-up clear; ordinary captain work may proceed
+
+LIVE WORKER ENDPOINTS AFTER RETURN BRIEF
+landed-live pane=w1:p1 process={"shell_pid":45254,"foreground_processes":[{"argv":["-zsh"],"argv0":"zsh","cmdline":"-zsh","cwd":"/Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M351FDMW4618QZPN0N9NYHYV","name":"zsh","pid":45254}]}
+unproved-live pane=w2:p1 process={"shell_pid":45295,"foreground_processes":[{"argv":["-zsh"],"argv0":"zsh","cmdline":"-zsh","cwd":"/Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M351FDMW4618QZPN0N9NYHYV","name":"zsh","pid":45295}]}
+
+ASSERTIONS
+PASS: durably merge-marked live worker appears under Landed, cleanup due.
+PASS: done live worker without durable merge evidence is absent from that section.
+PASS: return catch-up cleared and both Herdr worker endpoints remained live for ordinary teardown.
