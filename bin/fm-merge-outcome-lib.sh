@@ -30,8 +30,6 @@ _FM_MERGE_OUTCOME_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$_FM_MERGE_OUTCOME_LIB_DIR/fm-pr-lib.sh"
 # shellcheck source=bin/fm-parent-channel-lib.sh
 . "$_FM_MERGE_OUTCOME_LIB_DIR/fm-parent-channel-lib.sh"
-# shellcheck source=bin/fm-fleet-ledger-lib.sh
-. "$_FM_MERGE_OUTCOME_LIB_DIR/fm-fleet-ledger-lib.sh"
 
 # shellcheck disable=SC2034 # Public result consumed by sourcing callers.
 FM_MERGE_OUTCOME_ALREADY_RECORDED=false
@@ -112,7 +110,11 @@ fm_merge_outcome_report() {  # <home> <state> <task-id> <pr-url> <origin> [autho
   fi
   fm_lock_release "$lock"
   if [ "$status" -eq 0 ]; then
-    fm_fleet_ledger record task.merged --task "$id" --via pr --pr "$FM_PR_URL"
+    if [ -e "${FM_CONFIG_OVERRIDE:-$home/config}/fleet-ledger" ]; then
+      # shellcheck source=bin/fm-fleet-ledger-lib.sh
+      . "$_FM_MERGE_OUTCOME_LIB_DIR/fm-fleet-ledger-lib.sh"
+      fm_fleet_ledger record task.merged --task "$id" --via pr --pr "$FM_PR_URL"
+    fi
   fi
   return "$status"
 }

@@ -6,8 +6,8 @@
 # and bin/fm-afk-contract.sh - against a hermetic home and asserts the ledger
 # file a reader would see: nothing at all while config/fleet-ledger is absent,
 # and the task lifecycle in order, as valid versioned JSON Lines, once it exists.
-# One case drives the shared producer gate directly, with a stand-in writer, to
-# assert that an off home never starts the writer at all.
+# One case runs a real producer against a copy of bin/ whose ledger library
+# cannot be read, to assert that an off home never loads that library at all.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -213,35 +213,34 @@ test_opt_in_baselines_history_and_reads_new_logs_whole() {
   pass "opting in skips history, reads new logs from their first line, and waits for whole lines"
 }
 
-# The producer gate itself, with a writer that records being started. An off
-# home must never reach it; an on home must.
-test_the_producer_gate_starts_no_writer_while_the_flag_is_absent() {
+# A real producer against a copy of bin/ whose ledger library cannot be read.
+# With the ledger off the producer must never reach that file; with it on the
+# same producer must load it and record.
+test_an_off_producer_never_loads_the_ledger_library() {
   local dir home out
-  dir="$TMP_ROOT/gate"
+  if [ "$(id -u)" -eq 0 ]; then
+    pass "skipped (running as root, where an unreadable library is still readable)"
+    return
+  fi
+  dir="$TMP_ROOT/lazyload"
   home="$dir/home"
-  mkdir -p "$home/state" "$home/config" "$dir/bin"
-  cp "$ROOT/bin/fm-fleet-ledger-lib.sh" "$ROOT/bin/fm-timeout-lib.sh" "$dir/bin/"
-  cat > "$dir/bin/fm-fleet-ledger.sh" <<'SH'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$FM_STATE_OVERRIDE/writer-started"
-SH
-  chmod +x "$dir/bin/fm-fleet-ledger.sh"
-  call_gate() {
-    FM_HOME="$home" bash -c 'set -u
-      . "$1/bin/fm-fleet-ledger-lib.sh"
-      fm_fleet_ledger record session.started
-      fm_fleet_ledger capture' _ "$dir" 2>&1
-  }
-  out=$(call_gate) || fail "the off gate reported failure: $out"
-  assert_equals "" "$out" "the off gate wrote output: $out"
-  assert_absent "$home/state/writer-started" "an off home started the ledger writer"
+  mkdir -p "$home/state" "$home/config"
+  cp -R "$ROOT/bin" "$dir/bin"
+  chmod 000 "$dir/bin/fm-fleet-ledger-lib.sh"
+  out=$(FM_ROOT_OVERRIDE="$dir" FM_HOME="$home" "$dir/bin/fm-afk-contract.sh" \
+    enter --words 'back soon' 2>&1) \
+    || fail "an off producer failed while the ledger library was unreadable: $out"
+  assert_not_contains "$out" "fleet-ledger" \
+    "an off producer reached the ledger library: $out"
+  assert_present "$home/state/.afk-contract" "the away posture was not recorded"
+  chmod u+rw "$dir/bin/fm-fleet-ledger-lib.sh"
   touch "$home/config/fleet-ledger"
-  out=$(call_gate) || fail "the on gate reported failure: $out"
-  assert_present "$home/state/writer-started" "an on home did not start the ledger writer"
-  assert_equals "record session.started;capture" \
-    "$(paste -sd';' - < "$home/state/writer-started")" \
-    "the on gate did not pass each producer's arguments through"
-  pass "with config/fleet-ledger absent the producer gate starts no ledger writer at all"
+  FM_ROOT_OVERRIDE="$dir" FM_HOME="$home" "$dir/bin/fm-afk-contract.sh" archive >/dev/null 2>&1 \
+    || fail "away return failed"
+  assert_equals "away.returned" \
+    "$(jq -r '.event' "$home/state/fleet-ledger.jsonl" | paste -sd' ' -)" \
+    "the producer did not load the ledger library once the ledger was on"
+  pass "a producer with the ledger off never loads the ledger library"
 }
 
 test_enable_records_everything_after_it_and_disable_stops() {
@@ -353,14 +352,14 @@ test_a_blocked_writer_does_not_block_its_producer() {
   ledger="$home/state/fleet-ledger.jsonl"
   run_ledger "$home" enable >/dev/null || fail "enable failed"
   hold_ledger_lock "$home" "$TMP_ROOT/bound.held" "$TMP_ROOT/bound.release"
-  out=$(FM_FLEET_LEDGER_TIMEOUT=1 FM_HOME="$home" bash -c '
+  out=$(FM_HOME="$home" bash -c '
     . "$1/bin/fm-fleet-ledger-lib.sh"
     fm_fleet_ledger record session.started
     printf "producer-continued\n"' _ "$ROOT" 2>&1)
   release_ledger_lock "$TMP_ROOT/bound.release"
   assert_contains "$out" "producer-continued" \
     "a ledger writer that could not proceed stopped its producer"
-  assert_contains "$out" "did not finish within 1s" \
+  assert_contains "$out" "did not finish within 10s" \
     "the dropped event was not reported to the producer"
   assert_absent "$ledger" "the bounded writer appended a record after it was stopped"
   pass "a producer whose ledger write cannot proceed is bounded, told, and carries on"
@@ -518,20 +517,20 @@ test_a_transition_that_cannot_change_the_flag_changes_nothing_else() {
 }
 
 test_rotation_keeps_sequence_numbers_continuous() {
-  local home ledger i
+  local home ledger
   home="$TMP_ROOT/rotation/home"
   mkdir -p "$home/state" "$home/config"
   ledger="$home/state/fleet-ledger.jsonl"
   touch "$home/config/fleet-ledger"
-  for i in 1 2 3 4; do
-    FM_FLEET_LEDGER_MAX_BYTES=150 run_ledger "$home" record session.started \
-      || fail "record $i failed"
-  done
-  assert_present "$ledger.1" "the ledger never rotated"
-  assert_equals "$(tail -1 "$ledger.1" | jq -r '.seq')" "$(( $(head -1 "$ledger" | jq -r '.seq') - 1 ))" \
-    "rotation broke the sequence"
-  assert_equals 4 "$(tail -1 "$ledger" | jq -r '.seq')" "rotation lost or repeated a sequence number"
-  pass "rotation moves the full ledger aside and the sequence continues"
+  dd if=/dev/zero bs=1048576 count=8 2>/dev/null | tr '\000' 'x' > "$ledger"
+  printf '\n{"v":1,"seq":41,"ts":1790113113,"event":"session.started","task":null}\n' >> "$ledger"
+  run_ledger "$home" record session.started || fail "the record past the size bound failed"
+  assert_present "$ledger.1" "the ledger never rotated at its fixed size bound"
+  assert_equals 41 "$(tail -1 "$ledger.1" | jq -r '.seq')" \
+    "rotation did not keep the previous generation whole"
+  assert_equals 42 "$(jq -r '.seq' "$ledger")" "rotation broke the sequence"
+  assert_equals 1 "$(wc -l < "$ledger" | tr -d ' ')" "the new generation did not start empty"
+  pass "the ledger rotates once at its fixed size bound and the sequence continues"
 }
 
 test_away_mode_entry_and_return_are_recorded() {
@@ -555,7 +554,7 @@ test_away_mode_entry_and_return_are_recorded() {
 test_off_home_writes_nothing_through_the_real_lifecycle
 test_on_home_records_the_lifecycle_end_to_end
 test_opt_in_baselines_history_and_reads_new_logs_whole
-test_the_producer_gate_starts_no_writer_while_the_flag_is_absent
+test_an_off_producer_never_loads_the_ledger_library
 test_enable_records_everything_after_it_and_disable_stops
 test_flag_changes_wait_for_the_ledger_lock
 test_a_record_that_reaches_the_lock_after_opt_out_writes_nothing

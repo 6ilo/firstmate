@@ -338,8 +338,6 @@ PRIMARY_HARNESS=$("$SCRIPT_DIR/fm-harness.sh" 2>/dev/null || printf unknown)
 . "$SCRIPT_DIR/fm-tasks-axi-lib.sh"
 # shellcheck source=bin/fm-public-followup-lib.sh
 . "$SCRIPT_DIR/fm-public-followup-lib.sh"
-# shellcheck source=bin/fm-fleet-ledger-lib.sh
-. "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
 # shellcheck source=bin/fm-trace-context-lib.sh
 . "$SCRIPT_DIR/fm-trace-context-lib.sh"
 # shellcheck source=bin/fm-wake-lib.sh
@@ -663,7 +661,11 @@ if [ "$READ_ONLY" -eq 0 ]; then
   # session-start result. A context re-emit is not another session start.
   if [ "$REEMIT" -eq 0 ]; then
     "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
-    fm_fleet_ledger record session.started
+    if [ -e "$CONFIG/fleet-ledger" ]; then
+      # shellcheck source=bin/fm-fleet-ledger-lib.sh
+      . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
+      fm_fleet_ledger record session.started
+    fi
   fi
   # Every network call and the potentially slow inactive-outcome startup scan
   # are launched HERE, detached and bounded, so they run concurrently with the

@@ -168,8 +168,6 @@ mkdir -p "$STATE"
 . "$SCRIPT_DIR/fm-merge-authority-lib.sh"
 # shellcheck source=bin/fm-x-lib.sh
 . "$SCRIPT_DIR/fm-x-lib.sh"
-# shellcheck source=bin/fm-fleet-ledger-lib.sh
-. "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
 # shellcheck source=bin/fm-check-lib.sh
 . "$SCRIPT_DIR/fm-check-lib.sh"
 # Parent-owned secondmate missed-report guards: durable pending-reply
@@ -2312,8 +2310,11 @@ while :; do
 
   # The opt-in fleet activity ledger (docs/fleet-ledger.md) picks up newly
   # appended status lines here, before anything in this cycle can exit on a
-  # wake. With config/fleet-ledger absent this poll pays one builtin test.
-  if [ -e "$FM_FLEET_LEDGER_FLAG" ]; then
+  # wake. With config/fleet-ledger absent this poll pays one builtin test and
+  # loads nothing.
+  if [ -e "$CONFIG/fleet-ledger" ]; then
+    # shellcheck source=bin/fm-fleet-ledger-lib.sh
+    . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
     fm_fleet_ledger capture
   fi
 

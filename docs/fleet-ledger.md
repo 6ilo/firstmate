@@ -25,13 +25,13 @@ Turning the ledger on and off writes no record of its own; the ledger carries fl
 A period when it was off is therefore simply absent from it, not marked, and a reader that needs to know the ledger was following has to keep that itself.
 Both commands report a failure with a non-zero exit, change the flag on the side of the transition that leaves the ledger consistent either way, and complete what a failure left half done when you re-run them.
 
-With the flag absent, firstmate writes nothing and starts no process for the ledger: each producer pays one file-existence test, and nothing else.
+With the flag absent, firstmate writes nothing, starts no process, and loads none of the ledger's own code: each producer pays one file-existence test on that flag, and nothing else.
 The flag is per home and is not inherited by secondmate homes; opt each home in whose activity you want to follow.
 A secondmate itself still appears in its parent's ledger as a task, including the status lines it reports to its parent.
 
 ## Reading it
 
-The ledger is `state/fleet-ledger.jsonl` under the home (`bin/fm-fleet-ledger.sh path` prints the exact path).
+The ledger is `state/fleet-ledger.jsonl` under the home.
 The file appears with the first record after the ledger is turned on.
 Follow it like any log, for example `tail -n +1 -F state/fleet-ledger.jsonl | jq -c .`, which also follows it across rotation.
 
@@ -115,13 +115,13 @@ Records are produced at the existing single places where firstmate already recor
   Lifecycle records are written once per occurrence.
 - A line is only recorded once it ends with a newline, so a worker's half-written line waits for the next pick-up.
 - Records are not synced to disk individually; a machine crash can lose the most recent records.
-- A record that cannot be written is reported on the producer's error output and never blocks the work itself; a write that has not finished within `FM_FLEET_LEDGER_TIMEOUT` seconds (10 by default) is stopped and reported the same way, so a stuck ledger costs a producer that bound and nothing more.
+- A record that cannot be written is reported on the producer's error output and never blocks the work itself; a write that has not finished within ten seconds is stopped and reported the same way, so a stuck ledger costs a producer that fixed bound and nothing more.
   Such an event is simply absent: `seq` has no gap for it, because a sequence number is only spent on a record that was written.
 - `seq` restarts at 1 only if both ledger files are deleted.
 
 ## Size bound and rotation
 
-When the ledger reaches 8 MiB (`FM_FLEET_LEDGER_MAX_BYTES` overrides the byte count), the next write renames it to `state/fleet-ledger.jsonl.1`, replacing any earlier one, and starts a new file.
+When the ledger reaches 8 MiB, the next write renames it to `state/fleet-ledger.jsonl.1`, replacing any earlier one, and starts a new file; the bound and the single kept generation are fixed, with nothing to configure.
 Disk use therefore stays under about twice the bound.
 `seq` continues across rotation, so a reader that remembers its last `seq` can tell whether it missed records and resume from `.1` when it did.
 

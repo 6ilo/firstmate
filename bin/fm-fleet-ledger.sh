@@ -7,9 +7,10 @@
 #
 # OFF BY DEFAULT. Nothing is written unless the home's config/fleet-ledger
 # presence flag exists. Producers never invoke this script while the flag is
-# absent: they call fm_fleet_ledger from bin/fm-fleet-ledger-lib.sh, whose one
-# file test is the entire cost of the feature when it is off. This script
-# repeats the test so a direct invocation on an off home is a silent no-op.
+# absent: each tests that flag with one shell builtin and only then loads
+# bin/fm-fleet-ledger-lib.sh, so that single test is the entire cost of the
+# feature when it is off. This script repeats the test so a direct invocation
+# on an off home is a silent no-op.
 #
 # Producers (each is an existing single choke point, never chat):
 #   bin/fm-watch.sh            capture, once per poll cycle
@@ -41,8 +42,6 @@
 #     Append a task.status record for every complete status line appended to
 #     any state/<id>.status since the last capture. A cheap unlocked stat
 #     comparison returns early when no status log changed.
-#   fm-fleet-ledger.sh path
-#     Print the ledger path (whether or not the flag is on).
 #
 # State (all under state/, all created only by enable or while the flag is on):
 #   fleet-ledger.jsonl     the ledger
@@ -58,15 +57,13 @@
 # history, including any off period. A status log first seen after the baseline
 # is read from byte 0. A changed inode or a log shorter than its cursor is read
 # from byte 0.
+# The ledger is bounded at 8 MiB: the write that finds it at or over that size
+# renames it to fleet-ledger.jsonl.1, replacing any earlier one, and starts a
+# new file, so the pair is the whole history kept.
 # Only newline-terminated lines are consumed; a partial tail waits for the
 # next capture. Records are appended before cursors are saved, so a crash in
 # between repeats those status records on the next capture (at-least-once),
 # never loses one; a capture interrupted there repeatedly repeats them again.
-#
-# Environment:
-#   FM_FLEET_LEDGER_MAX_BYTES  rotation threshold in bytes (default 8388608)
-#   FM_FLEET_LEDGER_TIMEOUT    producer-side bound in seconds, read by
-#                              bin/fm-fleet-ledger-lib.sh (default 10)
 #
 # Exit status: 0 on success or when off, 2 on a usage error, 1 when a record
 # could not be written. Callers treat any failure as non-fatal.
@@ -83,23 +80,21 @@ ROTATED="$LEDGER.1"
 CURSORS="$STATE/.fleet-ledger-cursors"
 LOCK="$STATE/.fleet-ledger.lock"
 SCHEMA_VERSION=1
-MAX_BYTES=${FM_FLEET_LEDGER_MAX_BYTES:-8388608}
+MAX_BYTES=8388608
 TEXT_MAX_BYTES=2000
 
 usage() {
-  echo "usage: fm-fleet-ledger.sh enable | disable | record <event> [--task <id>] [--pr <url>] [--via pr|local] | capture | path" >&2
+  echo "usage: fm-fleet-ledger.sh enable | disable | record <event> [--task <id>] [--pr <url>] [--via pr|local] | capture" >&2
   exit 2
 }
 
 case "${1:-}" in
-  path) printf '%s\n' "$LEDGER"; exit 0 ;;
   enable|disable) [ "$#" -eq 1 ] || usage ;;
   record|capture) [ -e "$CONFIG/fleet-ledger" ] || exit 0 ;;
   *) usage ;;
 esac
 
 [ -d "$STATE" ] && [ ! -L "$STATE" ] || exit 1
-case "$MAX_BYTES" in ''|*[!0-9]*|0) MAX_BYTES=8388608 ;; esac
 
 task_id_ok() {
   case "$1" in ''|*[!A-Za-z0-9._-]*|.*) return 1 ;; esac

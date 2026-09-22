@@ -552,8 +552,6 @@ fm_backlog_directory_present "$STATE" "state directory" || {
 . "$SCRIPT_DIR/fm-dod-lib.sh"
 # shellcheck source=bin/fm-trace-context-lib.sh
 . "$SCRIPT_DIR/fm-trace-context-lib.sh"
-# shellcheck source=bin/fm-fleet-ledger-lib.sh
-. "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
 # shellcheck source=bin/fm-remote-readiness-lib.sh
 . "$SCRIPT_DIR/fm-remote-readiness-lib.sh"
 # shellcheck source=bin/fm-timeout-lib.sh
@@ -1075,7 +1073,11 @@ spawn_remote_secondmate() {
     echo "error: remote secondmate $id launched, but its reply source could not be armed; endpoint metadata is preserved" >&2
     return 1
   fi
-  fm_fleet_ledger record task.dispatched --task "$id"
+  if [ -e "$CONFIG/fleet-ledger" ]; then
+    # shellcheck source=bin/fm-fleet-ledger-lib.sh
+    . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
+    fm_fleet_ledger record task.dispatched --task "$id"
+  fi
   echo "spawned $id harness=$harness kind=secondmate mode=secondmate yolo=off window=remote:$id worktree=$home remote=$host backend=$remote_backend"
   return 0
 }
@@ -4982,9 +4984,13 @@ SPAWN_META_LOCK_HELD=0
 
 SPAWN_DELIVERY=
 [ -z "$MODE" ] || SPAWN_DELIVERY=" mode=$MODE yolo=$YOLO"
-if [ "$RELAUNCH" -eq 1 ]; then
-  fm_fleet_ledger record task.relaunched --task "$ID"
-else
-  fm_fleet_ledger record task.dispatched --task "$ID"
+if [ -e "$CONFIG/fleet-ledger" ]; then
+  # shellcheck source=bin/fm-fleet-ledger-lib.sh
+  . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
+  if [ "$RELAUNCH" -eq 1 ]; then
+    fm_fleet_ledger record task.relaunched --task "$ID"
+  else
+    fm_fleet_ledger record task.dispatched --task "$ID"
+  fi
 fi
 echo "spawned $ID harness=$HARNESS kind=$KIND$SPAWN_DELIVERY window=$META_WINDOW worktree=$WT"
