@@ -486,7 +486,7 @@ fm_afk_contract_cmd_enter() {
   if [ -n "${archived:-}" ]; then
     fm_afk_contract_log "replaced the earlier away posture; its record is archived at $archived"
   else
-    fm_fleet_ledger "$FM_HOME" "$(dirname "$record")" record away.entered
+    fm_fleet_ledger "$FM_HOME" "$FM_AFK_CONTRACT_STATE" record away.entered
   fi
   rm -f "$legacy"
   fm_afk_contract_render_announcement "$record" || return 1
@@ -503,7 +503,7 @@ fm_afk_contract_cmd_archive() {
   fi
   target=$(fm_afk_contract_archive_target "$record") || return 1
   mv "$record" "$target" || return 1
-  fm_fleet_ledger "$FM_HOME" "$(dirname "$record")" record away.returned
+  fm_fleet_ledger "$FM_HOME" "$FM_AFK_CONTRACT_STATE" record away.returned
   printf '%s\n' "$target"
 }
 

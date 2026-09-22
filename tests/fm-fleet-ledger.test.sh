@@ -6,6 +6,8 @@
 # and bin/fm-afk-contract.sh - against a hermetic home and asserts the ledger
 # file a reader would see: nothing at all while config/fleet-ledger is absent,
 # and the task lifecycle in order, as valid versioned JSON Lines, once it exists.
+# One case drives the shared producer gate directly, with a stand-in writer, to
+# assert that an off home never starts the writer at all.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -144,7 +146,7 @@ test_off_home_writes_nothing_through_the_real_lifecycle() {
   local case_dir id=ledger-off-t1 leftovers
   case_dir=$(make_home off "$id" off)
   drive_lifecycle "$case_dir" "$id"
-  leftovers=$(cd "$(home_of "$case_dir")/state" && ls -a | grep 'fleet-ledger' || true)
+  leftovers=$(find "$(home_of "$case_dir")/state" -maxdepth 1 -name '*fleet-ledger*' 2>/dev/null)
   assert_equals "" "$leftovers" "an off home wrote ledger state: $leftovers"
   pass "with config/fleet-ledger absent the whole lifecycle writes no ledger state"
 }
@@ -212,6 +214,67 @@ test_opt_in_baselines_history_and_reads_new_logs_whole() {
   pass "opting in skips history, reads new logs from their first line, and waits for whole lines"
 }
 
+# The producer gate itself, with a writer that records being started. An off
+# home must never reach it; an on home must.
+test_the_producer_gate_starts_no_writer_while_the_flag_is_absent() {
+  local dir home out
+  dir="$TMP_ROOT/gate"
+  home="$dir/home"
+  mkdir -p "$home/state" "$home/config" "$dir/bin"
+  cp "$ROOT/bin/fm-fleet-ledger-lib.sh" "$dir/bin/fm-fleet-ledger-lib.sh"
+  cat > "$dir/bin/fm-fleet-ledger.sh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_STATE_OVERRIDE/writer-started"
+SH
+  chmod +x "$dir/bin/fm-fleet-ledger.sh"
+  call_gate() {
+    bash -c 'set -u
+      . "$1/bin/fm-fleet-ledger-lib.sh"
+      fm_fleet_ledger "$2" "$2/state" record session.started
+      fm_fleet_ledger "$2" "$2/state" capture' _ "$dir" "$home" 2>&1
+  }
+  out=$(call_gate) || fail "the off gate reported failure: $out"
+  assert_equals "" "$out" "the off gate wrote output: $out"
+  assert_absent "$home/state/writer-started" "an off home started the ledger writer"
+  touch "$home/config/fleet-ledger"
+  out=$(call_gate) || fail "the on gate reported failure: $out"
+  assert_present "$home/state/writer-started" "an on home did not start the ledger writer"
+  assert_equals "record session.started;capture" \
+    "$(paste -sd';' - < "$home/state/writer-started")" \
+    "the on gate did not pass each producer's arguments through"
+  pass "with config/fleet-ledger absent the producer gate starts no ledger writer at all"
+}
+
+test_enable_records_everything_after_it_and_disable_stops() {
+  local home ledger
+  home="$TMP_ROOT/enable/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  printf 'working: before opt-in\n' > "$home/state/old.status"
+  run_ledger "$home" enable >/dev/null || fail "enable failed"
+  assert_present "$home/config/fleet-ledger" "enable did not turn the ledger on"
+  printf 'done: after opt-in\n' >> "$home/state/old.status"
+  run_ledger "$home" capture || fail "the first capture after enable failed"
+  assert_equals "ledger.started task.status" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
+    "the first capture after enable did not record exactly the post-enable line: $(cat "$ledger")"
+  assert_equals "after opt-in" "$(jq -r 'select(.event == "task.status") | .text' "$ledger")" \
+    "enable replayed history instead of baselining it"
+  run_ledger "$home" disable || fail "disable failed"
+  assert_absent "$home/config/fleet-ledger" "disable did not turn the ledger off"
+  printf 'done: after disable\n' >> "$home/state/old.status"
+  run_ledger "$home" capture || fail "a capture on a disabled home failed"
+  assert_equals 2 "$(wc -l < "$ledger" | tr -d ' ')" "a disabled ledger kept recording"
+  run_ledger "$home" enable >/dev/null || fail "re-enable failed"
+  printf 'done: after re-enable\n' >> "$home/state/old.status"
+  run_ledger "$home" capture || fail "the first capture after re-enable failed"
+  assert_equals "after opt-in after re-enable" \
+    "$(jq -r 'select(.event == "task.status") | .text' "$ledger" | paste -sd' ' -)" \
+    "re-enabling replayed the lines appended while the ledger was off"
+  assert_equals "1 2 3 4" "$(jq -r '.seq' "$ledger" | paste -sd' ' -)" \
+    "the sequence did not continue across disable and enable"
+  pass "enable baselines history and records from that moment, and disable stops the ledger"
+}
+
 test_rotation_keeps_sequence_numbers_continuous() {
   local home ledger i
   home="$TMP_ROOT/rotation/home"
@@ -250,5 +313,7 @@ test_away_mode_entry_and_return_are_recorded() {
 test_off_home_writes_nothing_through_the_real_lifecycle
 test_on_home_records_the_lifecycle_end_to_end
 test_opt_in_baselines_history_and_reads_new_logs_whole
+test_the_producer_gate_starts_no_writer_while_the_flag_is_absent
+test_enable_records_everything_after_it_and_disable_stops
 test_rotation_keeps_sequence_numbers_continuous
 test_away_mode_entry_and_return_are_recorded

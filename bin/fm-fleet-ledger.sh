@@ -22,6 +22,13 @@
 #   bin/fm-afk-contract.sh     record away.entered / away.returned
 #
 # Usage:
+#   fm-fleet-ledger.sh enable
+#     Turn the ledger on for this home: baseline every existing status log at
+#     its current end, append ledger.started, then create the presence flag, in
+#     that order, so nothing appended after the flag appears can be missed.
+#   fm-fleet-ledger.sh disable
+#     Remove the presence flag. State is left in place, so a later enable
+#     continues the same sequence without replaying the off period.
 #   fm-fleet-ledger.sh record <event> [--task <id>] [--pr <url>] [--via pr|local]
 #     Append one record. A --task record first captures that task's unread
 #     status lines, so the task's own status events always precede it.
@@ -32,14 +39,16 @@
 #   fm-fleet-ledger.sh path
 #     Print the ledger path (whether or not the flag is on).
 #
-# State (all under state/, all created only while the flag is on):
+# State (all under state/, all created only by enable or while the flag is on):
 #   fleet-ledger.jsonl     the ledger
 #   fleet-ledger.jsonl.1   the previous generation after one rotation
 #   .fleet-ledger-cursors  "<task>\t<dev:inode>\t<offset>" per status log read
 #   .fleet-ledger.lock     serializes every append, rotation, and cursor write
-# The first locked write with no cursor file baselines every existing status
-# log at its current size and appends ledger.started, so opting in never
-# replays history. A status log first seen after that baseline is read from
+# enable writes the baseline cursors. A flag created by hand leaves none, so
+# the first locked write baselines every existing status log at its current
+# size and appends ledger.started then; status lines appended between that bare
+# touch and that first write are not recorded. Either way opting in never
+# replays history. A status log first seen after the baseline is read from
 # byte 0. A changed inode or a log shorter than its cursor is read from byte 0.
 # Only newline-terminated lines are consumed; a partial tail waits for the
 # next capture. Records are appended before cursors are saved, so a crash in
@@ -67,17 +76,22 @@ MAX_BYTES=${FM_FLEET_LEDGER_MAX_BYTES:-8388608}
 TEXT_MAX_BYTES=2000
 
 usage() {
-  echo "usage: fm-fleet-ledger.sh record <event> [--task <id>] [--pr <url>] [--via pr|local] | capture | path" >&2
+  echo "usage: fm-fleet-ledger.sh enable | disable | record <event> [--task <id>] [--pr <url>] [--via pr|local] | capture | path" >&2
   exit 2
 }
 
 case "${1:-}" in
   path) printf '%s\n' "$LEDGER"; exit 0 ;;
-  record|capture) ;;
+  disable)
+    [ "$#" -eq 1 ] || usage
+    rm -f "$CONFIG/fleet-ledger" || exit 1
+    exit 0
+    ;;
+  enable) [ "$#" -eq 1 ] || usage ;;
+  record|capture) [ -e "$CONFIG/fleet-ledger" ] || exit 0 ;;
   *) usage ;;
 esac
 
-[ -e "$CONFIG/fleet-ledger" ] || exit 0
 [ -d "$STATE" ] && [ ! -L "$STATE" ] || exit 1
 case "$MAX_BYTES" in ''|*[!0-9]*|0) MAX_BYTES=8388608 ;; esac
 
@@ -212,6 +226,18 @@ capture_file() { # <task> <file> <offset> <size>
   CAPTURE_OFFSET=$((offset + consumed))
 }
 
+# Opt in from this instant: every existing status log is baselined at its
+# current end, so nothing already in one is replayed and nothing appended after
+# the flag exists is skipped. Caller holds the lock.
+enable_locked() {
+  local listing
+  listing=$(status_listing)
+  : > "$CURSORS.tmp.$$" || return 1
+  [ -z "$listing" ] || printf '%s\n' "$listing" > "$CURSORS.tmp.$$" || return 1
+  mv -f "$CURSORS.tmp.$$" "$CURSORS" || return 1
+  append ledger.started '' ''
+}
+
 cursor_lookup() { # <cursor-data> <task> -> "<ident>\t<offset>"
   printf '%s\n' "$1" | awk -F'\t' -v t="$2" '$1 == t { print $2 "\t" $3; exit }'
 }
@@ -292,6 +318,15 @@ fi
 . "$SCRIPT_DIR/fm-classify-lib.sh"
 
 case "$cmd" in
+  enable)
+    if [ -e "$CONFIG/fleet-ledger" ]; then
+      printf 'the fleet activity ledger is already on; its records are at %s\n' "$LEDGER"
+      exit 0
+    fi
+    locked enable_locked || exit 1
+    touch "$CONFIG/fleet-ledger" || exit 1
+    printf 'fleet activity ledger on; its records are at %s\n' "$LEDGER"
+    ;;
   capture)
     locked capture_locked || exit 1
     ;;

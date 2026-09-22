@@ -7,13 +7,18 @@ This document is the contract; treat everything it states as stable within a sch
 ## Turning it on
 
 The ledger is off by default.
-Create the optional, local, gitignored presence flag to turn it on for one home:
+Turn it on, and off again, for one home from that home's directory:
 
 ```sh
-touch config/fleet-ledger
+bin/fm-fleet-ledger.sh enable
+bin/fm-fleet-ledger.sh disable
 ```
 
-Remove the flag to turn it off again.
+`enable` is the supported way in.
+It marks the current end of every status log, opens the ledger with `ledger.started`, and only then creates the optional, local, gitignored `config/fleet-ledger` presence flag, so everything that happens from the moment the ledger is on is recorded, including activity in tasks that are already running.
+Creating that flag by hand instead (`touch config/fleet-ledger`) also turns the ledger on, but the baseline is only taken when firstmate next writes to the ledger, so status lines appended between the touch and that first write are not recorded.
+`disable` removes the flag and leaves the ledger and its read positions in place, so turning it on again continues the same sequence rather than replaying what happened while it was off.
+
 With the flag absent, firstmate writes nothing and starts no process for the ledger: each producer pays one file-existence test, and nothing else.
 The flag is per home and is not inherited by secondmate homes; opt each home in whose activity you want to follow.
 A secondmate itself still appears in its parent's ledger as a task, including the status lines it reports to its parent.
@@ -21,7 +26,7 @@ A secondmate itself still appears in its parent's ledger as a task, including th
 ## Reading it
 
 The ledger is `state/fleet-ledger.jsonl` under the home (`bin/fm-fleet-ledger.sh path` prints the exact path).
-The file appears with the first record after opt-in.
+The file appears when the ledger is turned on.
 Follow it like any log, for example `tail -n +1 -F state/fleet-ledger.jsonl | jq -c .`, which also follows it across rotation.
 
 Each line is one JSON object terminated by a newline, in UTF-8.
@@ -46,7 +51,7 @@ A member whose value is unknown or absent is `null`, never omitted.
 
 | Event | Written when | Extra members |
 | --- | --- | --- |
-| `ledger.started` | The first write after the home opts in, or after the ledger's cursor state was removed. | none |
+| `ledger.started` | The home opts in with `enable`, or, when the flag was created by hand, the first write after that, or the first write after the ledger's cursor state was removed. | none |
 | `session.started` | A firstmate session starts in this home and holds its session lock. | none |
 | `away.entered` | The captain enters away mode (`/afk`); a refresh of an existing away posture writes nothing. | none |
 | `away.returned` | Away mode ends and its record is archived. | none |
@@ -90,6 +95,7 @@ Records are produced at the existing single places where firstmate already recor
   The watcher runs whenever work is under way; lines written while it is not running are picked up when it next runs.
 - A lifecycle record about a task first picks up that task's unread status lines, so within one task its status records always precede the lifecycle record that follows them.
 - Opting in does not replay history: `ledger.started` marks the point from which status lines are recorded, and lines already in a status log at that moment are skipped.
+  With `enable` that point is when the command ran; with a bare `touch` of the flag it is the first ledger write after it.
   A status log created after that point is recorded from its first line.
 
 ## Ordering and durability
