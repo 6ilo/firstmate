@@ -137,5 +137,5 @@ fm_lock_release "$MERGE_CONTROL_LOCK" || true
 MERGE_CONTROL_LOCK=
 [ "$merge_status" -eq 0 ] || exit "$merge_status"
 after=$(git -C "$PROJ" rev-parse --short "$DEFAULT")
-fm_fleet_ledger "$FM_HOME" "$STATE" record task.merged --task "$ID" --via local
+fm_fleet_ledger record task.merged --task "$ID" --via local
 echo "merged $BRANCH into local $DEFAULT ($before -> $after) in $PROJ"

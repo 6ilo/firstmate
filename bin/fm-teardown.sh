@@ -3700,8 +3700,8 @@ else
 fi
 fm_lock_release "$META_LOCK"
 META_LOCK_HELD=0
-if [ -d "$STATE" ]; then
-  fm_fleet_ledger "$FM_HOME" "$STATE" record task.cleaned_up --task "$ID"
+if [ -e "$FM_FLEET_LEDGER_FLAG" ] && [ -d "$STATE" ]; then
+  fm_fleet_ledger record task.cleaned_up --task "$ID"
 fi
 if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$MODE" != local-only ]; then
   "$FM_ROOT/bin/fm-fleet-sync.sh" "$PROJ" || true

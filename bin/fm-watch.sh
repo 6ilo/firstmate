@@ -2312,8 +2312,10 @@ while :; do
 
   # The opt-in fleet activity ledger (docs/fleet-ledger.md) picks up newly
   # appended status lines here, before anything in this cycle can exit on a
-  # wake. With config/fleet-ledger absent this is one file test.
-  fm_fleet_ledger "$FM_HOME" "$STATE" capture
+  # wake. With config/fleet-ledger absent this poll pays one builtin test.
+  if [ -e "$FM_FLEET_LEDGER_FLAG" ]; then
+    fm_fleet_ledger capture
+  fi
 
   if [ "$(age_of "$STATE/home-summary.json")" -ge "$HOME_SUMMARY_INTERVAL" ]; then
     home_summary_refresh_detached

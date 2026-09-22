@@ -15,14 +15,15 @@ bin/fm-fleet-ledger.sh disable
 ```
 
 `enable` is the supported way in.
-In one locked step it marks the current end of every status log, creates the optional, local, gitignored `config/fleet-ledger` presence flag, and opens the ledger with `ledger.started`, so everything that happens from the moment the ledger is on is recorded, including activity in tasks that are already running, and nothing from before it is.
+In one locked step it marks the current end of every status log and creates the optional, local, gitignored `config/fleet-ledger` presence flag, so everything that happens from the moment the ledger is on is recorded, including activity in tasks that are already running, and nothing from before it is.
 Creating that flag by hand instead (`touch config/fleet-ledger`) also turns the ledger on, but the baseline is only taken when firstmate next writes to the ledger, so status lines appended between the touch and that first write are not recorded.
 `disable` takes the same lock to remove the flag, so once it returns no further record is written, not even by a producer that was already on its way.
-It discards the ledger's read positions with it, so a status line appended while the ledger is off is never recorded later: turning it on again, with `enable` or a bare `touch`, opens a fresh `ledger.started` boundary and records from there.
+It discards the ledger's read positions with it, so a status line appended while the ledger is off is never recorded later: turning it on again, with `enable` or a bare `touch`, records from that moment on.
 The ledger files themselves are kept, so `seq` continues where it left off.
 
-Both commands change the flag last thing before they can still fail, and report a failure with a non-zero exit: an `enable` that cannot create the flag records nothing, and a `disable` that cannot remove it leaves the ledger on with its read positions intact.
-Either is safe to re-run once the cause is fixed, and re-running `enable` is the way to recover from a failed one, rather than creating the flag by hand.
+Turning the ledger on and off writes no record of its own; the ledger carries fleet activity only.
+A period when it was off is therefore simply absent from it, not marked, and a reader that needs to know the ledger was following has to keep that itself.
+Both commands report a failure with a non-zero exit, change the flag on the side of the transition that leaves the ledger consistent either way, and complete what a failure left half done when you re-run them.
 
 With the flag absent, firstmate writes nothing and starts no process for the ledger: each producer pays one file-existence test, and nothing else.
 The flag is per home and is not inherited by secondmate homes; opt each home in whose activity you want to follow.
@@ -31,7 +32,7 @@ A secondmate itself still appears in its parent's ledger as a task, including th
 ## Reading it
 
 The ledger is `state/fleet-ledger.jsonl` under the home (`bin/fm-fleet-ledger.sh path` prints the exact path).
-The file appears when the ledger is turned on.
+The file appears with the first record after the ledger is turned on.
 Follow it like any log, for example `tail -n +1 -F state/fleet-ledger.jsonl | jq -c .`, which also follows it across rotation.
 
 Each line is one JSON object terminated by a newline, in UTF-8.
@@ -57,7 +58,6 @@ A member whose value is unknown or absent is `null`, never omitted.
 
 | Event | Written when | Extra members |
 | --- | --- | --- |
-| `ledger.started` | The home opts in with `enable`, or, when the flag was created by hand, at the first write after that; turning the ledger off and on again opens a new boundary the same way. | none |
 | `session.started` | A firstmate session starts in this home and holds its session lock. | none |
 | `away.entered` | The captain enters away mode (`/afk`); a refresh of an existing away posture writes nothing. | none |
 | `away.returned` | Away mode ends and its record is archived. | none |
@@ -101,7 +101,7 @@ Records are produced at the existing single places where firstmate already recor
   The supervision watcher picks those lines up at the start of each poll cycle (every 15 seconds by default), so a `task.status` record can trail the worker's line by up to one poll interval.
   The watcher runs whenever work is under way; lines written while it is not running are picked up when it next runs.
 - A lifecycle record about a task first picks up that task's unread status lines, so within one task its status records always precede the lifecycle record that follows them.
-- Opting in does not replay history: `ledger.started` marks the point from which status lines are recorded, and lines already in a status log at that moment are skipped.
+- Opting in does not replay history: status lines already in a log when the ledger is turned on are skipped.
   With `enable` that point is when the command ran; with a bare `touch` of the flag it is the first ledger write after it.
   Turning the ledger off and on again sets a new such point, so lines appended while it was off are skipped exactly like lines from before the first opt-in.
   A status log created after that point is recorded from its first line.

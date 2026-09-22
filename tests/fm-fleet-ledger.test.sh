@@ -160,14 +160,14 @@ test_on_home_records_the_lifecycle_end_to_end() {
   jq -e -s 'all(.[]; .v == 1 and (.seq | type) == "number" and (.ts | type) == "number")' \
     "$ledger" >/dev/null || fail "a ledger line is not a valid version 1 record: $(cat "$ledger")"
   events=$(jq -r '.event' "$ledger" | paste -sd' ' -)
-  assert_equals "ledger.started task.dispatched task.status task.status task.pr_recorded task.merged task.cleaned_up" \
+  assert_equals "task.dispatched task.status task.status task.pr_recorded task.merged task.cleaned_up" \
     "$events" "the lifecycle was recorded out of order: $(cat "$ledger")"
-  assert_equals "ledger.started task.dispatched task.status task.status" \
+  assert_equals "task.dispatched task.status task.status" \
     "$(jq -r '.event' "$case_dir/after-watch.jsonl" | paste -sd' ' -)" \
     "the watcher did not record the worker's status lines itself"
   seqs=$(jq -r '.seq' "$ledger" | paste -sd' ' -)
-  assert_equals "1 2 3 4 5 6 7" "$seqs" "sequence numbers are not contiguous"
-  [ "$(jq -r 'select(.event != "ledger.started") | .task' "$ledger" | sort -u)" = "$id" ] \
+  assert_equals "1 2 3 4 5 6" "$seqs" "sequence numbers are not contiguous"
+  [ "$(jq -r '.task' "$ledger" | sort -u)" = "$id" ] \
     || fail "a task record named the wrong task"
   jq -e 'select(.event == "task.dispatched") | .kind == "ship" and .project == "webapp"
     and .harness == "claude" and .mode == "no-mistakes" and .yolo == "off"' "$ledger" >/dev/null \
@@ -197,8 +197,7 @@ test_opt_in_baselines_history_and_reads_new_logs_whole() {
   printf 'working: before opt-in\n' > "$home/state/old.status"
   touch "$home/config/fleet-ledger"
   run_ledger "$home" capture || fail "baseline capture failed"
-  assert_equals "ledger.started" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
-    "opting in replayed history"
+  assert_absent "$ledger" "opting in replayed history, or recorded a boundary of its own"
   printf 'done: after opt-in\npartial' >> "$home/state/old.status"
   printf 'blocked [key=b1]: new log\n' > "$home/state/new.status"
   run_ledger "$home" capture || fail "capture failed"
@@ -208,9 +207,9 @@ test_opt_in_baselines_history_and_reads_new_logs_whole() {
   printf ' line\n' >> "$home/state/old.status"
   run_ledger "$home" capture || fail "capture failed"
   run_ledger "$home" capture || fail "an unchanged capture failed"
-  assert_equals "partial line" "$(jq -r 'select(.seq == 4) | .text' "$ledger")" \
+  assert_equals "partial line" "$(jq -r 'select(.seq == 3) | .text' "$ledger")" \
     "a partial line was consumed before its newline arrived"
-  assert_equals 4 "$(wc -l < "$ledger" | tr -d ' ')" "an unchanged capture appended records"
+  assert_equals 3 "$(wc -l < "$ledger" | tr -d ' ')" "an unchanged capture appended records"
   pass "opting in skips history, reads new logs from their first line, and waits for whole lines"
 }
 
@@ -228,10 +227,10 @@ printf '%s\n' "$*" >> "$FM_STATE_OVERRIDE/writer-started"
 SH
   chmod +x "$dir/bin/fm-fleet-ledger.sh"
   call_gate() {
-    bash -c 'set -u
+    FM_HOME="$home" bash -c 'set -u
       . "$1/bin/fm-fleet-ledger-lib.sh"
-      fm_fleet_ledger "$2" "$2/state" record session.started
-      fm_fleet_ledger "$2" "$2/state" capture' _ "$dir" "$home" 2>&1
+      fm_fleet_ledger record session.started
+      fm_fleet_ledger capture' _ "$dir" 2>&1
   }
   out=$(call_gate) || fail "the off gate reported failure: $out"
   assert_equals "" "$out" "the off gate wrote output: $out"
@@ -253,9 +252,10 @@ test_enable_records_everything_after_it_and_disable_stops() {
   printf 'working: before opt-in\n' > "$home/state/old.status"
   run_ledger "$home" enable >/dev/null || fail "enable failed"
   assert_present "$home/config/fleet-ledger" "enable did not turn the ledger on"
+  assert_absent "$ledger" "enable recorded something of its own"
   printf 'done: after opt-in\n' >> "$home/state/old.status"
   run_ledger "$home" capture || fail "the first capture after enable failed"
-  assert_equals "ledger.started task.status" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
+  assert_equals "task.status" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
     "the first capture after enable did not record exactly the post-enable line: $(cat "$ledger")"
   assert_equals "after opt-in" "$(jq -r 'select(.event == "task.status") | .text' "$ledger")" \
     "enable replayed history instead of baselining it"
@@ -263,14 +263,14 @@ test_enable_records_everything_after_it_and_disable_stops() {
   assert_absent "$home/config/fleet-ledger" "disable did not turn the ledger off"
   printf 'done: after disable\n' >> "$home/state/old.status"
   run_ledger "$home" capture || fail "a capture on a disabled home failed"
-  assert_equals 2 "$(wc -l < "$ledger" | tr -d ' ')" "a disabled ledger kept recording"
+  assert_equals 1 "$(wc -l < "$ledger" | tr -d ' ')" "a disabled ledger kept recording"
   run_ledger "$home" enable >/dev/null || fail "re-enable failed"
   printf 'done: after re-enable\n' >> "$home/state/old.status"
   run_ledger "$home" capture || fail "the first capture after re-enable failed"
   assert_equals "after opt-in after re-enable" \
     "$(jq -r 'select(.event == "task.status") | .text' "$ledger" | paste -sd' ' -)" \
     "re-enabling replayed the lines appended while the ledger was off"
-  assert_equals "1 2 3 4" "$(jq -r '.seq' "$ledger" | paste -sd' ' -)" \
+  assert_equals "1 2" "$(jq -r '.seq' "$ledger" | paste -sd' ' -)" \
     "the sequence did not continue across disable and enable"
   pass "enable baselines history and records from that moment, and disable stops the ledger"
 }
@@ -338,13 +338,11 @@ test_a_record_that_reaches_the_lock_after_opt_out_writes_nothing() {
   run_ledger "$home" record session.started &
   pid=$!
   sleep 0.5
-  assert_equals 1 "$(wc -l < "$ledger" | tr -d ' ')" \
-    "a record was appended while another process held the ledger lock"
+  assert_absent "$ledger" "a record was appended while another process held the ledger lock"
   rm -f "$home/config/fleet-ledger"
   release_ledger_lock "$TMP_ROOT/optout.release"
   wait "$pid" || fail "the queued record reported a failure"
-  assert_equals 1 "$(wc -l < "$ledger" | tr -d ' ')" \
-    "a record landed after the ledger was turned off: $(cat "$ledger")"
+  assert_absent "$ledger" "a record landed after the ledger was turned off"
   pass "a record that reaches the lock after opt-out writes nothing"
 }
 
@@ -355,17 +353,16 @@ test_a_blocked_writer_does_not_block_its_producer() {
   ledger="$home/state/fleet-ledger.jsonl"
   run_ledger "$home" enable >/dev/null || fail "enable failed"
   hold_ledger_lock "$home" "$TMP_ROOT/bound.held" "$TMP_ROOT/bound.release"
-  out=$(FM_FLEET_LEDGER_TIMEOUT=1 bash -c '
+  out=$(FM_FLEET_LEDGER_TIMEOUT=1 FM_HOME="$home" bash -c '
     . "$1/bin/fm-fleet-ledger-lib.sh"
-    fm_fleet_ledger "$2" "$2/state" record session.started
-    printf "producer-continued\n"' _ "$ROOT" "$home" 2>&1)
+    fm_fleet_ledger record session.started
+    printf "producer-continued\n"' _ "$ROOT" 2>&1)
   release_ledger_lock "$TMP_ROOT/bound.release"
   assert_contains "$out" "producer-continued" \
     "a ledger writer that could not proceed stopped its producer"
   assert_contains "$out" "did not finish within 1s" \
     "the dropped event was not reported to the producer"
-  assert_equals 1 "$(wc -l < "$ledger" | tr -d ' ')" \
-    "the bounded writer appended a record after it was stopped"
+  assert_absent "$ledger" "the bounded writer appended a record after it was stopped"
   pass "a producer whose ledger write cannot proceed is bounded, told, and carries on"
 }
 
@@ -465,13 +462,13 @@ test_nothing_appended_while_the_ledger_was_off_is_ever_recorded() {
     "a status line appended while the ledger was off was recorded by a capture"
   assert_no_grep "private off again" "$ledger" \
     "a status line appended while the ledger was off was recorded by a lifecycle record"
-  assert_equals "ledger.started task.status ledger.started task.status ledger.started task.cleaned_up" \
+  assert_equals "task.status task.status task.cleaned_up" \
     "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
-    "turning the ledger on again did not open a new boundary: $(cat "$ledger")"
+    "turning the ledger on again recorded the wrong events: $(cat "$ledger")"
   assert_equals "while on after re-enable" \
     "$(jq -r 'select(.event == "task.status") | .text' "$ledger" | paste -sd' ' -)" \
     "recording did not resume exactly at each new boundary"
-  assert_equals "1 2 3 4 5 6" "$(jq -r '.seq' "$ledger" | paste -sd' ' -)" \
+  assert_equals "1 2 3" "$(jq -r '.seq' "$ledger" | paste -sd' ' -)" \
     "the sequence did not continue across the off periods"
   pass "nothing appended while the ledger was off is recorded when it is turned on again"
 }
@@ -493,8 +490,11 @@ test_a_transition_that_cannot_change_the_flag_changes_nothing_else() {
   chmod u+w "$home/config"
   assert_not_equals 0 "$rc" "enable reported success although it could not turn the ledger on"
   assert_absent "$home/config/fleet-ledger" "a failed enable turned the ledger on"
-  assert_absent "$ledger" "a failed enable left a start record for an opt-in that never happened"
-  run_ledger "$home" enable >/dev/null || fail "enable was not safe to re-run"
+  printf 'note: while the failed enable left it off\n' >> "$home/state/t1.status"
+  run_ledger "$home" capture || fail "a capture on the still-off home failed"
+  assert_absent "$ledger" "a failed enable left the ledger recording"
+  run_ledger "$home" enable >/dev/null || fail "re-running enable did not complete the transition"
+  assert_present "$home/config/fleet-ledger" "re-running enable did not turn the ledger on"
   printf 'working: on period\n' >> "$home/state/t1.status"
   run_ledger "$home" capture || fail "capture failed"
   rc=0
@@ -505,9 +505,9 @@ test_a_transition_that_cannot_change_the_flag_changes_nothing_else() {
   assert_present "$home/config/fleet-ledger" "a failed disable left the ledger in neither state"
   printf 'done: still on\n' >> "$home/state/t1.status"
   run_ledger "$home" capture || fail "capture after a failed disable failed"
-  assert_equals "ledger.started task.status task.status" \
+  assert_equals "task.status task.status" \
     "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
-    "a failed disable opened a second boundary on a ledger that is still on: $(cat "$ledger")"
+    "a failed disable changed what the still-on ledger records: $(cat "$ledger")"
   assert_equals "on period still on" \
     "$(jq -r 'select(.event == "task.status") | .text' "$ledger" | paste -sd' ' -)" \
     "a failed disable dropped the read positions and skipped an on-period line"
@@ -530,7 +530,7 @@ test_rotation_keeps_sequence_numbers_continuous() {
   assert_present "$ledger.1" "the ledger never rotated"
   assert_equals "$(tail -1 "$ledger.1" | jq -r '.seq')" "$(( $(head -1 "$ledger" | jq -r '.seq') - 1 ))" \
     "rotation broke the sequence"
-  assert_equals 5 "$(tail -1 "$ledger" | jq -r '.seq')" "rotation lost or repeated a sequence number"
+  assert_equals 4 "$(tail -1 "$ledger" | jq -r '.seq')" "rotation lost or repeated a sequence number"
   pass "rotation moves the full ledger aside and the sequence continues"
 }
 
@@ -546,7 +546,7 @@ test_away_mode_entry_and_return_are_recorded() {
     || fail "away refresh failed"
   FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" "$AFK_CONTRACT" archive >/dev/null 2>&1 \
     || fail "away return failed"
-  assert_equals "ledger.started away.entered away.returned" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
+  assert_equals "away.entered away.returned" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
     "away mode was not recorded once per entry and return"
   assert_no_grep "back soon" "$ledger" "the ledger recorded the captain's away words"
   pass "away entry and return are recorded without the captain's words"

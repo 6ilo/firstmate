@@ -24,16 +24,16 @@
 # Usage:
 #   fm-fleet-ledger.sh enable
 #     Turn the ledger on for this home in one locked transition: baseline every
-#     existing status log at its current end, create the presence flag, and only
-#     then append ledger.started, so a flag this cannot create exits non-zero
-#     with no start record. Already on is a no-op that keeps the baseline.
+#     existing status log at its current end, then create the presence flag.
+#     Already on is a no-op that keeps the baseline. Neither step records
+#     anything: the ledger carries fleet activity only.
 #   fm-fleet-ledger.sh disable
 #     Remove the presence flag and then the read positions, under the same lock,
 #     so once it returns no record can still be written and nothing appended
-#     while the ledger is off can be recorded later. A flag this cannot remove
-#     exits non-zero with the read positions untouched, leaving the ledger on
-#     and consistent. The ledger files stay, so a later enable continues the
-#     same sequence. Both commands are safe to re-run.
+#     while the ledger is off can be recorded later.
+#     Each command changes the flag on the side of the transition that leaves a
+#     failure recoverable, reports one with a non-zero exit, and re-running it
+#     completes what a failure left half done.
 #   fm-fleet-ledger.sh record <event> [--task <id>] [--pr <url>] [--via pr|local]
 #     Append one record. A --task record first captures that task's unread
 #     status lines, so the task's own status events always precede it.
@@ -53,11 +53,11 @@
 #                          the flag under, so nothing lands after disable
 # enable writes the baseline cursors and disable discards them. A flag created
 # by hand leaves none, so the first locked write baselines every existing status
-# log at its current size and appends ledger.started then; status lines appended
-# between that bare touch and that first write are not recorded. Either way
-# opting in never replays history, including any off period. A status log first
-# seen after the baseline is read from byte 0. A changed inode or a log shorter
-# than its cursor is read from byte 0.
+# log at its current size then; status lines appended between that bare touch
+# and that first write are not recorded. Either way opting in never replays
+# history, including any off period. A status log first seen after the baseline
+# is read from byte 0. A changed inode or a log shorter than its cursor is read
+# from byte 0.
 # Only newline-terminated lines are consumed; a partial tail waits for the
 # next capture. Records are appended before cursors are saved, so a crash in
 # between repeats those status records on the next capture (at-least-once),
@@ -257,8 +257,7 @@ enable_locked() {
   : > "$CURSORS.tmp.$$" || return 1
   [ -z "$listing" ] || printf '%s\n' "$listing" > "$CURSORS.tmp.$$" || return 1
   mv -f "$CURSORS.tmp.$$" "$CURSORS" || return 1
-  touch "$CONFIG/fleet-ledger" || return 1
-  append ledger.started '' ''
+  touch "$CONFIG/fleet-ledger"
 }
 
 # Opt out from this instant: the read positions go with the flag, so a status
@@ -305,9 +304,6 @@ capture_locked() { # [only-task]
     capture_file "$task" "$STATE/$task.status" "$offset" "$size" || return 1
     new="$new$task	$ident	$CAPTURE_OFFSET"$'\n'
   done <<< "$listing"
-  if [ "$baseline" = 1 ]; then
-    append ledger.started '' '' || return 1
-  fi
   printf '%s' "$new" > "$CURSORS.tmp.$$" && mv -f "$CURSORS.tmp.$$" "$CURSORS"
 }
 

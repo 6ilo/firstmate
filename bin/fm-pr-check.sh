@@ -195,5 +195,5 @@ case "$READY_RC" in
   0|1) ;;
   *) printf 'actionable: PR %s is registered but its ready line did not reach the parent channel (rc=%s)\n' "$URL" "$READY_RC" >&2 ;;
 esac
-fm_fleet_ledger "$FM_HOME" "$STATE" record task.pr_recorded --task "$ID" --pr "$URL"
+fm_fleet_ledger record task.pr_recorded --task "$ID" --pr "$URL"
 printf 'armed: state/%s.check.sh\n' "$ID"

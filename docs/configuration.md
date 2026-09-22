@@ -213,7 +213,8 @@ See [`trace-context.md`](trace-context.md) for carrier semantics, supported rout
 
 The optional local, gitignored `config/fleet-ledger` presence flag opts this home into the default-off fleet activity ledger, an append-only JSON Lines file at `state/fleet-ledger.jsonl` that outside tools can follow to see task dispatch, worker status events, PR recording and merges, cleanups, session starts, and away mode.
 Turn it on and off with `bin/fm-fleet-ledger.sh enable` and `bin/fm-fleet-ledger.sh disable`, which own the flag and change it under the ledger's own lock; `enable` baselines the status logs in that same locked step, so activity in tasks that are already running is recorded from that moment, while `disable` drops those read positions, so nothing is written once it has returned and nothing from the off period is recorded later.
-With the flag absent each producer performs one file test and nothing else: no process, no write.
+With the flag absent each producer performs one shell-builtin existence test on the flag and nothing else: no child process, no write, nothing of the ledger's own sourced, and no path resolved, because each producer resolves the flag's path once when it starts.
+That single test is what "zero overhead when off" means here.
 `FM_FLEET_LEDGER_MAX_BYTES` overrides the 8 MiB rotation threshold.
 The flag is per home and is not inherited by secondmate homes.
 [`fleet-ledger.md`](fleet-ledger.md) owns the record contract, and `bin/fm-fleet-ledger.sh`'s header owns the writer mechanics.

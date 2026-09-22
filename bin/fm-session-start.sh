@@ -663,7 +663,7 @@ if [ "$READ_ONLY" -eq 0 ]; then
   # session-start result. A context re-emit is not another session start.
   if [ "$REEMIT" -eq 0 ]; then
     "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
-    fm_fleet_ledger "$FM_HOME" "$STATE" record session.started
+    fm_fleet_ledger record session.started
   fi
   # Every network call and the potentially slow inactive-outcome startup scan
   # are launched HERE, detached and bounded, so they run concurrently with the

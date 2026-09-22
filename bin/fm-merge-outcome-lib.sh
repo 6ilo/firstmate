@@ -112,7 +112,7 @@ fm_merge_outcome_report() {  # <home> <state> <task-id> <pr-url> <origin> [autho
   fi
   fm_lock_release "$lock"
   if [ "$status" -eq 0 ]; then
-    fm_fleet_ledger "$home" "$state" record task.merged --task "$id" --via pr --pr "$FM_PR_URL"
+    fm_fleet_ledger record task.merged --task "$id" --via pr --pr "$FM_PR_URL"
   fi
   return "$status"
 }
