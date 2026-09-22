@@ -1,0 +1,8 @@
+Adversarial CI-state boundaries through the user-facing fm-crew-state command
+
+Checks have not registered yet:
+state: working · source: run-step · validating (running) · run: 01BOUNDARY
+
+Earlier green marker followed by a new issue:
+state: working · source: run-step · validating (running) · run: 01BOUNDARY
+

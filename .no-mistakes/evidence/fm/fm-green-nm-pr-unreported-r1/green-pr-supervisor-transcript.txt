@@ -1,0 +1,10 @@
+Scenario: supervisor reads a linked-worktree no-mistakes run whose green marker predates 60 timeout re-arm lines
+
+User-visible fm-crew-state output:
+state: done · source: run-step · checks green: PR ready for review (still monitoring for merge/close): https://github.com/o/r/pull/5317 · run: 01GREEN
+
+Dependency calls made by fm-crew-state:
+axi status
+axi
+axi status --run 01GREEN
+axi logs --step ci --run 01GREEN --full
