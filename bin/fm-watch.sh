@@ -168,6 +168,8 @@ mkdir -p "$STATE"
 . "$SCRIPT_DIR/fm-merge-authority-lib.sh"
 # shellcheck source=bin/fm-x-lib.sh
 . "$SCRIPT_DIR/fm-x-lib.sh"
+# shellcheck source=bin/fm-fleet-ledger-lib.sh
+. "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
 # shellcheck source=bin/fm-check-lib.sh
 . "$SCRIPT_DIR/fm-check-lib.sh"
 # Parent-owned secondmate missed-report guards: durable pending-reply
@@ -2307,6 +2309,11 @@ while :; do
   # Liveness beacon for fm-guard.sh: a fresh mtime here means a watcher is
   # alive. Supervision scripts warn when this goes stale with tasks in flight.
   touch "$STATE/.last-watcher-beat"
+
+  # The opt-in fleet activity ledger (docs/fleet-ledger.md) picks up newly
+  # appended status lines here, before anything in this cycle can exit on a
+  # wake. With config/fleet-ledger absent this is one file test.
+  fm_fleet_ledger "$FM_HOME" "$STATE" capture
 
   if [ "$(age_of "$STATE/home-summary.json")" -ge "$HOME_SUMMARY_INTERVAL" ]; then
     home_summary_refresh_detached
