@@ -100,8 +100,22 @@ task_id_ok() {
   case "$1" in ''|*[!A-Za-z0-9._-]*|.*) return 1 ;; esac
 }
 
+# Every string a record carries is filtered here, so whatever bytes a status
+# log, a task record, or a URL holds, a ledger line stays valid UTF-8: invalid
+# sequences are dropped, and where iconv is missing or fails every non-ASCII
+# byte is, including a character a byte bound cut in half.
+utf8_only() { # <text>
+  local converted
+  if command -v iconv >/dev/null 2>&1 \
+    && converted=$(printf '%s' "$1" | iconv -c -f UTF-8 -t UTF-8 2>/dev/null); then
+    printf '%s' "$converted"
+  else
+    printf '%s' "$1" | LC_ALL=C tr -d '\200-\377'
+  fi
+}
+
 json_escape() { # <text> -> escaped JSON string content on stdout
-  printf '%s' "$1" | awk '
+  utf8_only "$1" | awk '
     BEGIN { ORS = "" }
     {
       if (NR > 1) print "\\n"
@@ -115,23 +129,22 @@ json_escape() { # <text> -> escaped JSON string content on stdout
     }'
 }
 
-json_str() { # <text> -> JSON string, or null when empty
-  if [ -z "$1" ]; then printf 'null'; else printf '"%s"' "$(json_escape "$1")"; fi
+json_text() { # <text> -> JSON string, empty text included
+  printf '"%s"' "$(json_escape "$1")"
 }
 
-# Bound free text in bytes and drop invalid UTF-8, including a character the
-# byte cut split, so every record stays valid JSON text.
+json_str() { # <text> -> JSON string, or null when empty
+  if [ -z "$1" ]; then printf 'null'; else json_text "$1"; fi
+}
+
+# Bound free text in bytes. utf8_only then drops whatever character the cut
+# split, so the bound can never leave a half character behind.
 bound_text() { # <text>
-  local text=$1 converted
+  local text=$1
   if [ "$(LC_ALL=C; printf '%s' "${#text}")" -gt "$TEXT_MAX_BYTES" ]; then
     text=$(LC_ALL=C; printf '%s' "${text:0:$TEXT_MAX_BYTES}")
   fi
-  if command -v iconv >/dev/null 2>&1 \
-    && converted=$(printf '%s' "$text" | iconv -c -f UTF-8 -t UTF-8 2>/dev/null); then
-    printf '%s' "$converted"
-  else
-    printf '%s' "$text" | LC_ALL=C tr -d '\200-\377'
-  fi
+  printf '%s' "$text"
 }
 
 file_size() {
@@ -207,7 +220,7 @@ status_fragment() { # <status-line>
   note=$(status_line_note "$line")
   printf ',"state":%s,"at":%s,"key":%s,"text":%s' \
     "$(json_str "$verb")" "${at:-null}" "$(json_str "$key")" \
-    "$(json_str "$(bound_text "$note")")"
+    "$(json_text "$(bound_text "$note")")"
 }
 
 # Emit every complete line of <file> from <offset> and set CAPTURE_OFFSET to
@@ -361,15 +374,23 @@ case "$cmd" in
       task.dispatched|task.relaunched)
         [ -n "$task" ] || usage
         meta="$STATE/$task.meta"
-        field() { grep "^$1=" "$meta" 2>/dev/null | tail -1 | cut -d= -f2-; }
+        field() {
+          local line
+          line=$(LC_ALL=C grep "^$1=" "$meta" 2>/dev/null | LC_ALL=C tail -1)
+          printf '%s' "${line#*=}"
+        }
         kind=$(field kind)
         project=$(field project)
         [ "$kind" != secondmate ] || project=$(field home)
         project=${project%/}
         project=${project##*/}
+        model=$(field model)
+        effort=$(field effort)
+        [ -n "$model" ] || model=default
+        [ -n "$effort" ] || effort=default
         fragment=$(printf ',"kind":%s,"project":%s,"harness":%s,"model":%s,"effort":%s,"mode":%s,"yolo":%s' \
           "$(json_str "$kind")" "$(json_str "$project")" "$(json_str "$(field harness)")" \
-          "$(json_str "$(field model)")" "$(json_str "$(field effort)")" \
+          "$(json_str "$model")" "$(json_str "$effort")" \
           "$(json_str "$(field mode)")" "$(json_str "$(field yolo)")")
         ;;
       task.pr_recorded)

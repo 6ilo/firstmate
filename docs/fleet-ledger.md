@@ -30,6 +30,7 @@ The file appears when the ledger is turned on.
 Follow it like any log, for example `tail -n +1 -F state/fleet-ledger.jsonl | jq -c .`, which also follows it across rotation.
 
 Each line is one JSON object terminated by a newline, in UTF-8.
+Every string in a record is filtered to valid UTF-8 first, so bytes a status log, a task record, or a URL holds that are not valid UTF-8 never reach a reader; on a host with no working `iconv` every non-ASCII byte is dropped instead.
 A reader must ignore members it does not recognize and event kinds it does not recognize, so later versions can add them without breaking it.
 
 ## Record format
@@ -71,8 +72,8 @@ Member meanings:
 - `state` is the status line's leading lowercase word before its first colon, such as `working`, `needs-decision`, `blocked`, `paused`, `done`, `failed`, `resolved`, or `note`, and `null` for a line with no such word.
 - `at` is the Unix time the worker stamped into the line with `[at=<epoch>]`, or `null` when the line carries no well-formed stamp.
 - `key` is the line's `[key=<slug>]` correlation key, or `null` when it has none.
-- `text` is the line's message after the first colon (the whole line when it has none), with the time and key stamps removed and at most 2000 bytes kept.
-  Bytes that are not valid UTF-8, including a character the 2000-byte bound cut in half, are dropped; on a host with no working `iconv` every non-ASCII byte is dropped instead, so the line stays valid UTF-8 either way.
+- `text` is the line's message after the first colon (the whole line when it has none), with the time and key stamps removed and at most 2000 bytes kept; a character that bound cut in half is dropped with the rest of the invalid bytes.
+  It is always a string, so a line whose message is empty, such as `done:`, carries `""` rather than `null`.
 - `via` is `pr` for a merged pull or merge request, with `pr` its URL, or `local` for a local-only landing, with `pr` null.
 - `pr` is the canonical pull or merge request URL.
 

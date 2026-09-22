@@ -394,6 +394,52 @@ SH
   pass "invalid UTF-8 in a status line is dropped whether or not iconv works"
 }
 
+test_a_status_line_with_no_message_records_an_empty_string() {
+  local home ledger
+  home="$TMP_ROOT/emptytext/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  run_ledger "$home" enable >/dev/null || fail "enable failed"
+  printf 'done:\n' >> "$home/state/t1.status"
+  run_ledger "$home" capture || fail "capture failed"
+  assert_equals "string" "$(jq -r 'select(.event == "task.status") | .text | type' "$ledger")" \
+    "an empty status message was not recorded as a string"
+  assert_equals "" "$(jq -r 'select(.event == "task.status") | .text' "$ledger")" \
+    "an empty status message did not survive as an empty string"
+  assert_equals "done" "$(jq -r 'select(.event == "task.status") | .state' "$ledger")" \
+    "the status verb was lost"
+  pass "a status line with no message records text as an empty string, not null"
+}
+
+# The task record a remote secondmate launch publishes: no model or effort was
+# asked for, so bin/fm-spawn.sh stores both empty, and a project directory name
+# is whatever bytes the filesystem accepted.
+test_dispatch_metadata_defaults_and_stays_valid_utf8() {
+  local home ledger
+  home="$TMP_ROOT/dispatch/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  run_ledger "$home" enable >/dev/null || fail "enable failed"
+  fm_write_meta "$home/state/sm1.meta" \
+    "window=remote:sm1" "endpoint_task_id=sm1" "worktree=$home/sm1" \
+    "project=$home/sm1" "harness=claude" "kind=secondmate" "mode=secondmate" \
+    "yolo=off" "model=" "effort=" "home=$home/sm1"
+  run_ledger "$home" record task.dispatched --task sm1 || fail "dispatch record failed"
+  assert_equals "default default" \
+    "$(jq -r 'select(.event == "task.dispatched") | "\(.model) \(.effort)"' "$ledger")" \
+    "a dispatch that asked for no model or effort was reported as unknown"
+  fm_write_meta "$home/state/t2.meta" \
+    "window=firstmate:fm-t2" "endpoint_task_id=t2" "worktree=$home/wt" \
+    "project=$(printf '%s/w\xffeb' "$home")" "harness=claude" "kind=ship" \
+    "mode=no-mistakes" "yolo=off" "model=default" "effort=low"
+  run_ledger "$home" record task.dispatched --task t2 || fail "dispatch record failed"
+  assert_equals "web" "$(jq -r 'select(.task == "t2") | .project' "$ledger")" \
+    "a project name byte that is not valid UTF-8 reached the ledger"
+  iconv -f UTF-8 -t UTF-8 "$ledger" >/dev/null 2>&1 \
+    || fail "the ledger is not valid UTF-8: $(cat "$ledger")"
+  pass "a dispatch record reports the runtime defaults and stays valid UTF-8"
+}
+
 test_rotation_keeps_sequence_numbers_continuous() {
   local home ledger i
   home="$TMP_ROOT/rotation/home"
@@ -438,5 +484,7 @@ test_flag_changes_wait_for_the_ledger_lock
 test_a_record_that_reaches_the_lock_after_opt_out_writes_nothing
 test_a_blocked_writer_does_not_block_its_producer
 test_invalid_utf8_status_text_is_dropped_with_and_without_iconv
+test_a_status_line_with_no_message_records_an_empty_string
+test_dispatch_metadata_defaults_and_stays_valid_utf8
 test_rotation_keeps_sequence_numbers_continuous
 test_away_mode_entry_and_return_are_recorded
