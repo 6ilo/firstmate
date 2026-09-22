@@ -1,0 +1,12 @@
+ok - brief pre-fills the report path and states the format of every value it cannot know
+ok - the emitter refuses a deliverable tasks-axi would reject, naming key, value, and format
+ok - the emitter refuses an event missing a required deliverable in both destinations
+ok - the emitter's work-event rules agree with the real tasks-axi consumer on 74 cases
+ok - a rejected event records a specific reason and wakes the owning home once
+ok - a rejection collected from a remote secondmate wakes the owning home
+ok - only a failed result may answer a promise without the deliverable it promised
+ok - a failure promise keeps needing its own error_code
+ok - a rejection whose wake cannot be recorded is retried rather than lost
+ok - a rejection wake survives a poll that could not write its line
+ok - a rejection wake survives a poll that could not read its line
+ok - a refusal whose event was retained repeats its wake instead of a new one

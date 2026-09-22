@@ -1,0 +1,27 @@
+=== BRIEF ===
+When this work reaches its promised terminal outcome, report it as typed data
+(never as a sentence for someone to parse) by running exactly:
+
+  /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M35B8QKG9WFM3NXGAM6JF3JA/bin/fm-public-followup-emit.sh \
+    --home /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M35B8QKG9WFM3NXGAM6JF3JA/state/live-public-followup.ipRWVC \
+    --obligation pf-live \
+    --relation rel-live \
+    --source-home main \
+    --work-id work-live \
+    --generation 1 \
+    --outcome report-ready \
+    --require-deliverable report_path \
+    --deliverable report_path=data/work-live/report.md \
+    --outcome-text '<one bounded public-safe sentence>'
+
+Do not post anything publicly yourself and do not look for the public thread:
+the home above owns the reply.
+=== BAD EMIT (expected refusal) ===
+fm-public-followup-emit: deliverable 'report_path' value '/absolute/report.md' is not valid; expected data/<task-id>/report.md, relative to the work home, never an absolute path
+events_after_bad_emit=0
+=== LEGACY BAD EVENT CONSUME ===
+rejected 5cd9773af997e10f475321c2227e84b2448dea377ab706c4349e7ca3ee1dda89: event id does not match its own identity fields
+rejected c843320a8a8affebd5d3591353b8ec15d489667e51607b55ff2d864cde708767: event id does not match its own identity fields
+=== POLL WAKE ===
+public-followup rejected 5cd9773af997e10f475321c2227e84b2448dea377ab706c4349e7ca3ee1dda89 for obligation unknown: event id does not match its own identity fields
+public-followup rejected c843320a8a8affebd5d3591353b8ec15d489667e51607b55ff2d864cde708767 for obligation unknown: event id does not match its own identity fields
