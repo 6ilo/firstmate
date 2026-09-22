@@ -15,11 +15,14 @@ bin/fm-fleet-ledger.sh disable
 ```
 
 `enable` is the supported way in.
-In one locked step it marks the current end of every status log, opens the ledger with `ledger.started`, and creates the optional, local, gitignored `config/fleet-ledger` presence flag, so everything that happens from the moment the ledger is on is recorded, including activity in tasks that are already running, and nothing from before it is.
+In one locked step it marks the current end of every status log, creates the optional, local, gitignored `config/fleet-ledger` presence flag, and opens the ledger with `ledger.started`, so everything that happens from the moment the ledger is on is recorded, including activity in tasks that are already running, and nothing from before it is.
 Creating that flag by hand instead (`touch config/fleet-ledger`) also turns the ledger on, but the baseline is only taken when firstmate next writes to the ledger, so status lines appended between the touch and that first write are not recorded.
 `disable` takes the same lock to remove the flag, so once it returns no further record is written, not even by a producer that was already on its way.
 It discards the ledger's read positions with it, so a status line appended while the ledger is off is never recorded later: turning it on again, with `enable` or a bare `touch`, opens a fresh `ledger.started` boundary and records from there.
 The ledger files themselves are kept, so `seq` continues where it left off.
+
+Both commands change the flag last thing before they can still fail, and report a failure with a non-zero exit: an `enable` that cannot create the flag records nothing, and a `disable` that cannot remove it leaves the ledger on with its read positions intact.
+Either is safe to re-run once the cause is fixed, and re-running `enable` is the way to recover from a failed one, rather than creating the flag by hand.
 
 With the flag absent, firstmate writes nothing and starts no process for the ledger: each producer pays one file-existence test, and nothing else.
 The flag is per home and is not inherited by secondmate homes; opt each home in whose activity you want to follow.

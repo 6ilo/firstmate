@@ -476,6 +476,47 @@ test_nothing_appended_while_the_ledger_was_off_is_ever_recorded() {
   pass "nothing appended while the ledger was off is recorded when it is turned on again"
 }
 
+# An unwritable config/ is how a half-applied transition is reachable: state/
+# still takes writes while the flag cannot change. Neither direction may leave
+# the ledger's boundary or its read positions in a state the flag contradicts.
+test_a_transition_that_cannot_change_the_flag_changes_nothing_else() {
+  local home ledger rc=0
+  if [ "$(id -u)" -eq 0 ]; then
+    pass "skipped (running as root, where an unwritable config/ is still writable)"
+    return
+  fi
+  home="$TMP_ROOT/atomic/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  chmod a-w "$home/config"
+  run_ledger "$home" enable >/dev/null 2>&1 || rc=$?
+  chmod u+w "$home/config"
+  assert_not_equals 0 "$rc" "enable reported success although it could not turn the ledger on"
+  assert_absent "$home/config/fleet-ledger" "a failed enable turned the ledger on"
+  assert_absent "$ledger" "a failed enable left a start record for an opt-in that never happened"
+  run_ledger "$home" enable >/dev/null || fail "enable was not safe to re-run"
+  printf 'working: on period\n' >> "$home/state/t1.status"
+  run_ledger "$home" capture || fail "capture failed"
+  rc=0
+  chmod a-w "$home/config"
+  run_ledger "$home" disable >/dev/null 2>&1 || rc=$?
+  chmod u+w "$home/config"
+  assert_not_equals 0 "$rc" "disable reported success although the ledger is still on"
+  assert_present "$home/config/fleet-ledger" "a failed disable left the ledger in neither state"
+  printf 'done: still on\n' >> "$home/state/t1.status"
+  run_ledger "$home" capture || fail "capture after a failed disable failed"
+  assert_equals "ledger.started task.status task.status" \
+    "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
+    "a failed disable opened a second boundary on a ledger that is still on: $(cat "$ledger")"
+  assert_equals "on period still on" \
+    "$(jq -r 'select(.event == "task.status") | .text' "$ledger" | paste -sd' ' -)" \
+    "a failed disable dropped the read positions and skipped an on-period line"
+  run_ledger "$home" disable >/dev/null || fail "disable was not safe to re-run"
+  assert_absent "$home/config/fleet-ledger" "the re-run disable left the ledger on"
+  assert_absent "$home/state/.fleet-ledger-cursors" "the re-run disable kept the read positions"
+  pass "a transition that cannot change the flag reports it and leaves everything else alone"
+}
+
 test_rotation_keeps_sequence_numbers_continuous() {
   local home ledger i
   home="$TMP_ROOT/rotation/home"
@@ -523,5 +564,6 @@ test_invalid_utf8_status_text_is_dropped_with_and_without_iconv
 test_a_status_line_with_no_message_records_an_empty_string
 test_dispatch_metadata_defaults_and_stays_valid_utf8
 test_nothing_appended_while_the_ledger_was_off_is_ever_recorded
+test_a_transition_that_cannot_change_the_flag_changes_nothing_else
 test_rotation_keeps_sequence_numbers_continuous
 test_away_mode_entry_and_return_are_recorded

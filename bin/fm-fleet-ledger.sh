@@ -24,13 +24,16 @@
 # Usage:
 #   fm-fleet-ledger.sh enable
 #     Turn the ledger on for this home in one locked transition: baseline every
-#     existing status log at its current end, append ledger.started, and create
-#     the presence flag. Already on is a no-op that keeps the baseline.
+#     existing status log at its current end, create the presence flag, and only
+#     then append ledger.started, so a flag this cannot create exits non-zero
+#     with no start record. Already on is a no-op that keeps the baseline.
 #   fm-fleet-ledger.sh disable
-#     Remove the presence flag and the read positions, under the same lock, so
-#     once it returns no record can still be written and nothing appended while
-#     the ledger is off can be recorded later. The ledger files stay, so a later
-#     enable continues the same sequence.
+#     Remove the presence flag and then the read positions, under the same lock,
+#     so once it returns no record can still be written and nothing appended
+#     while the ledger is off can be recorded later. A flag this cannot remove
+#     exits non-zero with the read positions untouched, leaving the ledger on
+#     and consistent. The ledger files stay, so a later enable continues the
+#     same sequence. Both commands are safe to re-run.
 #   fm-fleet-ledger.sh record <event> [--task <id>] [--pr <url>] [--via pr|local]
 #     Append one record. A --task record first captures that task's unread
 #     status lines, so the task's own status events always precede it.
@@ -254,8 +257,8 @@ enable_locked() {
   : > "$CURSORS.tmp.$$" || return 1
   [ -z "$listing" ] || printf '%s\n' "$listing" > "$CURSORS.tmp.$$" || return 1
   mv -f "$CURSORS.tmp.$$" "$CURSORS" || return 1
-  append ledger.started '' '' || return 1
-  touch "$CONFIG/fleet-ledger"
+  touch "$CONFIG/fleet-ledger" || return 1
+  append ledger.started '' ''
 }
 
 # Opt out from this instant: the read positions go with the flag, so a status
@@ -263,7 +266,8 @@ enable_locked() {
 # is turned on again, and can never be recorded. The ledger files stay, so the
 # sequence continues.
 disable_locked() {
-  rm -f "$CURSORS" "$CONFIG/fleet-ledger"
+  rm -f "$CONFIG/fleet-ledger" || return 1
+  rm -f "$CURSORS"
 }
 
 cursor_lookup() { # <cursor-data> <task> -> "<ident>\t<offset>"
