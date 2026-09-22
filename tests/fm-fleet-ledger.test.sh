@@ -440,6 +440,42 @@ test_dispatch_metadata_defaults_and_stays_valid_utf8() {
   pass "a dispatch record reports the runtime defaults and stays valid UTF-8"
 }
 
+# Turning the ledger off and on again, the documented way and by hand, must
+# leave the off period out of the ledger on both write paths: the watcher's
+# capture and a task lifecycle record, which captures that task first.
+test_nothing_appended_while_the_ledger_was_off_is_ever_recorded() {
+  local home ledger
+  home="$TMP_ROOT/offperiod/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  run_ledger "$home" enable >/dev/null || fail "enable failed"
+  printf 'working: while on\n' >> "$home/state/t1.status"
+  run_ledger "$home" capture || fail "capture failed"
+  run_ledger "$home" disable >/dev/null || fail "disable failed"
+  printf 'note: private while off\n' >> "$home/state/t1.status"
+  touch "$home/config/fleet-ledger"
+  run_ledger "$home" capture || fail "capture after a bare-touch re-enable failed"
+  printf 'done: after re-enable\n' >> "$home/state/t1.status"
+  run_ledger "$home" capture || fail "capture failed"
+  run_ledger "$home" disable >/dev/null || fail "second disable failed"
+  printf 'note: private off again\n' >> "$home/state/t1.status"
+  touch "$home/config/fleet-ledger"
+  run_ledger "$home" record task.cleaned_up --task t1 || fail "cleanup record failed"
+  assert_no_grep "private while off" "$ledger" \
+    "a status line appended while the ledger was off was recorded by a capture"
+  assert_no_grep "private off again" "$ledger" \
+    "a status line appended while the ledger was off was recorded by a lifecycle record"
+  assert_equals "ledger.started task.status ledger.started task.status ledger.started task.cleaned_up" \
+    "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
+    "turning the ledger on again did not open a new boundary: $(cat "$ledger")"
+  assert_equals "while on after re-enable" \
+    "$(jq -r 'select(.event == "task.status") | .text' "$ledger" | paste -sd' ' -)" \
+    "recording did not resume exactly at each new boundary"
+  assert_equals "1 2 3 4 5 6" "$(jq -r '.seq' "$ledger" | paste -sd' ' -)" \
+    "the sequence did not continue across the off periods"
+  pass "nothing appended while the ledger was off is recorded when it is turned on again"
+}
+
 test_rotation_keeps_sequence_numbers_continuous() {
   local home ledger i
   home="$TMP_ROOT/rotation/home"
@@ -486,5 +522,6 @@ test_a_blocked_writer_does_not_block_its_producer
 test_invalid_utf8_status_text_is_dropped_with_and_without_iconv
 test_a_status_line_with_no_message_records_an_empty_string
 test_dispatch_metadata_defaults_and_stays_valid_utf8
+test_nothing_appended_while_the_ledger_was_off_is_ever_recorded
 test_rotation_keeps_sequence_numbers_continuous
 test_away_mode_entry_and_return_are_recorded

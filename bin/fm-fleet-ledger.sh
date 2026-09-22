@@ -27,9 +27,10 @@
 #     existing status log at its current end, append ledger.started, and create
 #     the presence flag. Already on is a no-op that keeps the baseline.
 #   fm-fleet-ledger.sh disable
-#     Remove the presence flag, under the same lock, so once it returns no
-#     record can still be written. State is left in place, so a later enable
-#     continues the same sequence without replaying the off period.
+#     Remove the presence flag and the read positions, under the same lock, so
+#     once it returns no record can still be written and nothing appended while
+#     the ledger is off can be recorded later. The ledger files stay, so a later
+#     enable continues the same sequence.
 #   fm-fleet-ledger.sh record <event> [--task <id>] [--pr <url>] [--via pr|local]
 #     Append one record. A --task record first captures that task's unread
 #     status lines, so the task's own status events always precede it.
@@ -47,12 +48,13 @@
 #   .fleet-ledger.lock     serializes every append, rotation, cursor write, and
 #                          flag change, and is what record and capture recheck
 #                          the flag under, so nothing lands after disable
-# enable writes the baseline cursors. A flag created by hand leaves none, so
-# the first locked write baselines every existing status log at its current
-# size and appends ledger.started then; status lines appended between that bare
-# touch and that first write are not recorded. Either way opting in never
-# replays history. A status log first seen after the baseline is read from
-# byte 0. A changed inode or a log shorter than its cursor is read from byte 0.
+# enable writes the baseline cursors and disable discards them. A flag created
+# by hand leaves none, so the first locked write baselines every existing status
+# log at its current size and appends ledger.started then; status lines appended
+# between that bare touch and that first write are not recorded. Either way
+# opting in never replays history, including any off period. A status log first
+# seen after the baseline is read from byte 0. A changed inode or a log shorter
+# than its cursor is read from byte 0.
 # Only newline-terminated lines are consumed; a partial tail waits for the
 # next capture. Records are appended before cursors are saved, so a crash in
 # between repeats those status records on the next capture (at-least-once),
@@ -256,8 +258,12 @@ enable_locked() {
   touch "$CONFIG/fleet-ledger"
 }
 
+# Opt out from this instant: the read positions go with the flag, so a status
+# line appended while the ledger is off is behind the baseline whichever way it
+# is turned on again, and can never be recorded. The ledger files stay, so the
+# sequence continues.
 disable_locked() {
-  rm -f "$CONFIG/fleet-ledger"
+  rm -f "$CURSORS" "$CONFIG/fleet-ledger"
 }
 
 cursor_lookup() { # <cursor-data> <task> -> "<ident>\t<offset>"

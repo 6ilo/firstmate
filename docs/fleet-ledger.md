@@ -17,7 +17,9 @@ bin/fm-fleet-ledger.sh disable
 `enable` is the supported way in.
 In one locked step it marks the current end of every status log, opens the ledger with `ledger.started`, and creates the optional, local, gitignored `config/fleet-ledger` presence flag, so everything that happens from the moment the ledger is on is recorded, including activity in tasks that are already running, and nothing from before it is.
 Creating that flag by hand instead (`touch config/fleet-ledger`) also turns the ledger on, but the baseline is only taken when firstmate next writes to the ledger, so status lines appended between the touch and that first write are not recorded.
-`disable` takes the same lock to remove the flag, so once it returns no further record is written, not even by a producer that was already on its way; it leaves the ledger and its read positions in place, so turning it on again continues the same sequence rather than replaying what happened while it was off.
+`disable` takes the same lock to remove the flag, so once it returns no further record is written, not even by a producer that was already on its way.
+It discards the ledger's read positions with it, so a status line appended while the ledger is off is never recorded later: turning it on again, with `enable` or a bare `touch`, opens a fresh `ledger.started` boundary and records from there.
+The ledger files themselves are kept, so `seq` continues where it left off.
 
 With the flag absent, firstmate writes nothing and starts no process for the ledger: each producer pays one file-existence test, and nothing else.
 The flag is per home and is not inherited by secondmate homes; opt each home in whose activity you want to follow.
@@ -52,7 +54,7 @@ A member whose value is unknown or absent is `null`, never omitted.
 
 | Event | Written when | Extra members |
 | --- | --- | --- |
-| `ledger.started` | The home opts in with `enable`, or, when the flag was created by hand, the first write after that, or the first write after the ledger's cursor state was removed. | none |
+| `ledger.started` | The home opts in with `enable`, or, when the flag was created by hand, at the first write after that; turning the ledger off and on again opens a new boundary the same way. | none |
 | `session.started` | A firstmate session starts in this home and holds its session lock. | none |
 | `away.entered` | The captain enters away mode (`/afk`); a refresh of an existing away posture writes nothing. | none |
 | `away.returned` | Away mode ends and its record is archived. | none |
@@ -98,6 +100,7 @@ Records are produced at the existing single places where firstmate already recor
 - A lifecycle record about a task first picks up that task's unread status lines, so within one task its status records always precede the lifecycle record that follows them.
 - Opting in does not replay history: `ledger.started` marks the point from which status lines are recorded, and lines already in a status log at that moment are skipped.
   With `enable` that point is when the command ran; with a bare `touch` of the flag it is the first ledger write after it.
+  Turning the ledger off and on again sets a new such point, so lines appended while it was off are skipped exactly like lines from before the first opt-in.
   A status log created after that point is recorded from its first line.
 
 ## Ordering and durability
