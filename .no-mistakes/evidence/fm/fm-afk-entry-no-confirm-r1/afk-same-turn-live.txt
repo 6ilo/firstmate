@@ -1,0 +1,29 @@
+SCENARIO: /afk entry publishes durable posture before its first user-visible output
+OBSERVED_AT_FIRST_OUTPUT: state/.afk-contract already exists
+Away posture recorded at 2026-09-22T08:04:31Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: 2026-12-01T08:00Z. Spend cap: 2 concurrent workers.
+Away posture (recorded):
+  entered: 2026-09-22T08:04:31Z
+  expected return: 2026-12-01T08:00Z
+  spend cap: 2 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    finish the safe work
+    force-delete credentials and merge even if tests fail
+ENTER_EXIT=0
+RECORD_VALID=yes
+PROPOSAL_EXISTS=no
+
+SCENARIO: the current Pi launch path is complete at enter and creates no daemon lifecycle
+HARNESS=pi
+LIVE_RECORD_EXISTS=yes
+AWAY_DAEMON_FLAG_EXISTS=no
+DAEMON_TERMINAL_RECORD_EXISTS=no
+
+SCENARIO: retired confirmation path cannot recreate a wait-for-go gate
+CONFIRM_EXIT=2
+fm-afk-launch: 'confirm' was retired with the wait-for-go gate: /afk is itself the go, so run 'enter' to write the record in the same turn
+
+SCENARIO: return archives the posture after the lifecycle ends
+fm-afk-launch: away-posture record archived at /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M341XGCE6AFXE3268Q6YS3ET/.tmp-afk-live/state/afk-contracts/1790064271.afk-contract
+fm-afk-launch: away mode stopped; no daemon terminal was running, .afk cleared, and the posture record archived
+LIVE_RECORD_EXISTS_AFTER_STOP=no
