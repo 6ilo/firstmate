@@ -1,0 +1,8 @@
+ok - foreign secondmate queue alerts once per no-progress episode without age-only or cascade noise
+first: 
+progress: check: rearm-resurface
+stalled: check: secondmate wake-loop stalled: mate=mate row=8 idle=2s
+next: 
+refrozen: check: secondmate wake-loop stalled: mate=mate row=9 idle=2s
+progress marker: 1010	100-9
+parent queue: 1012	2	check	secondmate-wake-loop-mate-100-9	check: secondmate wake-loop stalled: mate=mate row=9 idle=2s

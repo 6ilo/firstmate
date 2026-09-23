@@ -1,0 +1,16 @@
+ok - foreign secondmate queue alerts once per no-progress episode without age-only or cascade noise
+iteration 1: first=0 progress=23 next=0 stalled=check: secondmate wake-loop stalled: mate=mate row=8 idle=2s refrozen=check: secondmate wake-loop stalled: mate=mate row=9 idle=2s final-progress=1010	100-9
+ok - foreign secondmate queue alerts once per no-progress episode without age-only or cascade noise
+iteration 2: first=0 progress=23 next=0 stalled=check: secondmate wake-loop stalled: mate=mate row=8 idle=2s refrozen=check: secondmate wake-loop stalled: mate=mate row=9 idle=2s final-progress=1010	100-9
+ok - foreign secondmate queue alerts once per no-progress episode without age-only or cascade noise
+iteration 3: first=0 progress=23 next=0 stalled=check: secondmate wake-loop stalled: mate=mate row=8 idle=2s refrozen=check: secondmate wake-loop stalled: mate=mate row=9 idle=2s final-progress=1010	100-9
+ok - foreign secondmate queue alerts once per no-progress episode without age-only or cascade noise
+iteration 4: first=0 progress=23 next=0 stalled=check: secondmate wake-loop stalled: mate=mate row=8 idle=2s refrozen=check: secondmate wake-loop stalled: mate=mate row=9 idle=2s final-progress=1010	100-9
+ok - foreign secondmate queue alerts once per no-progress episode without age-only or cascade noise
+iteration 5: first=0 progress=23 next=0 stalled=check: secondmate wake-loop stalled: mate=mate row=8 idle=2s refrozen=check: secondmate wake-loop stalled: mate=mate row=9 idle=2s final-progress=1010	100-9
+ok - foreign secondmate queue alerts once per no-progress episode without age-only or cascade noise
+iteration 6: first=0 progress=23 next=0 stalled=check: secondmate wake-loop stalled: mate=mate row=8 idle=2s refrozen=check: secondmate wake-loop stalled: mate=mate row=9 idle=2s final-progress=1010	100-9
+ok - foreign secondmate queue alerts once per no-progress episode without age-only or cascade noise
+iteration 7: first=0 progress=23 next=0 stalled=check: secondmate wake-loop stalled: mate=mate row=8 idle=2s refrozen=check: secondmate wake-loop stalled: mate=mate row=9 idle=2s final-progress=1010	100-9
+ok - foreign secondmate queue alerts once per no-progress episode without age-only or cascade noise
+iteration 8: first=0 progress=23 next=0 stalled=check: secondmate wake-loop stalled: mate=mate row=8 idle=2s refrozen=check: secondmate wake-loop stalled: mate=mate row=9 idle=2s final-progress=1010	100-9
