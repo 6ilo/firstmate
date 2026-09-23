@@ -626,6 +626,38 @@ test_a_launched_worker_is_recorded_though_its_dispatch_commit_fails() {
   pass "a worker launched before a failed dispatch commit is still recorded"
 }
 
+# The real local-only landing, run exactly as the merge gate-action runs it.
+run_merge_local() {  # <home> <id>
+  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" \
+    FM_CONFIG_OVERRIDE="$1/config" "$ROOT/bin/fm-merge-local.sh" "$2" 2>&1
+}
+
+test_a_local_landing_is_recorded_once_however_often_it_is_merged() {
+  local case_dir home repo wt ledger out id=ledger-local-merge-t1
+  case_dir="$TMP_ROOT/local-merge"
+  home="$case_dir/home"
+  repo="$case_dir/project"
+  wt="$case_dir/delivery"
+  ledger="$home/state/fleet-ledger.jsonl"
+  mkdir -p "$home/state" "$home/config" "$home/data"
+  touch "$home/config/fleet-ledger"
+  fm_git_worktree "$repo" "$wt" "fm/$id"
+  printf 'landed locally\n' > "$wt/local.txt"
+  git -C "$wt" add local.txt
+  git -C "$wt" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' \
+    commit -qm 'local delivery'
+  fm_write_meta "$home/state/$id.meta" \
+    "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$wt" \
+    "project=$repo" "harness=claude" "kind=ship" "mode=local-only" "spawn_gen=ledger-$id"
+  out=$(run_merge_local "$home" "$id") || fail "the local landing failed: $out"
+  assert_equals "task.merged" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
+    "the local landing was not recorded once: $(cat "$ledger")"
+  out=$(run_merge_local "$home" "$id") || fail "re-running the landed merge failed: $out"
+  assert_equals "local" "$(jq -r 'select(.event == "task.merged") | .via' "$ledger" | paste -sd' ' -)" \
+    "a re-run that landed nothing recorded a second landing: $(cat "$ledger")"
+  pass "a local-only landing is recorded once, and a re-run that moves nothing records nothing"
+}
+
 test_off_home_writes_nothing_through_the_real_lifecycle
 test_on_home_records_the_lifecycle_end_to_end
 test_opt_in_baselines_history_and_reads_new_logs_whole
@@ -643,3 +675,4 @@ test_rotation_keeps_sequence_numbers_continuous
 test_away_mode_entry_and_return_are_recorded
 test_a_record_cut_off_part_way_stays_one_skippable_line
 test_a_launched_worker_is_recorded_though_its_dispatch_commit_fails
+test_a_local_landing_is_recorded_once_however_often_it_is_merged

@@ -135,7 +135,7 @@ fm_lock_release "$MERGE_CONTROL_LOCK" || true
 MERGE_CONTROL_LOCK=
 [ "$merge_status" -eq 0 ] || exit "$merge_status"
 after=$(git -C "$PROJ" rev-parse --short "$DEFAULT")
-if [ -e "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/fleet-ledger" ]; then
+if [ "$after" != "$before" ] && [ -e "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/fleet-ledger" ]; then
   # shellcheck source=bin/fm-fleet-ledger-lib.sh
   . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
   fm_fleet_ledger record task.merged --task "$ID" --via local
