@@ -1,0 +1,14 @@
+Branch lease in isolated home:
+branch 65695 1790202166 live
+unmarked main claim rc=6: error: claim refused - task 'task-live' is leased to the branch supervision actor (state/.lease-task-live)
+Previous session lock becomes stale:
+branch 65695 1790202166 stale
+main 65695 1790202166 live
+Harness under Pi marker and Claude primary pin:
+branch own=claude crew=claude secondmate=claude
+main own=pi
+invalid pin rc=2: error: FM_SUPERVISION_PRIMARY_HARNESS='invalid' names no known harness; refusing to resolve the supervision branch's harness
+Bound TERM-ignoring shell:
+rc=124 elapsed=2s
+Unmarked main without a lease:
+no lease command lock created
