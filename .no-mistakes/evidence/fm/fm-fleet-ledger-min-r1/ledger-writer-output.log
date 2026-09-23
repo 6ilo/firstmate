@@ -1,0 +1,10 @@
+FLAG OFF: no ledger or offset after dispatch and status capture
+FLAG ON: ledger records from executable writer:
+{"v":1,"ts":1790136055,"event":"task.dispatched","task":"demo","kind":"ship","project":"sample","harness":"claude","model":null}
+{"v":1,"ts":1790136055,"event":"task.status","task":"demo","state":"working","key":null,"text":"  started  "}
+{"v":1,"ts":1790136055,"event":"task.status","task":"demo","state":"needs-decision","key":"pick","text":" choose now"}
+{"v":1,"ts":1790136055,"event":"task.status","task":"demo","state":null,"key":null,"text":"partial completed"}
+{"v":1,"ts":1790136055,"event":"task.status","task":"demo","state":"done","key":"pick","text":" [key=pick] ready"}
+{"v":1,"ts":1790136055,"event":"task.merged","task":"demo","via":"local"}
+{"v":1,"ts":1790136055,"event":"task.cleaned_up","task":"demo"}
+CLEANUP: task offset removed

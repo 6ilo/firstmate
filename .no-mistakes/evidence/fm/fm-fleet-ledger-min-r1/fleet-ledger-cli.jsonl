@@ -1,0 +1,6 @@
+{"v":1,"ts":1790135415,"event":"task.dispatched","task":"trial","kind":"ship","project":"sample","harness":"claude","model":null}
+{"v":1,"ts":1790135416,"event":"task.status","task":"trial","state":"working","key":null,"text":"  keep spacing"}
+{"v":1,"ts":1790135416,"event":"task.status","task":"trial","state":"needs-decision","key":"choose","text":" [key=choose] ready"}
+{"v":1,"ts":1790135416,"event":"task.status","task":"trial","state":"incomplete","key":null,"text":" finished"}
+{"v":1,"ts":1790135416,"event":"task.merged","task":"trial","via":"local"}
+{"v":1,"ts":1790135416,"event":"task.cleaned_up","task":"trial"}

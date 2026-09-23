@@ -1,0 +1,19 @@
+lab session: fm-lab-fm-fleet-ledger-31889-24564
+=== case flag=on home=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M365MQD0FNT77ZHMY4X4SRRK/.ledger-live-tmp/on/home
+config/: fleet-ledger herdr-presentation-spaces 
+--- spawn
+error: no-mistakes gate agent must not drive the fleet (NO_MISTAKES_GATE set)
+spawn rc=3
+--- spawn diagnostic
+/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M365MQD0FNT77ZHMY4X4SRRK/.ledger-live-tmp/on/home/data/ledger-live-on:
+total 8
+drwxr-xr-x@ 3 kunchen  staff   96 Sep 22 21:00 .
+drwxr-xr-x@ 3 kunchen  staff   96 Sep 22 21:00 ..
+-rw-r--r--@ 1 kunchen  staff  130 Sep 22 21:00 brief.md
+
+/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M365MQD0FNT77ZHMY4X4SRRK/.ledger-live-tmp/on/home/state:
+total 0
+drwxr-xr-x@ 2 kunchen  staff   64 Sep 22 21:00 .
+drwxr-xr-x@ 6 kunchen  staff  192 Sep 22 21:00 ..
+{"client":{"version":"0.9.0","channel":"stable","protocol":22,"endpoint_protocol_generation":1,"endpoint_capabilities":["surface_interest","presentation_effects_fence","health_check"],"binary":"/etc/profiles/per-user/kunchen/bin/herdr","session":"fm-lab-fm-fleet-ledger-31889-24564"},"server":{"status":"running","running":true,"version":"0.9.0","protocol":22,"capabilities":{"live_handoff":true,"detached_server_daemon":false,"endpoint_protocol_generation":1,"surface_interest":true,"health_check":true},"compatible":true,"endpoint_compatible":true,"socket":"/Users/kunchen/.config/herdr/sessions/fm-lab-fm-fleet-ledger-31889-24564/herdr.sock","session":"fm-lab-fm-fleet-ledger-31889-24564","restart_needed":false,"server_binary_stale":false},"update":{"restart_needed":false,"server_binary_stale":false}}
+lab teardown rc=0
