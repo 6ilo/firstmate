@@ -61,8 +61,9 @@
 # renames it to fleet-ledger.jsonl.1, replacing any earlier one, and starts a
 # new file, so the pair is the whole history kept.
 # A write that was cut off mid-record leaves the ledger's last line without its
-# newline; the next write drops that tail before appending, so every line a
-# reader sees is a whole record.
+# newline; the next write ends that line with one instead of rewriting the file,
+# so a follower's bytes never change under it and the fragment is one malformed
+# line. It closes no object, so it spends no sequence number.
 # Only newline-terminated lines are consumed; a partial tail waits for the
 # next capture. Records are appended before cursors are saved, so a crash in
 # between repeats those status records on the next capture (at-least-once),
@@ -159,18 +160,16 @@ file_size() {
 }
 
 # A write cut off mid-record, by a full disk or a killed writer, leaves the
-# ledger without a closing newline. Drop that unterminated tail before the next
-# record is appended, so every line stays one whole JSON object. Caller holds
-# the lock.
-drop_partial_tail() {
-  local size fragment
+# ledger without a closing newline. A follower has already read those bytes, so
+# end that line rather than rewrite the file: the fragment stays one malformed
+# line for a reader to skip, and the next record starts on a line of its own.
+# Caller holds the lock.
+terminate_partial_tail() {
+  local size
   size=$(file_size "$LEDGER") || return 0
   case $size in ''|0) return 0 ;; esac
   [ -n "$(tail -c 1 "$LEDGER" 2>/dev/null)" ] || return 0
-  fragment=$(LC_ALL=C tail -n 1 "$LEDGER" 2>/dev/null | LC_ALL=C wc -c | tr -d ' ')
-  case $fragment in ''|*[!0-9]*) return 1 ;; esac
-  head -c "$((size - fragment))" "$LEDGER" > "$LEDGER.tmp.$$" \
-    && mv -f "$LEDGER.tmp.$$" "$LEDGER"
+  printf '\n' >> "$LEDGER"
 }
 
 # One stat call for every regular status log: "<task>\t<dev:inode>\t<size>".
@@ -200,7 +199,7 @@ last_seq() {
   local f seq
   for f in "$LEDGER" "$ROTATED"; do
     [ -s "$f" ] || continue
-    seq=$(tail -n 8 "$f" 2>/dev/null | sed -n 's/^{"v":[0-9]*,"seq":\([0-9][0-9]*\),.*/\1/p' | tail -1)
+    seq=$(tail -n 8 "$f" 2>/dev/null | sed -n 's/^{"v":[0-9]*,"seq":\([0-9][0-9]*\),.*}$/\1/p' | tail -1)
     if [ -n "$seq" ]; then printf '%s\n' "$seq"; return 0; fi
   done
   printf '0\n'
@@ -213,7 +212,7 @@ NEXT_SEQ=
 append() { # <event> <task-or-empty> <fragment>
   local event=$1 task=$2 fragment=$3 size
   if [ -z "$NEXT_SEQ" ]; then
-    drop_partial_tail || return 1
+    terminate_partial_tail || return 1
     NEXT_SEQ=$(last_seq)
     NEXT_SEQ=$((NEXT_SEQ + 1))
   fi

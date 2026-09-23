@@ -552,21 +552,30 @@ test_away_mode_entry_and_return_are_recorded() {
   pass "away entry and return are recorded without the captain's words"
 }
 
-test_a_record_cut_off_part_way_is_dropped_before_the_next_one() {
-  local home ledger
+test_a_record_cut_off_part_way_stays_one_skippable_line() {
+  local home ledger fragment identity_before identity_after
   home="$TMP_ROOT/partial-tail/home"
   mkdir -p "$home/state" "$home/config"
   ledger="$home/state/fleet-ledger.jsonl"
+  fragment='{"v":1,"seq":2,"ts":17901131'
   touch "$home/config/fleet-ledger"
   run_ledger "$home" record session.started || fail "the first record failed"
-  printf '{"v":1,"seq":2,"ts":17901131' >> "$ledger"
+  printf '%s' "$fragment" >> "$ledger"
+  identity_before=$(stat -c %i "$ledger" 2>/dev/null || stat -f %i "$ledger")
   run_ledger "$home" record away.entered || fail "the record after a cut-off write failed"
-  jq -e . "$ledger" >/dev/null 2>&1 || fail "the ledger holds a line that is not JSON: $(cat "$ledger")"
-  assert_equals "session.started away.entered" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
-    "the cut-off record was not dropped: $(cat "$ledger")"
-  assert_equals "1 2" "$(jq -r '.seq' "$ledger" | paste -sd' ' -)" \
-    "the sequence did not continue over the dropped record: $(cat "$ledger")"
-  pass "a record cut off part way is dropped, so every ledger line stays one whole record"
+  identity_after=$(stat -c %i "$ledger" 2>/dev/null || stat -f %i "$ledger")
+  assert_equals "$identity_before" "$identity_after" \
+    "recovery replaced the ledger a follower was already reading"
+  assert_equals "$fragment" "$(sed -n 2p "$ledger")" \
+    "the cut-off record did not stay one line of its own: $(cat "$ledger")"
+  assert_equals 3 "$(wc -l < "$ledger" | tr -d ' ')" \
+    "the ledger is not the two records and the fragment between them: $(cat "$ledger")"
+  assert_equals "session.started away.entered" \
+    "$(jq -Rr 'fromjson? // empty | .event' "$ledger" | paste -sd' ' -)" \
+    "a consumer that skips unparsable lines did not see both records: $(cat "$ledger")"
+  assert_equals "1 2" "$(jq -Rr 'fromjson? // empty | .seq' "$ledger" | paste -sd' ' -)" \
+    "the fragment spent a sequence number: $(cat "$ledger")"
+  pass "a record cut off part way stays one malformed line a consumer skips, and the file is never replaced"
 }
 
 # A home whose backlog is a real markdown backlog, so the In-flight commit that
@@ -632,5 +641,5 @@ test_nothing_appended_while_the_ledger_was_off_is_ever_recorded
 test_a_transition_that_cannot_change_the_flag_changes_nothing_else
 test_rotation_keeps_sequence_numbers_continuous
 test_away_mode_entry_and_return_are_recorded
-test_a_record_cut_off_part_way_is_dropped_before_the_next_one
+test_a_record_cut_off_part_way_stays_one_skippable_line
 test_a_launched_worker_is_recorded_though_its_dispatch_commit_fails

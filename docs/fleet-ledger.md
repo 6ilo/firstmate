@@ -33,9 +33,10 @@ A secondmate itself still appears in its parent's ledger as a task, including th
 
 The ledger is `state/fleet-ledger.jsonl` under the home.
 The file appears with the first record after the ledger is turned on.
-Follow it like any log, for example `tail -n +1 -F state/fleet-ledger.jsonl | jq -c .`, which also follows it across rotation.
+Follow it like any log, for example `tail -n +1 -F state/fleet-ledger.jsonl | jq -Rc 'fromjson? // empty'`, which also follows it across rotation.
 
-Each line is one JSON object terminated by a newline, in UTF-8.
+A record is one JSON object in UTF-8, and it is complete only once its line ends with a newline.
+A crash or a full disk can leave the record that was being written behind as one malformed line, so skip any line that does not parse, as the example above does; that is the only kind of line a reader has to skip.
 Every string in a record is filtered to valid UTF-8 first, so bytes a status log, a task record, or a URL holds that are not valid UTF-8 never reach a reader; on a host with no working `iconv` every non-ASCII byte is dropped instead.
 A reader must ignore members it does not recognize and event kinds it does not recognize, so later versions can add them without breaking it.
 
@@ -109,14 +110,15 @@ Records are produced at the existing single places where firstmate already recor
 
 ## Ordering and durability
 
-- Records appear in `seq` order, one writer at a time, and each is appended as a whole line.
+- Records appear in `seq` order, one writer at a time, and each is appended in one write.
 - `ts` is when the record was written, so it rises with `seq` apart from clock adjustments; use `at` for when a worker says a status event happened.
 - Status records are at-least-once: an interruption between writing a status record and saving the read position repeats that status record under a new `seq`, and an interruption at that same point on each following attempt repeats it again, with no bound on how many times.
   A reader that must act on a status event only once has to recognize the repeat itself, by the task and the line's `at` and `text`.
   Lifecycle records are written once per occurrence.
 - A line is only recorded once it ends with a newline, so a worker's half-written line waits for the next pick-up.
 - Records are not synced to disk individually; a machine crash can lose the most recent records.
-  A record a full disk or a killed writer cut off part way leaves the ledger's last line without its newline; the next write drops that unterminated line before appending, so a reader never sees a line that is not a whole record.
+  A record a full disk or a killed writer cut off part way stays in the file as one malformed line: the next write only ends that line with a newline, never rewrites or replaces the file, so bytes a follower already read never change under it and the next record starts on a line of its own.
+  Such a fragment carries no record, and the sequence number it would have had goes to the next record, so the records a reader can parse keep their unbroken sequence.
 - A record that cannot be written is reported on the producer's error output and never blocks the work itself; a write that has not finished within ten seconds is stopped and reported the same way, so a stuck ledger costs a producer that fixed bound and nothing more.
   Such an event is simply absent: `seq` has no gap for it, because a sequence number is only spent on a record that was written.
 - `seq` restarts at 1 only if both ledger files are deleted.
