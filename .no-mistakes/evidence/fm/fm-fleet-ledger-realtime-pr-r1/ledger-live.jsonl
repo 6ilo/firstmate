@@ -1,0 +1,10 @@
+=== Immediate status; no duplicate after poll ===
+{"v":1,"event":"task.status","task":"lamp","state":"needs-decision","text":" choose green or red"}
+=== PR ready ordered after status, with typed URL ===
+{"v":1,"event":"task.status","task":"lamp","pr":null}
+{"v":1,"event":"task.pr_ready","task":"lamp","pr":"https://github.com/acme/sample/pull/9"}
+=== Append failure does not succeed ===
+bash: line 1: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M36DBPTYDFSR0ZD1PXVACEW2/.ledger-live.FBAsMB/home/state/fail.status: Is a directory
+nonzero append; no fail ledger event
+=== Flag absent leaves no new ledger records ===
+second status log line appended, ledger unchanged
