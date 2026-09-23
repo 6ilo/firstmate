@@ -1,0 +1,31 @@
+=== Real CLI: brief for report-ready ===
+When this work reaches its promised terminal outcome, report it as typed data
+(never as a sentence for someone to parse) by running exactly:
+
+  /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M36969QCS62VSGDXE8VBQV0S/bin/fm-public-followup-emit.sh \
+    --home /private/var/folders/5x/4nqprlbx0518k3ybcb1sz6gr0000gn/T/fm-public-followup.pENstO/evidence-workflow \
+    --obligation pf-evidence \
+    --relation rel-code \
+    --source-home main \
+    --work-id work-evidence \
+    --generation 1 \
+    --outcome report-ready \
+    --require-deliverable report_path \
+    --deliverable report_path=data/work-evidence/report.md \
+    --outcome-text '<one bounded public-safe sentence>'
+
+Do not post anything publicly yourself and do not look for the public thread:
+the home above owns the reply.
+=== Real CLI: absolute path refused at emit ===
+fm-public-followup-emit: deliverable 'report_path' value '/Users/someone/data/work-evidence/report.md' is not valid; expected data/<task-id>/report.md, relative to the work home, never an absolute path
+Events after refusal: 0
+=== Real CLI: repeated key refused before discarded value ===
+fm-public-followup-emit: --deliverable key 'report_path' is repeated; pass each deliverable once
+=== Real CLI: valid typed result accepted by tasks-axi ===
+186372fdda44695da1c9abdcb6e724338e01bb56c916adb1d7be523595ddb87f
+ready pf-evidence req-evidence discord
+=== Real CLI: invalid incoming event quarantined ===
+rejected 8120b38976ae65629373a6bc491cbc5f200c7d362065ac2351457def07418451: deliverable 'report_path' value '/abs/work-rejection/report.md' is not valid; expected data/<task-id>/report.md, relative to the work home, never an absolute path (tasks-axi: error: work event does not satisfy expected outcome and deliverables)
+=== Real CLI: owning-home rejection wake from poll ===
+public-followup rejected 8120b38976ae65629373a6bc491cbc5f200c7d362065ac2351457def07418451 for obligation pf-rejection: deliverable 'report_path' value '/abs/work-rejection/report.md' is not valid; expected data/<task-id>/report.md, relative to the work home, never an absolute path (tasks-axi: error: work event does not satisfy expected outcome and deliverables)
+=== Real CLI: subsequent poll does not replay acknowledged wake ===
