@@ -1,0 +1,5 @@
+session=fm-lab-devin-nm-13794-3058
+native-agent=devin:idle
+proof=42
+Claude-hook=absent
+lab-teardown=tripwire verified
