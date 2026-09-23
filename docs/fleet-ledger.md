@@ -25,7 +25,7 @@ Turning the ledger on and off writes no record of its own; the ledger carries fl
 A period when it was off is therefore simply absent from it, not marked, and a reader that needs to know the ledger was following has to keep that itself.
 Both commands report a failure with a non-zero exit, change the flag on the side of the transition that leaves the ledger consistent either way, and complete what a failure left half done when you re-run them.
 
-With the flag absent, firstmate writes nothing, starts no process, and loads none of the ledger's own code: each producer pays one file-existence test on that flag, and nothing else.
+With the flag absent, firstmate writes nothing, starts no process, resolves no path, and loads none of the ledger's own code: a producer pays shell-builtin existence tests on that flag, and nothing else.
 The flag is per home and is not inherited by secondmate homes; opt each home in whose activity you want to follow.
 A secondmate itself still appears in its parent's ledger as a task, including the status lines it reports to its parent.
 

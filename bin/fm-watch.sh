@@ -2310,7 +2310,7 @@ while :; do
 
   # The opt-in fleet activity ledger (docs/fleet-ledger.md) picks up newly
   # appended status lines here, before anything in this cycle can exit on a
-  # wake. With config/fleet-ledger absent this poll pays one builtin test and
+  # wake. With config/fleet-ledger absent this poll pays a builtin test and
   # loads nothing.
   if [ -e "$CONFIG/fleet-ledger" ]; then
     # shellcheck source=bin/fm-fleet-ledger-lib.sh

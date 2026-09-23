@@ -7,8 +7,8 @@
 #
 # OFF BY DEFAULT. Nothing is written unless the home's config/fleet-ledger
 # presence flag exists. Producers never invoke this script while the flag is
-# absent: each tests that flag with one shell builtin and only then loads
-# bin/fm-fleet-ledger-lib.sh, so that single test is the entire cost of the
+# absent: each tests that flag with a shell builtin and only then loads
+# bin/fm-fleet-ledger-lib.sh, so those builtin tests are the entire cost of the
 # feature when it is off. This script repeats the test so a direct invocation
 # on an off home is a silent no-op.
 #

@@ -2,10 +2,11 @@
 # fm-fleet-ledger-lib.sh - the producer-side gate for the opt-in fleet ledger.
 #
 # Nothing here is loaded while the ledger is off. Every producer tests the
-# home's config/fleet-ledger flag with one shell builtin, on a path it already
+# home's config/fleet-ledger flag with a shell builtin, on a path it already
 # knows, and sources this file inside that test, so a home with the ledger off
-# pays that single test and nothing else: no sourcing, no path resolution, no
-# child process, no write.
+# pays those builtin tests and nothing else: no sourcing, no path resolution,
+# no child process, no write. How many of them a producer performs is its own
+# business; that none of this runs is the contract.
 #
 # Sourcing resolves this home's paths once and defines fm_fleet_ledger, which
 # runs bin/fm-fleet-ledger.sh under a hard ten-second bound, because a producer
