@@ -35,14 +35,16 @@
 #     while the ledger is off can be recorded later.
 #     Each command changes the flag on the side of the transition that leaves a
 #     failure recoverable, reports one with a non-zero exit, and re-running it
-#     completes what a failure left half done.
+#     completes what a failure left half done. An enable that cannot create the
+#     flag takes its own baseline back out, so nothing it wrote can outlive it.
 #   fm-fleet-ledger.sh record <event> [--task <id>] [--pr <url>] [--via pr|local]
 #     Append one record. A --task record first captures that task's unread
 #     status lines, so the task's own status events always precede it.
-#   fm-fleet-ledger.sh capture
+#   fm-fleet-ledger.sh capture [--task <id>]
 #     Append a task.status record for every complete status line appended to
-#     any state/<id>.status since the last capture. A cheap unlocked stat
-#     comparison returns early when no status log changed.
+#     any state/<id>.status since the last capture, or to that one task's log
+#     when --task names it, leaving every other read position untouched. A
+#     cheap unlocked stat comparison returns early when no status log changed.
 #
 # State (all under state/, all created only by enable or while the flag is on):
 #   fleet-ledger.jsonl     the ledger
@@ -89,7 +91,7 @@ MAX_BYTES=8388608
 TEXT_MAX_BYTES=2000
 
 usage() {
-  echo "usage: fm-fleet-ledger.sh enable | disable | record <event> [--task <id>] [--pr <url>] [--via pr|local] | capture" >&2
+  echo "usage: fm-fleet-ledger.sh enable | disable | record <event> [--task <id>] [--pr <url>] [--via pr|local] | capture [--task <id>]" >&2
   exit 2
 }
 
@@ -196,11 +198,14 @@ status_listing() {
   done
 }
 
+# The last number any whole record in the ledger spent. Interrupted writes
+# leave malformed lines that close no object, and any number of them can sit on
+# the end, so both generations are read through rather than sampled.
 last_seq() {
   local f seq
   for f in "$LEDGER" "$ROTATED"; do
     [ -s "$f" ] || continue
-    seq=$(tail -n 8 "$f" 2>/dev/null | sed -n 's/^{"v":[0-9]*,"seq":\([0-9][0-9]*\),.*}$/\1/p' | tail -1)
+    seq=$(sed -n 's/^{"v":[0-9]*,"seq":\([0-9][0-9]*\),.*}$/\1/p' "$f" 2>/dev/null | tail -1)
     if [ -n "$seq" ]; then printf '%s\n' "$seq"; return 0; fi
   done
   printf '0\n'
@@ -271,7 +276,7 @@ enable_locked() {
   : > "$CURSORS.tmp.$$" || return 1
   [ -z "$listing" ] || printf '%s\n' "$listing" > "$CURSORS.tmp.$$" || return 1
   mv -f "$CURSORS.tmp.$$" "$CURSORS" || return 1
-  touch "$CONFIG/fleet-ledger"
+  touch "$CONFIG/fleet-ledger" || { rm -f "$CURSORS"; return 1; }
 }
 
 # Opt out from this instant: the read positions go with the flag, so a status
@@ -349,8 +354,15 @@ record_locked() { # <event> <task> <fragment>
 
 cmd=$1
 shift
+CAPTURE_TASK=
 if [ "$cmd" = capture ]; then
-  [ "$#" -eq 0 ] || usage
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --task) CAPTURE_TASK=${2:-}; shift 2 || usage ;;
+      *) usage ;;
+    esac
+  done
+  [ -z "$CAPTURE_TASK" ] || task_id_ok "$CAPTURE_TASK" || usage
   capture_needed || exit 0
 fi
 
@@ -371,7 +383,7 @@ case "$cmd" in
     printf 'fleet activity ledger off; %s is left in place\n' "$LEDGER"
     ;;
   capture)
-    locked capture_locked || exit 1
+    locked capture_locked "$CAPTURE_TASK" || exit 1
     ;;
   record)
     event=${1:-}

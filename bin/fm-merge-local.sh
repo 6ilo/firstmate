@@ -12,7 +12,8 @@
 # The task's existing per-task control lock serializes the captain-hold check
 # through that fast-forward. A still-held or unreadable row refuses before the
 # merge, so a captain approval must be recorded as an `answer --release` before
-# this entrypoint is invoked. The lock ends when the fast-forward returns;
+# this entrypoint is invoked. The lock ends once the fast-forward has returned
+# and its landing is recorded, so a teardown cannot come between the two;
 # docs/captain-hold-lifecycle.md owns the accepted merge-to-cleanup residual.
 # Usage: fm-merge-local.sh <task-id>
 set -eu
@@ -131,13 +132,14 @@ case "$hold_status" in
 esac
 merge_status=0
 git -C "$PROJ" merge --ff-only "$BRANCH" >/dev/null || merge_status=$?
-fm_lock_release "$MERGE_CONTROL_LOCK" || true
-MERGE_CONTROL_LOCK=
-[ "$merge_status" -eq 0 ] || exit "$merge_status"
 after=$(git -C "$PROJ" rev-parse --short "$DEFAULT")
-if [ "$after" != "$before" ] && [ -e "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/fleet-ledger" ]; then
+if [ "$merge_status" -eq 0 ] && [ "$after" != "$before" ] \
+  && [ -e "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/fleet-ledger" ]; then
   # shellcheck source=bin/fm-fleet-ledger-lib.sh
   . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
   fm_fleet_ledger record task.merged --task "$ID" --via local
 fi
+fm_lock_release "$MERGE_CONTROL_LOCK" || true
+MERGE_CONTROL_LOCK=
+[ "$merge_status" -eq 0 ] || exit "$merge_status"
 echo "merged $BRANCH into local $DEFAULT ($before -> $after) in $PROJ"

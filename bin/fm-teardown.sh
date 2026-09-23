@@ -985,7 +985,7 @@ remote_secondmate_teardown() {
   if [ -e "$CONFIG/fleet-ledger" ] && [ -d "$STATE" ]; then
     # shellcheck source=bin/fm-fleet-ledger-lib.sh
     . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
-    fm_fleet_ledger capture
+    fm_fleet_ledger capture --task "$ID"
   fi
   status_retire_presentation_task "$STATE" "$ID" || return 1
   fm_backlog_atomic_transition remove "$STATE/$ID.meta" "task record" "$STATE" || return 1
@@ -3665,7 +3665,7 @@ retire_busy_state "$STATE" "$ID" "$BUSY_GEN" || exit 1
 if [ -e "$CONFIG/fleet-ledger" ] && [ -d "$STATE" ]; then
   # shellcheck source=bin/fm-fleet-ledger-lib.sh
   . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
-  fm_fleet_ledger capture
+  fm_fleet_ledger capture --task "$ID"
 fi
 status_retire_presentation_task "$STATE" "$ID" || exit 1
 rm -f "$STATE/$ID.turn-ended" "$STATE/$ID.progress" \

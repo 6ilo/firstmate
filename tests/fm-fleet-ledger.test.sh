@@ -632,13 +632,21 @@ run_merge_local() {  # <home> <id>
     FM_CONFIG_OVERRIDE="$1/config" "$ROOT/bin/fm-merge-local.sh" "$2" 2>&1
 }
 
-test_a_local_landing_is_recorded_once_however_often_it_is_merged() {
-  local case_dir home repo wt ledger out id=ledger-local-merge-t1
-  case_dir="$TMP_ROOT/local-merge"
+# The real teardown against a home this file built itself, rather than a
+# make_home case directory.
+run_teardown_only() {  # <home> <id>
+  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" \
+    FM_CONFIG_OVERRIDE="$1/config" "$TEARDOWN" "$2" 2>&1
+}
+
+# A home with the ledger on and one local-only task whose fm/<id> branch is one
+# commit ahead of the project's default branch, ready to land.
+make_local_merge_home() {  # <name> <id>
+  local name=$1 id=$2 case_dir home repo wt
+  case_dir="$TMP_ROOT/$name"
   home="$case_dir/home"
   repo="$case_dir/project"
   wt="$case_dir/delivery"
-  ledger="$home/state/fleet-ledger.jsonl"
   mkdir -p "$home/state" "$home/config" "$home/data"
   touch "$home/config/fleet-ledger"
   fm_git_worktree "$repo" "$wt" "fm/$id"
@@ -649,6 +657,14 @@ test_a_local_landing_is_recorded_once_however_often_it_is_merged() {
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$wt" \
     "project=$repo" "harness=claude" "kind=ship" "mode=local-only" "spawn_gen=ledger-$id"
+  printf '%s\n' "$case_dir"
+}
+
+test_a_local_landing_is_recorded_once_however_often_it_is_merged() {
+  local case_dir home ledger out id=ledger-local-merge-t1
+  case_dir=$(make_local_merge_home local-merge "$id")
+  home="$case_dir/home"
+  ledger="$home/state/fleet-ledger.jsonl"
   out=$(run_merge_local "$home" "$id") || fail "the local landing failed: $out"
   assert_equals "task.merged" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
     "the local landing was not recorded once: $(cat "$ledger")"
@@ -656,6 +672,119 @@ test_a_local_landing_is_recorded_once_however_often_it_is_merged() {
   assert_equals "local" "$(jq -r 'select(.event == "task.merged") | .via' "$ledger" | paste -sd' ' -)" \
     "a re-run that landed nothing recorded a second landing: $(cat "$ledger")"
   pass "a local-only landing is recorded once, and a re-run that moves nothing records nothing"
+}
+
+test_a_local_landing_is_recorded_before_its_task_lock_is_released() {
+  local case_dir home repo id=ledger-merge-lock-t1 merge_pid teardown_out i=0 landed
+  case_dir=$(make_local_merge_home merge-lock "$id")
+  home="$case_dir/home"
+  repo="$case_dir/project"
+  landed=$(git -C "$repo" rev-parse "fm/$id")
+  hold_ledger_lock "$home" "$case_dir/held" "$case_dir/release"
+  run_merge_local "$home" "$id" > "$case_dir/merge.out" 2>&1 &
+  merge_pid=$!
+  while [ "$(git -C "$repo" rev-parse main)" != "$landed" ] && [ "$i" -lt 200 ]; do
+    sleep 0.05
+    i=$((i + 1))
+  done
+  [ "$(git -C "$repo" rev-parse main)" = "$landed" ] \
+    || fail "the local landing never fast-forwarded: $(cat "$case_dir/merge.out")"
+  kill -0 "$merge_pid" 2>/dev/null \
+    || fail "the local landing finished before its record could be blocked: $(cat "$case_dir/merge.out")"
+  teardown_out=$(run_teardown_only "$home" "$id" 2>&1) || true
+  assert_contains "$teardown_out" "another lifecycle action is already running" \
+    "teardown ran between the landing and its ledger record: $teardown_out"
+  release_ledger_lock "$case_dir/release"
+  wait "$merge_pid" || fail "the local landing failed: $(cat "$case_dir/merge.out")"
+  pass "a local landing holds its task lifecycle lock until the landing is recorded"
+}
+
+test_a_pr_landing_is_recorded_before_another_reporter_can_see_it_recorded() {
+  local case_dir home ledger id=ledger-merge-report-t1 marker first second i=0
+  case_dir=$(make_home merge-report "$id" on)
+  home=$(home_of "$case_dir")
+  ledger=$(ledger_of "$case_dir")
+  marker="$home/state/$id.pr-poll-merge-notified"
+  hold_ledger_lock "$home" "$case_dir/held" "$case_dir/release"
+  report_merge "$case_dir" "$id" > "$case_dir/report-first.out" 2>&1 &
+  first=$!
+  while [ ! -e "$marker" ] && [ "$i" -lt 200 ]; do sleep 0.05; i=$((i + 1)); done
+  [ -e "$marker" ] || fail "the first merge report never reached its notified marker"
+  report_merge "$case_dir" "$id" > "$case_dir/report-second.out" 2>&1 &
+  second=$!
+  sleep 0.5
+  kill -0 "$second" 2>/dev/null \
+    || fail "a second reporter saw the merge as recorded before its record was written: $(cat "$case_dir/report-second.out")"
+  release_ledger_lock "$case_dir/release"
+  wait "$first" || fail "the first merge report failed: $(cat "$case_dir/report-first.out")"
+  wait "$second" || fail "the second merge report failed: $(cat "$case_dir/report-second.out")"
+  assert_equals "task.merged" "$(jq -r 'select(.event == "task.merged") | .event' "$ledger" | paste -sd' ' -)" \
+    "the PR landing was not recorded exactly once: $(cat "$ledger")"
+  pass "a PR landing is recorded before any other reporter can observe it as recorded"
+}
+
+test_cleanup_captures_only_the_task_it_retires() {
+  local case_dir home ledger id=ledger-retire-t1 other=ledger-bystander-t1 out
+  case_dir=$(make_home retire-capture "$id" off)
+  home=$(home_of "$case_dir")
+  ledger=$(ledger_of "$case_dir")
+  run_ledger "$home" enable >/dev/null || fail "could not turn the ledger on"
+  printf 'done [at=1790000101]: the retiring task last word\n' >> "$home/state/$id.status"
+  printf 'working [at=1790000102]: the bystander keeps working\n' >> "$home/state/$other.status"
+  out=$(run_teardown "$case_dir" "$id") || fail "teardown failed: $out"
+  assert_equals "task.status task.cleaned_up" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
+    "cleanup did not record exactly the retiring task's last word and its cleanup: $(cat "$ledger")"
+  assert_equals "$id" "$(jq -r '.task' "$ledger" | sort -u)" \
+    "cleanup recorded another task's status while retiring $id: $(cat "$ledger")"
+  assert_no_grep "bystander keeps working" "$ledger" \
+    "cleanup consumed a bystander task's unread status"
+  pass "cleanup captures only the task it is retiring, leaving every other log unread"
+}
+
+test_the_sequence_continues_past_any_number_of_cut_off_records() {
+  local home ledger n=0
+  home="$TMP_ROOT/sequence-after-fragments/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  touch "$home/config/fleet-ledger"
+  run_ledger "$home" record session.started || fail "the first record failed"
+  while [ "$n" -lt 9 ]; do
+    printf '{"v":1,"seq":2,"ts":17901131\n' >> "$ledger"
+    n=$((n + 1))
+  done
+  run_ledger "$home" record away.entered || fail "the record after the cut-off writes failed"
+  assert_equals "1 2" "$(jq -Rr 'fromjson? // empty | .seq' "$ledger" | paste -sd' ' -)" \
+    "the sequence restarted behind a run of cut-off records: $(cat "$ledger")"
+  pass "the sequence continues from the last whole record however many cut-off ones follow it"
+}
+
+test_an_enable_that_cannot_turn_it_on_leaves_no_baseline() {
+  local home ledger rc=0
+  if [ "$(id -u)" -eq 0 ]; then
+    pass "skipped (running as root, where an unwritable config/ is still writable)"
+    return
+  fi
+  home="$TMP_ROOT/enable-baseline/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  printf 'note: before the attempt\n' > "$home/state/t1.status"
+  chmod a-w "$home/config"
+  run_ledger "$home" enable >/dev/null 2>&1 || rc=$?
+  chmod u+w "$home/config"
+  assert_not_equals 0 "$rc" "enable reported success although it could not turn the ledger on"
+  assert_absent "$home/state/.fleet-ledger-cursors" \
+    "a failed enable left the baseline it published behind"
+  printf 'note: private while off\n' >> "$home/state/t1.status"
+  touch "$home/config/fleet-ledger"
+  run_ledger "$home" capture || fail "the first capture after a bare touch failed"
+  assert_absent "$ledger" \
+    "a bare touch reused a failed enable's baseline and recorded an off-period line: $(cat "$ledger" 2>/dev/null)"
+  printf 'working: after the touch\n' >> "$home/state/t1.status"
+  run_ledger "$home" capture || fail "the capture after the touch failed"
+  assert_equals "after the touch" \
+    "$(jq -r 'select(.event == "task.status") | .text' "$ledger" | paste -sd' ' -)" \
+    "the ledger did not start recording from the bare touch: $(cat "$ledger")"
+  pass "an enable that cannot turn the ledger on leaves no baseline for a later touch to reuse"
 }
 
 test_off_home_writes_nothing_through_the_real_lifecycle
@@ -676,3 +805,8 @@ test_away_mode_entry_and_return_are_recorded
 test_a_record_cut_off_part_way_stays_one_skippable_line
 test_a_launched_worker_is_recorded_though_its_dispatch_commit_fails
 test_a_local_landing_is_recorded_once_however_often_it_is_merged
+test_a_local_landing_is_recorded_before_its_task_lock_is_released
+test_a_pr_landing_is_recorded_before_another_reporter_can_see_it_recorded
+test_cleanup_captures_only_the_task_it_retires
+test_the_sequence_continues_past_any_number_of_cut_off_records
+test_an_enable_that_cannot_turn_it_on_leaves_no_baseline

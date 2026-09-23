@@ -131,15 +131,25 @@ Disk use therefore stays under about twice the bound.
 
 ## What it contains, and how to treat it
 
-Every member firstmate composes itself - the event kind, the task id, the times, and every structured member listed above - is drawn from that task's own record, and deliberately carries none of this:
+The members firstmate composes itself - `v`, `seq`, `ts`, `event`, and `via` - are protocol, decided by this document and nothing else.
+They never carry anything from a task, a worker, or this machine.
 
-- No secrets, credentials, tokens, or environment values.
-- No absolute paths, worktree locations, terminal or pane identifiers, or other machine-local details: `project`, for one, is a directory name and never a path.
+Every other member is a value firstmate read out of that task's own records and passed through unredacted, and it holds whatever those records hold:
+
+- `task` is the task id the captain chose.
+- `kind`, `project`, `harness`, `model`, `effort`, `mode`, and `yolo` are copied from the task record written at dispatch.
+  `project` is a directory name rather than a path, and the rest are short identifiers, but firstmate does not inspect them for anything.
+- `pr` is the pull or merge request URL as recorded.
+- `state`, `at`, and `key` come from the worker's own status line: `key` in particular is whatever slug the worker put in `[key=<slug>]`.
+- `text` is the worker's status message, unredacted: the status prefix and the `[at=]` and `[key=]` stamps are removed, the message is trimmed and cut to 2000 bytes, and invalid UTF-8 is filtered, but nothing else is changed or withheld.
+
+So a worker that echoes a token, an absolute path, or anything else into its status log puts it in the ledger too.
+The ledger needs exactly the protection the home's `state/` directory needs: give its readers the same trust as readers of `state/`, keep it on the machine, and filter it yourself before publishing or forwarding any of it anywhere else.
+
+What no record carries at all, by construction:
+
 - No task briefs, captain instructions, report contents, backlog notes, conversation text, or away-mode words.
 - No wake, polling, or other internal supervision mechanics.
 - No state reconstruction: the ledger is an event log, not the current state of the fleet; `bin/fm-fleet-snapshot.sh` prints the current snapshot.
-
-A status record's `text` is the exception, and nothing filters it: it is a verbatim copy of the line the worker or firstmate appended to that task's status log, so whatever that line happened to hold - a token it echoed, an absolute path, anything at all - reaches the ledger unchanged.
-The ledger therefore needs exactly the protection the home's `state/` directory needs: give its readers the same trust as readers of `state/`, keep it on the machine, and filter it yourself before publishing or forwarding any of it anywhere else.
 
 The writer mechanics, including its read-position records under `state/`, are owned by [`bin/fm-fleet-ledger.sh`](../bin/fm-fleet-ledger.sh)'s header.

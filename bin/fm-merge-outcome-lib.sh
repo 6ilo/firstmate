@@ -108,7 +108,6 @@ fm_merge_outcome_report() {  # <home> <state> <task-id> <pr-url> <origin> [autho
     fm_pr_poll_merge_mark_notified "$state" "$id" \
       "$provider" "$host" "$path" "$number" || status=1
   fi
-  fm_lock_release "$lock"
   if [ "$status" -eq 0 ]; then
     if [ -e "${FM_CONFIG_OVERRIDE:-$home/config}/fleet-ledger" ]; then
       # shellcheck source=bin/fm-fleet-ledger-lib.sh
@@ -116,5 +115,6 @@ fm_merge_outcome_report() {  # <home> <state> <task-id> <pr-url> <origin> [autho
       fm_fleet_ledger record task.merged --task "$id" --via pr --pr "$FM_PR_URL"
     fi
   fi
+  fm_lock_release "$lock"
   return "$status"
 }
