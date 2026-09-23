@@ -1,0 +1,8 @@
+initial keyed log: bytes=1302407 lines=2339
+first beacon epoch: 1790143721
+benign wake 1 absorbed; beacon advanced on consecutive polls through epoch 1790143728; watcher alive
+benign wake 2 absorbed; beacon advanced on consecutive polls through epoch 1790143734; watcher alive
+benign wake 3 absorbed; beacon advanced on consecutive polls through epoch 1790143740; watcher alive
+live span reads: calls=4 total_bytes=305 max_length=80 earliest_offset=1302407 history_bytes=1302407 end=1302712
+actionable append bytes=80; queue records=2; watcher output=signal: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M36DD535ASYMK9SY9SP4NHAS/.watcher-live-46245/state/task.status
+PASS: bounded live keyed reads and per-poll beacon renewal during benign churn

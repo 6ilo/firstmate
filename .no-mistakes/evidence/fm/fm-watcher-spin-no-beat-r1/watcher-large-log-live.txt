@@ -1,0 +1,5 @@
+Log: 1240982 bytes, 2345 lines; 4 closed churn signals stayed routine; open span: needs-decision [key=fresh]: pick rollout window
+Watcher exit: 0
+Watcher output: signal: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M36DD535ASYMK9SY9SP4NHAS/.watch-live-80532/state/task.status 
+Queue: 1790143355	1	signal	task.status	needs-decision: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M36DD535ASYMK9SY9SP4NHAS/.watch-live-80532/state/task.status 1790143355	2	signal	task.status	needs-decision: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M36DD535ASYMK9SY9SP4NHAS/.watch-live-80532/state/task.status 
+Beacon: touched

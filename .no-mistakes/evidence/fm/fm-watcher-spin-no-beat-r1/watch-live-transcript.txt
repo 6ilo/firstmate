@@ -1,0 +1,15 @@
+Named Herdr lab: fm-lab-watchbeat-41200-20109 (0.9.0, protocol 22)
+Real watcher: FM_HOME=.live-watch-lab, FM_BACKEND=herdr, FM_POLL=1
+Large status log: 4800 lines, initial bytes=1332180, appended bytes=82
+Actual read-span calls (byte offset, byte length):
+1332180	82
+Persisted actionable queue rows:
+1790143856	1	signal	task.status	needs-decision: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M36DD535ASYMK9SY9SP4NHAS/.live-watch-lab/state/task.status
+1790143856	2	signal	task.status	needs-decision: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M36DD535ASYMK9SY9SP4NHAS/.live-watch-lab/state/task.status
+Watcher stdout:
+signal: /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M36DD535ASYMK9SY9SP4NHAS/.live-watch-lab/state/task.status
+
+Second real watcher: FM_HOME=.live-watch-lab/benign; same named lab
+Three real fm_wake_status_append_self_announced working: appends returned 0
+Beat mtimes across three consecutive poll cycles: 1790143897 -> 1790143900 -> 1790143902 -> 1790143904
+Watcher remained alive at each beat and did not create a .wake-queue; stdout empty:
