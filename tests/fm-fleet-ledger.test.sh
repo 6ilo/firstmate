@@ -551,6 +551,71 @@ test_away_mode_entry_and_return_are_recorded() {
   pass "away entry and return are recorded without the captain's words"
 }
 
+test_a_record_cut_off_part_way_is_dropped_before_the_next_one() {
+  local home ledger
+  home="$TMP_ROOT/partial-tail/home"
+  mkdir -p "$home/state" "$home/config"
+  ledger="$home/state/fleet-ledger.jsonl"
+  touch "$home/config/fleet-ledger"
+  run_ledger "$home" record session.started || fail "the first record failed"
+  printf '{"v":1,"seq":2,"ts":17901131' >> "$ledger"
+  run_ledger "$home" record away.entered || fail "the record after a cut-off write failed"
+  jq -e . "$ledger" >/dev/null 2>&1 || fail "the ledger holds a line that is not JSON: $(cat "$ledger")"
+  assert_equals "session.started away.entered" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
+    "the cut-off record was not dropped: $(cat "$ledger")"
+  assert_equals "1 2" "$(jq -r '.seq' "$ledger" | paste -sd' ' -)" \
+    "the sequence did not continue over the dropped record: $(cat "$ledger")"
+  pass "a record cut off part way is dropped, so every ledger line stays one whole record"
+}
+
+# A home whose backlog is a real markdown backlog, so the In-flight commit that
+# follows launch delivery actually runs, with a tasks-axi whose start verb
+# always fails, so that commit fails once the worker is already launched.
+make_uncommittable_home() {  # <name> <task-id>
+  local name=$1 id=$2 case_dir home real
+  case_dir=$(make_home "$name" "$id" on)
+  home=$(home_of "$case_dir")
+  rm -f "$home/config/backlog-backend"
+  printf '%s\n' '# Backlog' '' '## In flight' '' '## Queued' '' '## Done' > "$home/data/backlog.md"
+  cat > "$home/.tasks.toml" <<'EOF'
+backend = "markdown"
+
+[markdown]
+path = "data/backlog.md"
+EOF
+  tasks-axi add "$id" "item for $id" --kind ship --file "$home/data/backlog.md" >/dev/null
+  real=$(command -v tasks-axi)
+  cat > "$case_dir/fakebin/tasks-axi" <<SH
+#!/usr/bin/env bash
+if [ "\${1:-}" = start ]; then
+  echo 'error: "backlog is unwritable"' >&2
+  exit 1
+fi
+exec "$real" "\$@"
+SH
+  chmod +x "$case_dir/fakebin/tasks-axi"
+  printf '%s\n' "$case_dir"
+}
+
+test_a_launched_worker_is_recorded_though_its_dispatch_commit_fails() {
+  local case_dir id=ledger-uncommittable-t1 ledger out rc=0
+  command -v tasks-axi >/dev/null 2>&1 || {
+    pass "skipped (tasks-axi is not installed; the backlog commit is inert without it)"
+    return 0
+  }
+  case_dir=$(make_uncommittable_home uncommittable "$id")
+  out=$(run_spawn "$case_dir" "$id") || rc=$?
+  [ "$rc" -ne 0 ] || fail "the spawn reported success though its backlog commit failed: $out"
+  assert_contains "$out" "could not be moved to In flight" \
+    "the spawn failed before its backlog commit, so the case proves nothing: $out"
+  ledger=$(ledger_of "$case_dir")
+  assert_present "$ledger" "a launched worker left no ledger record at all"
+  assert_equals "task.dispatched" "$(jq -r '.event' "$ledger" | paste -sd' ' -)" \
+    "the launch was not recorded: $(cat "$ledger")"
+  assert_equals "$id" "$(jq -r '.task' "$ledger")" "the dispatch record named the wrong task"
+  pass "a worker launched before a failed dispatch commit is still recorded"
+}
+
 test_off_home_writes_nothing_through_the_real_lifecycle
 test_on_home_records_the_lifecycle_end_to_end
 test_opt_in_baselines_history_and_reads_new_logs_whole
@@ -566,3 +631,5 @@ test_nothing_appended_while_the_ledger_was_off_is_ever_recorded
 test_a_transition_that_cannot_change_the_flag_changes_nothing_else
 test_rotation_keeps_sequence_numbers_continuous
 test_away_mode_entry_and_return_are_recorded
+test_a_record_cut_off_part_way_is_dropped_before_the_next_one
+test_a_launched_worker_is_recorded_though_its_dispatch_commit_fails

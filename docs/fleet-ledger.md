@@ -115,6 +115,7 @@ Records are produced at the existing single places where firstmate already recor
   Lifecycle records are written once per occurrence.
 - A line is only recorded once it ends with a newline, so a worker's half-written line waits for the next pick-up.
 - Records are not synced to disk individually; a machine crash can lose the most recent records.
+  A record a full disk or a killed writer cut off part way leaves the ledger's last line without its newline; the next write drops that unterminated line before appending, so a reader never sees a line that is not a whole record.
 - A record that cannot be written is reported on the producer's error output and never blocks the work itself; a write that has not finished within ten seconds is stopped and reported the same way, so a stuck ledger costs a producer that fixed bound and nothing more.
   Such an event is simply absent: `seq` has no gap for it, because a sequence number is only spent on a record that was written.
 - `seq` restarts at 1 only if both ledger files are deleted.

@@ -1068,15 +1068,18 @@ spawn_remote_secondmate() {
   fm_lock_release "$remote_lock" || true
   fm_lock_release "$registry_lock" || true
   fm_lock_release "$SPAWN_TASK_LOCK" || true
-  "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
-  if ! "$SCRIPT_DIR/fm-procevent-remote-reply.sh" arm "$id" >/dev/null; then
-    echo "error: remote secondmate $id launched, but its reply source could not be armed; endpoint metadata is preserved" >&2
-    return 1
-  fi
+  # The endpoint is launched and its task record is published, so the dispatch
+  # has already happened: record it before the setup steps below, which can
+  # fail without unlaunching it.
   if [ -e "$CONFIG/fleet-ledger" ]; then
     # shellcheck source=bin/fm-fleet-ledger-lib.sh
     . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
     fm_fleet_ledger record task.dispatched --task "$id"
+  fi
+  "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
+  if ! "$SCRIPT_DIR/fm-procevent-remote-reply.sh" arm "$id" >/dev/null; then
+    echo "error: remote secondmate $id launched, but its reply source could not be armed; endpoint metadata is preserved" >&2
+    return 1
   fi
   echo "spawned $id harness=$harness kind=secondmate mode=secondmate yolo=off window=remote:$id worktree=$home remote=$host backend=$remote_backend"
   return 0
@@ -4916,6 +4919,19 @@ if [ "$KIND" = secondmate ] && [ "${FM_SKIP_SECONDMATE_INHERIT:-0}" != 1 ]; then
   fi
 fi
 
+# The worker is launched and its task record is published, so the dispatch has
+# already happened: record it here, before the backlog commit below, which can
+# fail or be interrupted without unlaunching anything.
+if [ -e "$CONFIG/fleet-ledger" ]; then
+  # shellcheck source=bin/fm-fleet-ledger-lib.sh
+  . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
+  if [ "$RELAUNCH" -eq 1 ]; then
+    fm_fleet_ledger record task.relaunched --task "$ID"
+  else
+    fm_fleet_ledger record task.dispatched --task "$ID"
+  fi
+fi
+
 # This is the commit point: all endpoint and harness delivery that can reject
 # the spawn has succeeded. Re-read and transition while holding the same
 # per-task lock as metadata publication, then and only then report success.
@@ -4984,13 +5000,4 @@ SPAWN_META_LOCK_HELD=0
 
 SPAWN_DELIVERY=
 [ -z "$MODE" ] || SPAWN_DELIVERY=" mode=$MODE yolo=$YOLO"
-if [ -e "$CONFIG/fleet-ledger" ]; then
-  # shellcheck source=bin/fm-fleet-ledger-lib.sh
-  . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
-  if [ "$RELAUNCH" -eq 1 ]; then
-    fm_fleet_ledger record task.relaunched --task "$ID"
-  else
-    fm_fleet_ledger record task.dispatched --task "$ID"
-  fi
-fi
 echo "spawned $ID harness=$HARNESS kind=$KIND$SPAWN_DELIVERY window=$META_WINDOW worktree=$WT"

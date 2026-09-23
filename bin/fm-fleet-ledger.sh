@@ -60,6 +60,9 @@
 # The ledger is bounded at 8 MiB: the write that finds it at or over that size
 # renames it to fleet-ledger.jsonl.1, replacing any earlier one, and starts a
 # new file, so the pair is the whole history kept.
+# A write that was cut off mid-record leaves the ledger's last line without its
+# newline; the next write drops that tail before appending, so every line a
+# reader sees is a whole record.
 # Only newline-terminated lines are consumed; a partial tail waits for the
 # next capture. Records are appended before cursors are saved, so a crash in
 # between repeats those status records on the next capture (at-least-once),
@@ -155,6 +158,21 @@ file_size() {
   fi
 }
 
+# A write cut off mid-record, by a full disk or a killed writer, leaves the
+# ledger without a closing newline. Drop that unterminated tail before the next
+# record is appended, so every line stays one whole JSON object. Caller holds
+# the lock.
+drop_partial_tail() {
+  local size fragment
+  size=$(file_size "$LEDGER") || return 0
+  case $size in ''|0) return 0 ;; esac
+  [ -n "$(tail -c 1 "$LEDGER" 2>/dev/null)" ] || return 0
+  fragment=$(LC_ALL=C tail -n 1 "$LEDGER" 2>/dev/null | LC_ALL=C wc -c | tr -d ' ')
+  case $fragment in ''|*[!0-9]*) return 1 ;; esac
+  head -c "$((size - fragment))" "$LEDGER" > "$LEDGER.tmp.$$" \
+    && mv -f "$LEDGER.tmp.$$" "$LEDGER"
+}
+
 # One stat call for every regular status log: "<task>\t<dev:inode>\t<size>".
 status_listing() {
   local f id line
@@ -195,6 +213,7 @@ NEXT_SEQ=
 append() { # <event> <task-or-empty> <fragment>
   local event=$1 task=$2 fragment=$3 size
   if [ -z "$NEXT_SEQ" ]; then
+    drop_partial_tail || return 1
     NEXT_SEQ=$(last_seq)
     NEXT_SEQ=$((NEXT_SEQ + 1))
   fi
