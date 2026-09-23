@@ -1,0 +1,17 @@
+BEFORE: base watcher with blocked-poll regression
+wait_for_exit: owned pid 36449 exceeded 100 polls; sending TERM
+36449 35627 S    bash /Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M35YQ3H7VK9QAXW8704D9WVD/bin/.fm-watch-base-test.sh
+wait_for_exit: owned pid 36449 survived TERM; sending KILL
+not ok - TERM did not stop a watcher blocked inside a poll
+base_exit=1
+
+AFTER: changed watcher with blocked-poll regression and busy-age scenarios
+ok - TERM stops a watcher blocked inside a poll and still runs its cleanup
+ok - touching a busy worker's completed-turn marker resets the age and prevents an old-age escalation
+ok - repeated busy turn-age escalations reuse the existing escalation counter and demand deep inspection at the threshold
+fixed_exit=0
+
+HUP: arm stopping watcher and cleaning child
+ok - arm cleans child watcher and temp output on HUP
+hup_exit=0
+ok - checkpoint preserves watcher environment for registered custom checks
