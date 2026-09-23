@@ -1,0 +1,32 @@
+Foreign human draft remained pending; ring returned skip (1).
+Pending before re-ring: pending
+Composer after re-ring: empty
+Real Claude read the inbox record after the previously unsubmitted doorbell was re-rung.
+  handled.
+
+  Listed 1 directory
+
+⏺ There's one message, 001.msg. Let me read it.
+
+  Read 1 file
+
+⏺ DOORBELL_LIVE_OK
+
+⏺ Running 1 shell command…
+
+
+
+
+
+
+
+
+
+
+✽ Baking… (17s · ↓ 950 tokens · thinking with high effort)
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 4.8 ctx window                 71.6k / 1.0M
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents
