@@ -1,0 +1,7 @@
+ok - a leftover row that survives a proven-idle ring still surfaces as a genuine stall
+RING MARKER: 100-7
+RING PROGRESS: 1002	100-7
+CHILD RING INPUT: : Firstmate instruction waiting: list '/private/var/folders/5x/4nqprlbx0518k3ybcb1sz6gr0000gn/T/fm-wake-tests.gQOEdD/secondmate-genuine-stall-after-ring/state/mate.inbox'/*.msg and, in numeric order, read and act on each, then mv each handled file to '/private/var/folders/5x/4nqprlbx0518k3ybcb1sz6gr0000gn/T/fm-wake-tests.gQOEdD/secondmate-genuine-stall-after-ring/state/mate.inbox'/handled/.
+[ENTER]
+FROZEN-QUEUE STALL OUTPUT: check: secondmate wake-loop stalled: mate=mate row=7 idle=2s
+PARENT WAKE: 1004	1	check	secondmate-wake-loop-mate-100-7	check: secondmate wake-loop stalled: mate=mate row=7 idle=2s
