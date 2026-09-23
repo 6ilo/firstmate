@@ -129,15 +129,17 @@ When the ledger reaches 8 MiB, the next write renames it to `state/fleet-ledger.
 Disk use therefore stays under about twice the bound.
 `seq` continues across rotation, so a reader that remembers its last `seq` can tell whether it missed records and resume from `.1` when it did.
 
-## What it deliberately does not contain
+## What it contains, and how to treat it
+
+Every member firstmate composes itself - the event kind, the task id, the times, and every structured member listed above - is drawn from that task's own record, and deliberately carries none of this:
 
 - No secrets, credentials, tokens, or environment values.
-- No absolute paths, worktree locations, terminal or pane identifiers, or other machine-local details.
+- No absolute paths, worktree locations, terminal or pane identifiers, or other machine-local details: `project`, for one, is a directory name and never a path.
 - No task briefs, captain instructions, report contents, backlog notes, conversation text, or away-mode words.
 - No wake, polling, or other internal supervision mechanics.
 - No state reconstruction: the ledger is an event log, not the current state of the fleet; `bin/fm-fleet-snapshot.sh` prints the current snapshot.
 
-The only free text in the ledger is a status line's `text`, which is exactly what the worker or firstmate already wrote to that task's status log.
-Anyone who can read the ledger can read that text, so give ledger readers the same trust as readers of the home's `state/` directory.
+A status record's `text` is the exception, and nothing filters it: it is a verbatim copy of the line the worker or firstmate appended to that task's status log, so whatever that line happened to hold - a token it echoed, an absolute path, anything at all - reaches the ledger unchanged.
+The ledger therefore needs exactly the protection the home's `state/` directory needs: give its readers the same trust as readers of `state/`, keep it on the machine, and filter it yourself before publishing or forwarding any of it anywhere else.
 
 The writer mechanics, including its read-position records under `state/`, are owned by [`bin/fm-fleet-ledger.sh`](../bin/fm-fleet-ledger.sh)'s header.
