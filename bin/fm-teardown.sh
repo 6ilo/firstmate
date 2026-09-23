@@ -982,6 +982,11 @@ remote_secondmate_teardown() {
   tmp="$SECONDMATE_REG.tmp.$$"
   grep -vE "^- $ID( |$)" "$SECONDMATE_REG" > "$tmp" || true
   mv -f -- "$tmp" "$SECONDMATE_REG"
+  if [ -e "$CONFIG/fleet-ledger" ] && [ -d "$STATE" ]; then
+    # shellcheck source=bin/fm-fleet-ledger-lib.sh
+    . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
+    fm_fleet_ledger capture
+  fi
   status_retire_presentation_task "$STATE" "$ID" || return 1
   fm_backlog_atomic_transition remove "$STATE/$ID.meta" "task record" "$STATE" || return 1
   rm -f -- "$STATE/$ID.turn-ended" "$STATE/$ID.progress"
@@ -1010,6 +1015,11 @@ remote_secondmate_teardown_locked() {
 }
 
 if remote_secondmate_teardown_locked; then
+  if [ -e "$CONFIG/fleet-ledger" ] && [ -d "$STATE" ]; then
+    # shellcheck source=bin/fm-fleet-ledger-lib.sh
+    . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
+    fm_fleet_ledger record task.cleaned_up --task "$ID"
+  fi
   "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
   exit 0
 else
@@ -3652,6 +3662,11 @@ if [ -n "$LAUNCH_HOME_TOKEN" ]; then
 fi
 remove_pr_poll_artifacts "$STATE" "$ID" || exit 1
 retire_busy_state "$STATE" "$ID" "$BUSY_GEN" || exit 1
+if [ -e "$CONFIG/fleet-ledger" ] && [ -d "$STATE" ]; then
+  # shellcheck source=bin/fm-fleet-ledger-lib.sh
+  . "$SCRIPT_DIR/fm-fleet-ledger-lib.sh"
+  fm_fleet_ledger capture
+fi
 status_retire_presentation_task "$STATE" "$ID" || exit 1
 rm -f "$STATE/$ID.turn-ended" "$STATE/$ID.progress" \
   "$STATE/$ID.pi-ext.ts" "$STATE/$ID.omp-ext.ts" "$STATE/$ID.grok-turnend-token" \

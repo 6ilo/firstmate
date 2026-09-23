@@ -1294,6 +1294,12 @@ if ! wait "$spawn_retirement_pid"; then
 fi
 sleep 0.2
 kill -0 "$teardown_pid" 2>/dev/null || fail "remote retirement bypassed an active backlog handoff"
+# The parent's opt-in fleet ledger (docs/fleet-ledger.md) must carry a remote
+# secondmate's last word and its cleanup exactly like a local task's, even
+# though nothing polls this home's status logs again before retirement.
+FM_HOME="$PARENT" "$ROOT/bin/fm-fleet-ledger.sh" enable >/dev/null \
+  || fail "could not turn the parent home's fleet ledger on"
+printf 'note [at=1790000009]: last word before retirement\n' >> "$PARENT/state/ios.status"
 touch "$TMP_ROOT/handoff.release"
 wait "$handoff_holder_pid" || fail "handoff lock holder failed to release"
 if ! wait "$teardown_pid"; then
@@ -1301,6 +1307,14 @@ if ! wait "$teardown_pid"; then
   fail "safe remote retirement failed after handoff serialization"
 fi
 assert_absent "$REMOTE_HOME" "remote retirement did not remove the remote home"
+PARENT_LEDGER="$PARENT/state/fleet-ledger.jsonl"
+assert_present "$PARENT_LEDGER" "remote retirement wrote nothing to the parent's fleet ledger"
+assert_equals "task.status task.cleaned_up" \
+  "$(jq -r 'select(.task == "ios") | .event' "$PARENT_LEDGER" | paste -sd' ' -)" \
+  "remote retirement did not record ios's last status line before its cleanup: $(cat "$PARENT_LEDGER")"
+assert_equals "last word before retirement" \
+  "$(jq -r 'select(.task == "ios" and .event == "task.status") | .text' "$PARENT_LEDGER")" \
+  "the remote secondmate's last status line was lost when its log was retired"
 assert_absent "$PARENT/state/ios.meta" "remote retirement did not remove parent metadata"
 assert_absent "$PARENT/state/.backlog-handoff-ios.wake-pending" \
   "remote retirement left receiver wake state that could poison a replacement route"

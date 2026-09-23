@@ -101,6 +101,7 @@ Records are produced at the existing single places where firstmate already recor
   The supervision watcher picks those lines up at the start of each poll cycle (every 15 seconds by default), so a `task.status` record can trail the worker's line by up to one poll interval.
   The watcher runs whenever work is under way; lines written while it is not running are picked up when it next runs.
 - A lifecycle record about a task first picks up that task's unread status lines, so within one task its status records always precede the lifecycle record that follows them.
+  Cleanup picks a task's remaining lines up before its status log is retired, so the last thing a task says is recorded even when it says it after the watcher's final poll.
 - Opting in does not replay history: status lines already in a log when the ledger is turned on are skipped.
   With `enable` that point is when the command ran; with a bare `touch` of the flag it is the first ledger write after it.
   Turning the ledger off and on again sets a new such point, so lines appended while it was off are skipped exactly like lines from before the first opt-in.

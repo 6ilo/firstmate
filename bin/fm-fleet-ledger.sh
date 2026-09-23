@@ -18,7 +18,7 @@
 #   bin/fm-pr-check.sh         record task.pr_recorded
 #   bin/fm-merge-outcome-lib.sh record task.merged (a PR merge, once per PR)
 #   bin/fm-merge-local.sh      record task.merged (a local-only landing)
-#   bin/fm-teardown.sh         record task.cleaned_up
+#   bin/fm-teardown.sh         capture, then record task.cleaned_up
 #   bin/fm-session-start.sh    record session.started
 #   bin/fm-afk-contract.sh     record away.entered / away.returned
 #

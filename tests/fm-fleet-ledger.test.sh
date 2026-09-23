@@ -139,6 +139,7 @@ drive_lifecycle() {  # <case-dir> <id>
   fi
   out=$(run_pr_check "$case_dir" "$id") || fail "PR recording failed: $out"
   out=$(report_merge "$case_dir" "$id") || fail "merge publication failed: $out"
+  printf 'note [at=1790000003]: last word after the final poll\n' >> "$home/state/$id.status"
   out=$(run_teardown "$case_dir" "$id") || fail "teardown failed: $out"
 }
 
@@ -160,27 +161,27 @@ test_on_home_records_the_lifecycle_end_to_end() {
   jq -e -s 'all(.[]; .v == 1 and (.seq | type) == "number" and (.ts | type) == "number")' \
     "$ledger" >/dev/null || fail "a ledger line is not a valid version 1 record: $(cat "$ledger")"
   events=$(jq -r '.event' "$ledger" | paste -sd' ' -)
-  assert_equals "task.dispatched task.status task.status task.pr_recorded task.merged task.cleaned_up" \
+  assert_equals "task.dispatched task.status task.status task.pr_recorded task.merged task.status task.cleaned_up" \
     "$events" "the lifecycle was recorded out of order: $(cat "$ledger")"
   assert_equals "task.dispatched task.status task.status" \
     "$(jq -r '.event' "$case_dir/after-watch.jsonl" | paste -sd' ' -)" \
     "the watcher did not record the worker's status lines itself"
   seqs=$(jq -r '.seq' "$ledger" | paste -sd' ' -)
-  assert_equals "1 2 3 4 5 6" "$seqs" "sequence numbers are not contiguous"
+  assert_equals "1 2 3 4 5 6 7" "$seqs" "sequence numbers are not contiguous"
   [ "$(jq -r '.task' "$ledger" | sort -u)" = "$id" ] \
     || fail "a task record named the wrong task"
   jq -e 'select(.event == "task.dispatched") | .kind == "ship" and .project == "webapp"
     and .harness == "claude" and .mode == "no-mistakes" and .yolo == "off"' "$ledger" >/dev/null \
     || fail "the dispatch record is wrong: $(grep dispatched "$ledger")"
   status_text=$(jq -r 'select(.event == "task.status") | "\(.state)|\(.at)|\(.text)"' "$ledger" | paste -sd';' -)
-  assert_equals "working|1790000001|implementing;done|1790000002|PR $PR_URL checks green" \
+  assert_equals "working|1790000001|implementing;done|1790000002|PR $PR_URL checks green;note|1790000003|last word after the final poll" \
     "$status_text" "status events were not projected faithfully"
   jq -e 'select(.event == "task.pr_recorded") | .pr == "'"$PR_URL"'"' "$ledger" >/dev/null \
     || fail "the PR record is wrong"
   jq -e 'select(.event == "task.merged") | .via == "pr" and .pr == "'"$PR_URL"'"' "$ledger" >/dev/null \
     || fail "the merge record is wrong"
   assert_no_grep "$TMP_ROOT" "$ledger" "the ledger leaked a local path"
-  pass "with config/fleet-ledger present the lifecycle is recorded in order as versioned JSON Lines"
+  pass "with config/fleet-ledger present the lifecycle is recorded in order as versioned JSON Lines, down to the last status line before cleanup"
 }
 
 run_ledger() {  # <home> <args...>
