@@ -1,0 +1,27 @@
+session=fm-lab-livewatch-39490-28802
+initial_meta:
+window=fm-lab-livewatch-39490-28802:pane-nonexistent
+kind=secondmate
+harness=pi
+backend=herdr
+herdr_session=fm-lab-livewatch-39490-28802
+home=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M38TF2KZXC1QXX3WV5GG523P/.test-live-secondmate-39489/mate
+watch_exit=0
+captain_output:
+check: secondmate sm1 auto-relaunch failed after recorded endpoint confidently missing: error: no-mistakes gate agent must not drive the fleet (NO_MISTAKES_GATE set)
+watch_errors:
+ledger:
+1790231021	attempt
+1790231021	failed
+queue:
+1790231022	1	check	secondmate-relaunch-failed-sm1-1790231021	check: secondmate sm1 auto-relaunch failed after recorded endpoint confidently missing: error: no-mistakes gate agent must not drive the fleet (NO_MISTAKES_GATE set)
+final_meta:
+window=fm-lab-livewatch-39490-28802:pane-nonexistent
+kind=secondmate
+harness=pi
+backend=herdr
+herdr_session=fm-lab-livewatch-39490-28802
+home=/Users/kunchen/.no-mistakes/worktrees/52b07e9083e7/01M38TF2KZXC1QXX3WV5GG523P/.test-live-secondmate-39489/mate
+lab_tabs:
+{"id":"cli:tab:list","result":{"tabs":[],"type":"tab_list"}}
+cleanup_status=0
