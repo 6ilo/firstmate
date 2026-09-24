@@ -24,7 +24,7 @@ It takes `--source <name>` when the adapter knows the source natively, and other
 | Source | Action | Why |
 | --- | --- | --- |
 | `startup`, `new` | Full digest | This is a true session start that has not taken the helm; Pi CLI continuations are refined to `resume` by the adapter before reaching this boundary. |
-| `clear`, `compact` | `--reemit` after a proven complete startup, otherwise full digest | This process normally has the helm and lost only its context, but an earlier hook may have been truncated after acquiring the lock. |
+| `clear`, `compact` | Slim `--reemit` after a proven complete startup, otherwise full digest | This process normally has the helm and lost only its context, but an earlier hook may have been truncated after acquiring the lock. |
 | `resume`, `reload`, `fork` | Delegate to the nudge wrapper | Prior context is restored, so re-running is redundant when the lock is still ours and an instruction is enough when a new process resumed an old session. |
 | unreadable or unrecognized | Full digest | Taking the helm redundantly is cheap and idempotent; not taking it is the bug this tier exists to fix. |
 
@@ -37,7 +37,7 @@ The full digest clears that completion record after acquiring the lock and repub
 On a run-tier harness only `resume`, `reload`, and `fork` are routed to the nudge wrapper, whose separate ancestry-only check normally stays silent when this process already holds the lock.
 After a background Claude helper-chain recycle breaks that ancestry, the wrapper may emit a redundant nudge even though the shared same-session verdict still owns the lock; the requested session start remains idempotent.
 
-`bin/fm-session-start.sh --reemit` owns which work a re-emit skips, its true-start AGENTS.md baseline, and its supported stale-instruction refresh pairs; its header is the single owner of those mechanics.
+`bin/fm-session-start.sh --reemit` owns which work a re-emit skips, what its slim default omits and the `--full` escape hatch, its true-start AGENTS.md baseline, and its supported stale-instruction refresh pairs; its header is the single owner of those mechanics.
 
 ## Runtime bound
 
