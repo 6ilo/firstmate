@@ -185,7 +185,7 @@
 # Hosts without timeout, gtimeout, or perl use the shared pure-Bash watchdog, so
 # the digest never runs without the same hard bound and process-group cleanup.
 #
-# Usage: fm-session-start.sh [--reemit] [--source <source>]
+# Usage: fm-session-start.sh [--reemit [--full]] [--source <source>]
 #   Prints the full ordered digest to stdout and always exits 0: this is a
 #   reporting command, not a gate. A lock refusal is reported as a loud
 #   banner inline, never a silent failure or a non-zero exit that would make
@@ -207,6 +207,21 @@
 #             same-session Claude id as its own, so the re-emit proceeds, while
 #             a lock another live session took meanwhile still produces the
 #             ordinary read-only path.
+#             A re-emit is SLIM by default, because a busy session can compact
+#             many times an hour and each full re-emit reprinted every task
+#             record's status tail, the whole backlog listing, and every curated
+#             memory file. The slim re-emit keeps the lock result, bootstrap
+#             diagnostics, the wake queue with its OPEN DECISIONS, UNREAD STATUS,
+#             RECORD DIVERGENCE, and WAKE_ACK_REQUIRED sections, the supervision
+#             block, every state/*.meta with its endpoint liveness, the in-flight
+#             and blocked backlog rows, the away posture, public commitments, and
+#             network checks. It omits status tails, held and ready backlog rows,
+#             and orphan status tails, and prints each context file as one line
+#             naming its absolute path and byte size instead of its contents.
+#
+#   --full    With --reemit only: print the full re-emit digest instead of the
+#             slim one. FM_SESSION_START_REEMIT_FULL=1 is the equivalent
+#             environment switch. A true first session start is always full.
 #
 #   --source  The native session-open source, supplied only by
 #             fm-sessionstart-run.sh. A genuine `startup` that owns the active
@@ -231,11 +246,19 @@ COMPLETION_FILE="$STATE/.session-start-complete"
 AGENTS_BASELINE_FILE="$STATE/.session-start-agents-baseline"
 
 REEMIT=0
+REEMIT_FULL=0
+[ "${FM_SESSION_START_REEMIT_FULL:-0}" != 1 ] || REEMIT_FULL=1
 SESSION_SOURCE=
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --reemit)
       REEMIT=1
+      shift
+      ;;
+    --full)
+      # Exported so the bounded child below inherits the choice.
+      REEMIT_FULL=1
+      export FM_SESSION_START_REEMIT_FULL=1
       shift
       ;;
     --source)
@@ -252,7 +275,7 @@ while [ "$#" -gt 0 ]; do
       ;;
     *)
       printf 'fm-session-start: unknown argument: %s\n' "$1" >&2
-      printf 'usage: fm-session-start.sh [--reemit] [--source <source>]\n' >&2
+      printf 'usage: fm-session-start.sh [--reemit [--full]] [--source <source>]\n' >&2
       exit 2
       ;;
   esac
@@ -354,6 +377,10 @@ PRIMARY_HARNESS=$("$SCRIPT_DIR/fm-harness.sh" 2>/dev/null || printf unknown)
 # agent's environment.
 if fm_tasks_axi_compatible; then TASKS_AXI_COMPATIBLE=1; else TASKS_AXI_COMPATIBLE=0; fi
 
+# SLIM is the default context re-emit (see --reemit and --full in the header).
+SLIM=0
+[ "$REEMIT" -eq 1 ] && [ "$REEMIT_FULL" -eq 0 ] && SLIM=1
+
 STATUS_TAIL=${FM_SESSION_START_STATUS_TAIL:-5}
 case "$STATUS_TAIL" in ''|*[!0-9]*) STATUS_TAIL=5 ;; esac
 QUEUED_LIMIT=${FM_SESSION_START_QUEUED_LIMIT:-20}
@@ -386,6 +413,27 @@ print_file_or_absent() {
   fi
 }
 
+# print_file_pointer <path> <label>: the slim re-emit's one line per context
+# file - its absolute path and byte size, or the same ABSENT/empty markers the
+# full digest prints, so absence keeps its meaning without the contents.
+print_file_pointer() {
+  local path=$1 label=$2 bytes
+  if [ -f "$path" ]; then
+    bytes=$(wc -c < "$path" 2>/dev/null | tr -d '[:space:]')
+    if [ -s "$path" ]; then
+      printf '%s: %s (%s bytes)\n' "$label" "$path" "${bytes:-?}"
+    else
+      printf '%s: %s (present, empty)\n' "$label" "$path"
+    fi
+  else
+    printf '%s: ABSENT (%s)\n' "$label" "$path"
+  fi
+}
+
+print_full_reemit_pointer() {
+  printf 'Full re-emit on demand: %s/bin/fm-session-start.sh --reemit --full (or FM_SESSION_START_REEMIT_FULL=1).\n' "$FM_ROOT"
+}
+
 print_backlog_pointer() {
   printf 'Full task bodies remain available on demand: bin/fm-tasks-axi.sh show <id> --full when compatible tasks-axi is available, or data/backlog.md.\n'
 }
@@ -399,6 +447,28 @@ MANUAL_KEEP_RE='[(]hold|blocked-by:'
 
 print_backlog_manual_compact() {
   local path=$1 reason=$2
+  if [ "$SLIM" -eq 1 ]; then
+    printf 'slim backlog listing (%s; only in-flight and blocked title lines; held, other queued, and done rows omitted)\n' "$reason"
+    awk '
+      /^##[[:space:]]+/ {
+        heading = $0
+        sub(/^##[[:space:]]+/, "", heading)
+        sub(/[[:space:]]+$/, "", heading)
+        state = (heading == "In flight") ? "in_flight" : (heading == "Queued") ? "queued" : ""
+        if (state != "") print $0
+        next
+      }
+      state == "in_flight" && /^[-*][[:space:]]+/ { in_flight++; print $0; next }
+      state == "queued" && /^[-*][[:space:]]+/ {
+        if ($0 ~ /blocked-by:/) { blocked++; print $0 } else omitted++
+        next
+      }
+      END {
+        printf "(shown %d in-flight and %d blocked title line(s); %d other queued omitted)\n", in_flight, blocked, omitted
+      }
+    ' "$path"
+    return 0
+  fi
   printf 'compact backlog listing (%s; done rows omitted; every in-flight, held, and blocked title line kept; other queued bounded to %s; indented task bodies omitted)\n' \
     "$reason" "$QUEUED_LIMIT"
   awk -v max="$QUEUED_LIMIT" -v keep_re="$MANUAL_KEEP_RE" '
@@ -475,8 +545,31 @@ print_ready_queued_bounded() {
   '
 }
 
+print_backlog_tasks_axi_slim() {
+  local path=$1 in_flight blocked err
+  if ! in_flight=$(tasks-axi list --file "$path" --state in_flight --fields "$BACKLOG_FIELDS" 2>&1); then
+    err=$in_flight
+  elif ! blocked=$(tasks-axi list --file "$path" --state queued --blocked --fields "$BACKLOG_FIELDS" 2>&1); then
+    err=$blocked
+  else
+    printf 'slim backlog listing (tasks-axi; only in-flight and blocked rows; held, ready, and done rows omitted; task bodies omitted)\n'
+    printf '\nin flight:\n'
+    printf '%s\n' "$in_flight" | strip_axi_help
+    printf '\nblocked queued:\n'
+    printf '%s\n' "$blocked" | strip_axi_help
+    return 0
+  fi
+  printf 'tasks-axi slim listing failed; falling back to title-line rendering.\n'
+  printf '%s\n' "$err"
+  print_backlog_manual_compact "$path" "fallback"
+}
+
 print_backlog_tasks_axi_compact() {
   local path=$1 in_flight held blocked ready err
+  if [ "$SLIM" -eq 1 ]; then
+    print_backlog_tasks_axi_slim "$path"
+    return 0
+  fi
   if ! in_flight=$(tasks-axi list --file "$path" --state in_flight --fields "$BACKLOG_FIELDS" 2>&1); then
     err=$in_flight
   elif ! held=$(tasks-axi list --file "$path" --state held --fields "$BACKLOG_FIELDS" 2>&1); then
@@ -622,6 +715,11 @@ if [ "$REEMIT" -eq 1 ]; then
   printf 'secondmate convergence and liveness, pending remote handoff\n'
   printf 'retry, X-mode artifact writes, and stale Herdr child cleanup - are NOT repeated.\n'
   printf 'Queued wakes ARE still drained: they arrived after startup and are this turn work.\n'
+  if [ "$SLIM" -eq 1 ]; then
+    printf 'This is the SLIM re-emit: status tails, held and ready backlog rows, and the\n'
+    printf 'context-file bodies are replaced by pointers.\n'
+    print_full_reemit_pointer
+  fi
 else
   section "SESSION START - $FM_HOME"
 fi
@@ -802,6 +900,29 @@ fi
 # a stage that never ran, which the truncation banner names by stage.
 stage read-once
 section "READ-ONCE CONTRACT"
+if [ "$SLIM" -eq 1 ]; then
+  cat <<'EOF'
+This is a slim context re-emit. Printed in full below: every state/*.meta with its
+endpoint liveness and the in-flight and blocked data/backlog.md rows. Given only
+as path and byte size: data/projects.md, data/secondmates.md, data/captain.md,
+data/captain-shared.md, and data/learnings.md. Omitted: status tails, held and
+ready backlog rows, and orphan status tails.
+Do NOT bulk-read data/backlog.md or state/*.status, and do NOT re-read what is
+printed in full below.
+
+Go to a source directly only when:
+  - this turn needs a context file's contents (read the named path),
+  - this turn needs a task's wake-event history (its state/<id>.status),
+  - a held or ready backlog row or a full task body is needed
+    (bin/fm-tasks-axi.sh list/ready/show <id> --full, or data/backlog.md),
+  - this digest flagged a source ABSENT (then rebuild or create it per AGENTS.md),
+  - the NETWORK CHECKS section reported its checks still IN PROGRESS and this
+    turn needs their verdict (bin/fm-startup-network.sh report),
+  - or a STARTUP TRUNCATED banner named the stage that would have printed it.
+The whole re-emit digest is one command away:
+EOF
+  print_full_reemit_pointer
+else
 cat <<'EOF'
 Everything below is printed in full for this session start: every state/*.meta,
 a compact data/backlog.md listing, a bounded tail of every state/*.status,
@@ -824,6 +945,7 @@ Go to a source directly only when:
   - or a STARTUP TRUNCATED banner named the stage that would have printed it, in
     which case that stage's sources were never emitted and must be reconciled.
 EOF
+fi
 
 # --- 6. fleet-state digest ---------------------------------------------
 # Before CONTEXT: see this file's ORDERING note. Live fleet identity is what a
@@ -855,7 +977,9 @@ for meta in "$STATE"/*.meta; do
   fi
 
   status="$STATE/$id.status"
-  if [ -f "$status" ]; then
+  if [ "$SLIM" -eq 1 ]; then
+    printf 'status log (tail omitted in the slim re-emit): %s\n' "$status"
+  elif [ -f "$status" ]; then
     print_status_tail "$status"
   else
     printf 'status tail: (no status file yet: %s)\n' "$status"
@@ -870,6 +994,10 @@ for status in "$STATE"/*.status; do
   id=$(basename "$status" .status)
   [ -f "$STATE/$id.meta" ] && continue
   ORPHAN_STATUS_FOUND=1
+  if [ "$SLIM" -eq 1 ]; then
+    printf '%s: %s\n' "$id" "$status"
+    continue
+  fi
   printf '\n--- %s ---\n' "$id"
   print_status_tail "$status"
 done
@@ -944,11 +1072,21 @@ fi
 # take (see this file's ORDERING note).
 stage context
 section "CONTEXT"
-print_file_or_absent "$DATA/projects.md" "data/projects.md"
-print_file_or_absent "$DATA/secondmates.md" "data/secondmates.md"
-print_file_or_absent "$DATA/captain.md" "data/captain.md"
-print_file_or_absent "$DATA/captain-shared.md" "data/captain-shared.md (shared, main-authoritative, read-only in secondmate homes)"
-print_file_or_absent "$DATA/learnings.md" "data/learnings.md"
+if [ "$SLIM" -eq 1 ]; then
+  printf 'Context files as pointers only (slim re-emit); read a file when this turn needs it.\n'
+  print_file_pointer "$DATA/projects.md" "data/projects.md"
+  print_file_pointer "$DATA/secondmates.md" "data/secondmates.md"
+  print_file_pointer "$DATA/captain.md" "data/captain.md"
+  print_file_pointer "$DATA/captain-shared.md" "data/captain-shared.md"
+  print_file_pointer "$DATA/learnings.md" "data/learnings.md"
+  print_full_reemit_pointer
+else
+  print_file_or_absent "$DATA/projects.md" "data/projects.md"
+  print_file_or_absent "$DATA/secondmates.md" "data/secondmates.md"
+  print_file_or_absent "$DATA/captain.md" "data/captain.md"
+  print_file_or_absent "$DATA/captain-shared.md" "data/captain-shared.md (shared, main-authoritative, read-only in secondmate homes)"
+  print_file_or_absent "$DATA/learnings.md" "data/learnings.md"
+fi
 
 # --- 9. closing reminder -----------------------------------------------
 stage next-step

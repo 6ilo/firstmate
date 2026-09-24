@@ -181,6 +181,7 @@ Run-tier harness surfaces run this command for you at session open while the res
 Read the complete digest once and trust it as this turn's startup and recovery input.
 If the harness shows only a preview and persists the full output to a file, read that file before acting.
 Do not separately re-read the context, backlog, metadata, or bulk status inputs it just printed unless a source was reported absent or corrupt, older history is specifically needed, or a targeted workflow must inspect before writing.
+A clear or compaction re-emit is slim: it gives the context files only as paths and omits status tails and held or ready backlog rows, so read a named file when the turn needs it, or print the full re-emit with `bin/fm-session-start.sh --reemit --full`.
 An `ABSENT` captain, shared-captain, secondmate, or learnings file means the firstmate repo's built-in defaults, no shared captain preferences, no registered secondmates, or no captured learnings; rebuild an absent or stale project registry from the clones before dispatch.
 
 If the session lock cannot be acquired and verified, report its exact diagnostic and remain read-only; another active session is only one possible cause.

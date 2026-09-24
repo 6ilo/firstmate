@@ -2143,6 +2143,72 @@ EOF
   pass "--reemit reprints the digest without repeating startup's mutating sweeps and still drains queued wakes"
 }
 
+test_reemit_is_slim_by_default_with_a_full_escape_hatch() {
+  local rec root home fakebin slim full envfull bytes
+  rec=$(new_world reemit-slim)
+  IFS='|' read -r root home fakebin <<EOF
+$rec
+EOF
+  make_fake_toolchain "$fakebin"
+  make_fake_ps_claude "$fakebin"
+  printf '%s\n' manual > "$home/config/backlog-backend"
+  write_long_body_backlog "$home/data/backlog.md"
+  printf '%s\n' 'PROJECTS-BODY-MARKER' > "$home/data/projects.md"
+  printf '%s\n' 'CAPTAIN-BODY-MARKER' > "$home/data/captain.md"
+  printf '%s\n' 'LEARNINGS-BODY-MARKER' > "$home/data/learnings.md"
+  : > "$home/data/secondmates.md"
+  printf 'window=firstmate:fm-task-s\nkind=ship\n' > "$home/state/task-s.meta"
+  printf '%s\n' 'working [at=1]: STATUS-TAIL-MARKER' > "$home/state/task-s.status"
+  printf '%s\n' 'done [at=1]: ORPHAN-TAIL-MARKER' > "$home/state/orphan-s.status"
+  bytes=$(wc -c < "$home/data/projects.md" | tr -d '[:space:]')
+
+  FM_FAKE_HARNESS_PID=$$ run_session_start "$home" "$root" "$fakebin:$BASE_PATH" >/dev/null
+  slim=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_FAKE_HARNESS_PID=$$ PATH="$fakebin:$BASE_PATH" \
+    env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT -u FM_SESSION_START_REEMIT_FULL \
+    "$SESSION_START" --reemit)
+
+  assert_contains "$slim" "This is the SLIM re-emit" "the default re-emit did not declare itself slim"
+  assert_contains "$slim" "data/projects.md: $home/data/projects.md ($bytes bytes)" \
+    "the slim re-emit did not give a context file as its path and byte size"
+  assert_contains "$slim" "data/secondmates.md: $home/data/secondmates.md (present, empty)" \
+    "the slim re-emit lost the empty-file marker"
+  assert_contains "$slim" "data/captain-shared.md: ABSENT ($home/data/captain-shared.md)" \
+    "the slim re-emit lost the ABSENT marker"
+  assert_not_contains "$slim" "PROJECTS-BODY-MARKER" "the slim re-emit printed a context file body"
+  assert_not_contains "$slim" "CAPTAIN-BODY-MARKER" "the slim re-emit printed a context file body"
+  assert_not_contains "$slim" "LEARNINGS-BODY-MARKER" "the slim re-emit printed a context file body"
+  assert_contains "$slim" "--- task-s ---" "the slim re-emit dropped a task record"
+  assert_contains "$slim" "kind=ship" "the slim re-emit dropped a task record's fields"
+  assert_contains "$slim" "endpoint: " "the slim re-emit dropped endpoint liveness"
+  assert_not_contains "$slim" "STATUS-TAIL-MARKER" "the slim re-emit printed a status tail"
+  assert_not_contains "$slim" "ORPHAN-TAIL-MARKER" "the slim re-emit printed an orphan status tail"
+  assert_contains "$slim" "orphan-s: $home/state/orphan-s.status" "the slim re-emit lost the orphan status log path"
+  assert_contains "$slim" "- [ ] compact-startup - Compact startup digest" "the slim re-emit dropped an in-flight row"
+  assert_contains "$slim" "blocked-by: compact-startup - waits for implementation" "the slim re-emit dropped a blocked row"
+  assert_not_contains "$slim" "- [ ] held-queued - Held queued work" "the slim re-emit kept a held row"
+  assert_not_contains "$slim" "- [ ] plain-1 - Plain queued item 1" "the slim re-emit kept a ready queued row"
+  assert_contains "$slim" "bin/fm-session-start.sh --reemit --full" "the slim re-emit omitted the full-digest pointer"
+  assert_contains "$slim" "READ-ONCE CONTRACT" "the slim re-emit dropped the read-once contract"
+  assert_contains "$slim" "NEXT STEP" "the slim re-emit dropped the closing reminder"
+
+  full=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_FAKE_HARNESS_PID=$$ PATH="$fakebin:$BASE_PATH" \
+    env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT -u FM_SESSION_START_REEMIT_FULL \
+    "$SESSION_START" --reemit --full)
+  envfull=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_FAKE_HARNESS_PID=$$ PATH="$fakebin:$BASE_PATH" \
+    FM_SESSION_START_REEMIT_FULL=1 env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+    "$SESSION_START" --reemit)
+  for out in "$full" "$envfull"; do
+    assert_contains "$out" "SESSION START (CONTEXT RE-EMIT) - $home" "the full re-emit lost its label"
+    assert_not_contains "$out" "This is the SLIM re-emit" "the full escape hatch still printed the slim digest"
+    assert_contains "$out" "PROJECTS-BODY-MARKER" "the full re-emit omitted a context file body"
+    assert_contains "$out" "LEARNINGS-BODY-MARKER" "the full re-emit omitted a context file body"
+    assert_contains "$out" "STATUS-TAIL-MARKER" "the full re-emit omitted a status tail"
+    assert_contains "$out" "- [ ] held-queued - Held queued work" "the full re-emit omitted a held row"
+  done
+
+  pass "--reemit is slim by default and --full or FM_SESSION_START_REEMIT_FULL=1 restores the full digest"
+}
+
 test_agents_baseline_stays_at_true_start_and_reemits_on_every_drifted_pi_compact() {
   local rec root home fakebin startup compact_equal compact_first compact_second clear_out resume_out reset_out baseline baseline_after expected_hash refresh_line bootstrap_line
   rec=$(new_world agents-refresh)
@@ -2749,6 +2815,7 @@ test_portable_timeout_escalates_term_resistant_process
 test_runtime_bound_leaves_a_healthy_digest_untouched
 test_runtime_bound_leaves_harness_ancestry_headroom
 test_reemit_skips_startup_sweeps_but_keeps_the_wake_drain
+test_reemit_is_slim_by_default_with_a_full_escape_hatch
 test_agents_baseline_stays_at_true_start_and_reemits_on_every_drifted_pi_compact
 test_read_only_pi_compact_refreshes_against_its_own_session_identity
 test_codex_unreachable_reset_sources_do_not_claim_instruction_refresh
