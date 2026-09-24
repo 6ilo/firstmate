@@ -1,0 +1,18 @@
+ok - report surface: only the branch actor's current turn may report, and only on the tasks its wake names
+ok - dispatch entry: the host reads branch eligibility and the wake prompt from the Pi branch's own owner
+ok - host: an attended close reaches main exactly as the plain arm delivers it
+ok - host: an away wake is handled on the engine through the branch contract and never reaches main
+ok - host: an engine turn that records no outcome hands its durable wake to main
+ok - host: a captain return during an engine turn hands that turn's outcomes to main
+ok - host: a turn that reports but leaves its granted rows queued hands the wake to main
+ok - host: a captain return during a failed engine turn still hands that turn's outcomes to main
+ok - host: an engine turn whose result is incomplete hands its wake to main
+ok - host: an engine turn is bounded, and tool processes outside its process group are reaped
+ok - host: a restarted host stops, by recorded identity, the cycle a killed predecessor left running
+ok - host: the park ends itself with a boundary wake and a stopped watcher
+ok - host: waiting closes cannot carry the park past its boundary
+ok - host: a close whose margin runs out while the successor starts reaches main at the boundary without a turn
+ok - host: a park at or beyond the Stop-hook registration falls back to the default boundary
+ok - host: a home naming an unverified engine hands every away wake to main with the reason
+ok - host: a host outside the session-lock owner stands down without arming
+ok - host: a host under a superseded auto-arm generation stands down without touching the owner

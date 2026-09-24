@@ -1,0 +1,4 @@
+# first turn: handled	turn=host-86483-1790220789.1	rc=0	reports=2
+# outcome: {"seq":1,"epoch":1790220808,"task":"audit","wake":"signal: /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M38MHPWBY9SKDE0A67RMXE3P/.test-tmp/fm-supervision-host-live.JjitLb/fm/state/audit.status /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M38MHPWBY9SKDE0A67RMXE3P/.test-tmp/fm-supervision-host-live.JjitLb/fm/state/demo.status","verdict":"routine","summary":"per your away instructions: reviewed the away-posture audit-status signal; audit completed with no merge or dispatch authorized, worktree already torn down, no action needed.","silent":false,"statusEndpoint":71,"statusIdent":"strong:16777232:299648101:1790220790.745237802"}
+# second turn: handled	turn=host-86483-1790220789.2	rc=0	reports=1
+ok - supervision host live (2.1.281 (Claude Code)): a real engine handles and resumes away wakes under the branch contract without waking main

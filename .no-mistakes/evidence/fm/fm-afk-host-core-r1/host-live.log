@@ -1,0 +1,4 @@
+# first turn: handled	turn=host-9948-1790220599.1	rc=0	reports=1
+# outcome: {"seq":1,"epoch":1790220618,"task":"demo","wake":"signal: /Users/kunchen/.no-mistakes/worktrees/016d88035d58/01M38MHPWBY9SKDE0A67RMXE3P/.test-tmp/fm-supervision-host-live.C81CnZ/fm/state/demo.status","verdict":"routine","summary":"Demo task's cleanup finished on its own; worktree already gone and nothing further needed. Per away instructions, no merge or dispatch performed.","silent":false,"statusEndpoint":72,"statusIdent":"strong:16777232:299629929:1790220600.225552216"}
+# second turn: handled	turn=host-9948-1790220599.2	rc=0	reports=1
+ok - supervision host live (2.1.281 (Claude Code)): a real engine handles and resumes away wakes under the branch contract without waking main
