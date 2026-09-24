@@ -1,0 +1,4 @@
+# first turn: handled	turn=host-64262-1790241664.1	rc=0	reports=1
+# outcome: {"seq":1,"epoch":1790241686,"task":"demo","wake":"signal: /private/var/folders/0k/bf8mwt2n5qddzk24r20gfk0c0000gn/T/fm-supervision-host-live.ch7z2w/fm/state/demo.status","verdict":"routine","summary":"Demo task's status already shows its cleanup finished with nothing else needed; no live work or worktree remains, so no action taken.","silent":false,"statusEndpoint":72,"statusIdent":"strong:16777232:301567924:1790241665.739385543"}
+# second turn: handled	turn=host-64262-1790241664.2	rc=0	reports=1
+ok - supervision host live (2.1.281 (Claude Code)): a real engine handles and resumes away wakes under the branch contract without waking main
