@@ -617,6 +617,23 @@ skip-runner: pi-signed is not installed, so its pin check was not exercised
 
 The guard submits no prompt and spends no tokens, so it runs by default wherever a runner is installed; rerun it after every Claude or Pi upgrade.
 
+## Worker git guard
+
+`bin/fm-worker-git-guard.sh` relies on Claude's PreToolUse contract: the hook payload carries `.tool_input.command`, and exit 2 refuses the Bash call.
+`tests/fm-worker-git-guard-live-e2e.test.sh` installs the hook in a project `.claude/settings.local.json`, asks a real print-mode session to push to a local bare remote, and asserts the remote stays empty and the transcript carries the refusal, after first proving the same push succeeds unguarded.
+
+Verified 2026-09-24 on Claude Code 2.1.282 on macOS.
+
+```sh
+FM_WORKER_GIT_GUARD_LIVE_E2E=1 bash tests/fm-worker-git-guard-live-e2e.test.sh
+```
+
+```
+ok - claude 2.1.282 (Claude Code): the PreToolUse git guard refuses git push and the remote stays empty
+```
+
+The guard submits a prompt, so it is opt-in; rerun it after every Claude upgrade.
+
 ## Codex hook trust
 
 Verified 2026-09-16 on codex-cli 0.151.0, macOS arm64, in a fresh linked worktree of this repository.

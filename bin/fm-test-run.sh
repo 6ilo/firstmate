@@ -293,7 +293,7 @@ family_for_basename() {
     fm-supervision-instructions.test.sh|fm-task-delivery.test.sh|\
     fm-timeout-lib.test.sh|\
     fm-tmux-submit-busy.test.sh|fm-trace-context-lib.test.sh|\
-    fm-transition-lib.test.sh|\
+    fm-transition-lib.test.sh|fm-worker-git-guard.test.sh|\
     fm-test-run.test.sh|fm-test-isolation-proof.test.sh)
       printf '%s\n' pure-contract-unit
       ;;
@@ -355,7 +355,7 @@ family_for_basename() {
     fm-launch-prompt-signals-live-e2e.test.sh|\
     fm-herdr-version-floor-live-e2e.test.sh|\
     fm-herdr-pi-stale-registration-live-e2e.test.sh|\
-    fm-worker-account-live-e2e.test.sh|\
+    fm-worker-account-live-e2e.test.sh|fm-worker-git-guard-live-e2e.test.sh|\
     fm-opencode-primary-live-e2e.test.sh|fm-pi-branch-live-e2e.test.sh|\
     fm-pi-branch-responsiveness-live-e2e.test.sh|\
     fm-pi-primary-live-e2e.test.sh|fm-pi-codex-native.test.sh|fm-omp-primary-live-e2e.test.sh|\

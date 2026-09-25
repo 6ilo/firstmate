@@ -65,7 +65,7 @@ A `--secondmate` launch omits the statement because a secondmate operates under 
 ## Primary integration
 
 [`../../../../../docs/verification/supervision.md`](../../../../../docs/verification/supervision.md#turn-end-guard) records the current primary and Stop auto-arm live evidence.
-This differs from the worker hook, which only touches a task marker through `.claude/settings.local.json`.
+This differs from the worker hooks in the per-task `.claude/settings.local.json`, which only touch a task marker and busy state, plus, on scout and local-only lanes, the `../../../../../bin/fm-worker-git-guard.sh` PreToolUse refusal of `git push` and discarding git forms.
 
 Primary `.claude/settings.json` registers `../../../bin/fm-turnend-guard.sh --claude` and `../../../bin/fm-claude-stop-autoarm.sh` with `asyncRewake: true` and `timeout: 28800`.
 Guard exit 2 plus stderr forces continuation.

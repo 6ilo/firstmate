@@ -540,7 +540,7 @@ The worktree is your laboratory - install, run, edit, and make scratch commits f
 The report is the only thing that survives, so anything worth keeping must be in it.
 
 # Rules
-1. Never push to any remote and never open a PR.
+1. Never push to any remote and never open a PR. On a Claude worker a hook also refuses \`git push\` and discarding git commands.
 2. Stay inside this worktree; the only files you may write outside it are the report and the status file below.
 3. Use gh-axi for GitHub operations and chrome-devtools-axi for browser operations.
 4. Report status by appending one line:
