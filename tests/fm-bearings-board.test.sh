@@ -528,6 +528,78 @@ test_charted_kind_is_optional_and_accepts_both_values() {
   pass "charted kind is optional and accepts queued and warning"
 }
 
+# A realistic Today lane modelled on the captain's day: both lanes, an
+# overlapping AI block, and a needs-your-input moment.
+write_today() {  # <payload-path>
+  jq '.today = {
+    "date": "2026-01-15",
+    "timezone": "America/Chicago",
+    "built_at": "12:25",
+    "entries": [
+      {"lane": "captain", "start": "10:00", "end": "11:00", "title": "Ventures pitch"},
+      {"lane": "captain", "start": "16:30", "end": "18:30", "title": "Capstone session 2", "note": "Hyde Park Art Center"},
+      {"lane": "ai", "start": "12:00", "end": "13:30", "title": "Admin follow-up PR"},
+      {"lane": "ai", "start": "12:00", "end": "16:00", "title": "Hoverboard series", "needs_input": false},
+      {"lane": "ai", "start": "13:30", "end": "14:00", "title": "Your merge calls", "needs_input": true}
+    ],
+    "asks": [{"when": "~1:30pm", "text": "Merge calls before prep"}],
+    "plans": ["Finish the admin follow-up PR"]
+  }' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+}
+
+test_today_is_optional_and_a_valid_lane_is_carried_through() {
+  local home data
+  home=$(make_home today-valid)
+  data="$home/payload.json"
+  write_valid_payload "$data"
+  run_board "$home" build "$data" >/dev/null || fail "a payload without today was refused"
+  extract_payload "$home/.lavish/bearings-board.html" | jq -e 'has("today") | not' >/dev/null     || fail "a payload without today gained one in the built board"
+  write_today "$data"
+  run_board "$home" build "$data" >/dev/null || fail "a valid today lane was refused"
+  extract_payload "$home/.lavish/bearings-board.html" | jq -e '
+    .today.timezone == "America/Chicago" and (.today.entries | length) == 5
+      and .today.entries[4].needs_input == true
+  ' >/dev/null || fail "the built board did not carry the today lane it was given"
+  pass "today is optional, and a valid today lane is carried into the board"
+}
+
+test_build_refuses_a_malformed_today_lane() {
+  local home data board rc mutation
+  home=$(make_home today-invalid)
+  board="$home/.lavish/bearings-board.html"
+  data="$home/payload.json"
+  while IFS= read -r mutation; do
+    [ -n "$mutation" ] || continue
+    write_valid_payload "$data"
+    write_today "$data"
+    jq "$mutation" "$data" > "$data.tmp" && mv "$data.tmp" "$data"
+    set +e; run_board "$home" build "$data" >/dev/null 2>&1; rc=$?; set -e
+    [ "$rc" -ne 0 ] || fail "a malformed today lane was accepted: $mutation"
+  done <<'MUTATIONS'
+.today = "today"
+del(.today.date)
+.today.date = "2026-02-30"
+.today.date = "2026-01-15T00:00:00Z"
+.today.timezone = ""
+.today.timezone = "Chicago time <b>"
+.today.built_at = "12:25pm"
+del(.today.asks)
+.today.plans = [""]
+.today.asks[0] = {"when": "", "text": "x"}
+.today.entries[0].lane = "user"
+.today.entries[0].start = "9:00"
+.today.entries[0].end = "24:00"
+.today.entries[0].end = "10:00"
+.today.entries[0].end = "09:30"
+.today.entries[0].title = ""
+.today.entries[0].note = 3
+.today.entries[2].needs_input = "yes"
+.today.entries[0].needs_input = true
+.today.entries = {}
+MUTATIONS
+  assert_absent "$board" "a refused today lane still produced a board"
+  pass "build refuses a malformed today lane before touching the board"
+}
 
 # --- part 1: never arm a poll on an ended session ---------------------------
 
@@ -789,6 +861,8 @@ test_build_refuses_a_nondecision_reconcile_value() {
 test_path_is_stable_and_home_scoped
 test_build_refuses_malformed_payloads_before_touching_the_board
 test_charted_kind_is_optional_and_accepts_both_values
+test_today_is_optional_and_a_valid_lane_is_carried_through
+test_build_refuses_a_malformed_today_lane
 test_build_injects_binds_then_arms
 test_registration_cannot_consume_before_any_origin_binding
 test_build_does_not_bind_or_arm_when_session_start_fails
