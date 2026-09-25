@@ -289,10 +289,10 @@ test_claude_hooks_stale_incarnation_harmless() {
 }
 
 # Scout and local-only Claude lanes get a PreToolUse git guard in the same
-# per-task settings file; no-mistakes (and direct-PR) lanes keep push.
+# per-task settings file; no-mistakes and direct-PR lanes keep push.
 test_claude_git_guard_only_on_no_push_lanes() {
   local lane rec id out settings cmd rc
-  for lane in scout local-only no-mistakes; do
+  for lane in scout local-only no-mistakes direct-PR; do
     id=git-guard-$lane
     rec=$(make_spawn_case "git-guard-$lane" claude "$id")
     read_case_record "$rec"
@@ -305,9 +305,9 @@ test_claude_git_guard_only_on_no_push_lanes() {
     settings="$WT_DIR/.claude/settings.local.json"
     jq -e . "$settings" >/dev/null || fail "$lane: claude hook settings are not valid JSON"
     jq -e '.hooks.Stop' "$settings" >/dev/null || fail "$lane: the turn-end hook must stay in place"
-    if [ "$lane" = no-mistakes ]; then
+    if [ "$lane" = no-mistakes ] || [ "$lane" = direct-PR ]; then
       jq -e '.hooks.PreToolUse' "$settings" >/dev/null \
-        && fail "no-mistakes lane must not carry the git guard"
+        && fail "$lane lane must not carry the git guard"
       continue
     fi
     [ "$(jq -r '.hooks.PreToolUse[0].matcher' "$settings")" = Bash ] \
@@ -321,7 +321,7 @@ test_claude_git_guard_only_on_no_push_lanes() {
     printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | sh -c "$cmd" >/dev/null 2>&1 || rc=$?
     [ "$rc" -eq 0 ] || fail "$lane: the generated hook must allow git status, got $rc"
   done
-  pass "claude git guard is wired for scout and local-only lanes and absent on no-mistakes"
+  pass "claude git guard is wired for scout and local-only lanes and absent on no-mistakes and direct-PR"
 }
 
 test_codex_unverified_until_a_semantic_source_exists() {
