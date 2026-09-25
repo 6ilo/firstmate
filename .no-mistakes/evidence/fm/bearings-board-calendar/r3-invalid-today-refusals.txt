@@ -1,0 +1,6 @@
+== bad1
+fm-bearings-board: board data does not satisfy fm-bearings-board.v1: /tmp/fmbb-r3/bad1/payload.json
+exit=0  board-written=no
+== bad2
+fm-bearings-board: board data does not satisfy fm-bearings-board.v1: /tmp/fmbb-r3/bad2/payload.json
+exit=0  board-written=no

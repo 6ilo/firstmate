@@ -1,0 +1,8 @@
+board: /tmp/fmbb-live.cSlZ/.lavish/bearings-board.html
+session:
+  status: opened
+session: live
+served: /tmp/fmbb-live.cSlZ/.lavish/bearings-board.html
+bound: lavish-de10a229266b277b
+already-armed: lavish-de10a229266b277b
+listening: live

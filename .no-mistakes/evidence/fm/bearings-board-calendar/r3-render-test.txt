@@ -1,0 +1,5 @@
+ok - a board without today keeps the Today lane hidden
+ok - the Today lane renders both lanes, the input marker, the now line, asks, and plans
+ok - overlapping Today blocks sit side by side instead of on top of each other
+ok - a late short block stays inside the lane instead of drawing past midnight
+ok - Today payload strings render as text, never as markup

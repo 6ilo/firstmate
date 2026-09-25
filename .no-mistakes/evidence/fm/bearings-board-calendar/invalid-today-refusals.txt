@@ -1,0 +1,10 @@
+$ mutation: .today.entries[3].lane="captain"
+fm-bearings-board: board data does not satisfy fm-bearings-board.v1: /tmp/fmbb-live.cSlZ/bad.json
+exit=1
+$ mutation: .today.entries[0].end="08:30"
+fm-bearings-board: board data does not satisfy fm-bearings-board.v1: /tmp/fmbb-live.cSlZ/bad.json
+exit=1
+$ mutation: .today.timezone="Chicago time <b>"
+fm-bearings-board: board data does not satisfy fm-bearings-board.v1: /tmp/fmbb-live.cSlZ/bad.json
+exit=1
+board unchanged: yes

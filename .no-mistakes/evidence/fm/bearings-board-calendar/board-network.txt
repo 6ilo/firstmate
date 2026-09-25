@@ -1,0 +1,12 @@
+network:
+Emulating viewport: {"deviceScaleFactor":2,"isMobile":true,"hasTouch":true,"isLandscape":false,"width":390,"height":844}
+## Network requests
+Showing 1-6 of 6 (Page 1 of 1).
+reqid=26 GET file:///tmp/fmbb-live.cSlZ/.lavish/bearings-board.html [200]
+reqid=27 GET https://fonts.googleapis.com/css2?family=Chango&family=Jost:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap [200]
+reqid=28 GET data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/f... <truncated> [200]
+reqid=29 GET https://fonts.gstatic.com/s/chango/v29/2V0cKI0OB5U7WaJCyHe5blYKAg.woff2 [200]
+reqid=30 GET https://fonts.gstatic.com/l/font?kit=tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYXHKPxDcwgknk-4&skey=48ad01c60053c2ae&v=v24 [200]
+reqid=31 GET https://fonts.gstatic.com/l/font?kit=92z8tBhPNqw79Ij1E865zBUv7myjJWdNHHnUBkLNPUtGa_pmPRTImqNU7g&skey=4145fd5d1d5ac665&v=v20 [200]
+help[2]:
+  Run `chrome-devtools-axi network-get <id>` to see request details
