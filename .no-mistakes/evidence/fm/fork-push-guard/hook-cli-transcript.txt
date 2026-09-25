@@ -1,0 +1,26 @@
+DENY  rc=2  git push origin HEAD
+DENY  rc=2  git reset --hard
+DENY  rc=2  git clean -fd
+DENY  rc=2  git branch -D topic
+DENY  rc=2  git branch --delete --force topic
+DENY  rc=2  git branch -d -f topic
+DENY  rc=2  git checkout .
+DENY  rc=2  git restore .
+DENY  rc=2  git restore --staged --worktree .
+DENY  rc=2  if ! git push origin HEAD; then echo failed; fi
+DENY  rc=2  while true; do git push; done
+DENY  rc=2  ! git push
+DENY  rc=2  timeout 60 git push
+DENY  rc=2  echo x | xargs git push
+DENY  rc=2  FOO=1 env git -C /tmp push
+DENY  rc=2  /usr/bin/git push
+DENY  rc=2  (cd sub && git push)
+ALLOW rc=0  git status
+ALLOW rc=0  git commit -am wip
+ALLOW rc=0  git restore --staged .
+ALLOW rc=0  git restore -S .
+ALLOW rc=0  git branch -d topic
+ALLOW rc=0  git reset --soft HEAD~1
+ALLOW rc=0  git clean -n
+ALLOW rc=0  echo "remember to push later"
+ALLOW rc=0  gh-axi pr view 1
