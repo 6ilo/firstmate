@@ -111,6 +111,23 @@ render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charte
     || fail "the built board could not be rendered"
 }
 
+# Build the board with a Today lane and return what the renderer produced. The
+# date is far from any real run day, so the now line sits at build time.
+render_today() {  # <home> <today-json>
+  local home=$1 data="$1/payload.json"
+  jq -n --argjson today "$2" '{
+    schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-08-26T00:00Z",
+    prs_live:false, captains_call:[], underway:[], landed:[], charted:[], today:$today}' > "$data"
+  PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+    FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
+    LAVISH_AXI_STATE_DIR="$home/lavish-state" \
+    "$BOARD" build "$data" >/dev/null || fail "the board did not build"
+  require_listener_reached_poll "$home"
+  node "$HARNESS" "$home/.lavish/bearings-board.html" \
+    || fail "the built board could not be rendered"
+}
+
 # Build the board from <charted-json> alone and return what the renderer produced.
 render() {  # <home> <charted-json> [charted_more] [charted_warning_more]
   render_board "$1" '[]' "$2" "${3:-0}" "${4:-0}"
@@ -266,6 +283,124 @@ test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order() 
   pass "charted rows with no filed date follow the dated rows in payload order"
 }
 
+test_a_board_without_today_keeps_the_lane_hidden() {
+  local home out
+  home=$(make_home today-absent)
+  out=$(render "$home" '[]')
+  printf '%s' "$out" | jq -e '
+    .error == "" and .today.hidden == true
+      and .today.lanes.captain == [] and .today.lanes.ai == []
+      and .today.asks == [] and .today.plans == []
+  ' >/dev/null || fail "a board without today rendered a Today lane: $out"
+  pass "a board without today keeps the Today lane hidden"
+}
+
+test_the_today_lane_renders_both_lanes_asks_and_plans() {
+  local home out
+  home=$(make_home today-lanes)
+  out=$(render_today "$home" '{
+    "date": "2026-01-15", "timezone": "America/Chicago", "built_at": "12:30",
+    "entries": [
+      {"lane": "captain", "start": "10:00", "end": "11:00", "title": "Ventures pitch"},
+      {"lane": "captain", "start": "16:30", "end": "18:30", "title": "Capstone session 2", "note": "Hyde Park Art Center"},
+      {"lane": "ai", "start": "12:00", "end": "13:30", "title": "Admin follow-up PR"},
+      {"lane": "ai", "start": "12:00", "end": "16:00", "title": "Hoverboard series"},
+      {"lane": "ai", "start": "13:30", "end": "14:00", "title": "Your merge calls", "needs_input": true}
+    ],
+    "asks": [{"when": "~1:30pm", "text": "Merge calls before prep"}],
+    "plans": ["Finish the admin follow-up PR", "Hoverboard fasteners"]
+  }')
+  printf '%s' "$out" | jq -e '
+    .error == "" and .today.hidden == false
+      and .today.sub == "Thursday 15 January · Chicago time · built 12:30pm"
+      and .today.head == ["", "You", "AI"]
+      and .today.hours[0] == "8am" and .today.hours[-1] == "7pm"
+      and ([.today.lanes.captain[] | .title] == ["Ventures pitch", "Capstone session 2"])
+      and ([.today.lanes.captain[] | .kinds[0]] | all(. == "captain"))
+      and (.today.lanes.captain[0] | .past == true and .sub == "10am-11am")
+      and (.today.lanes.captain[1] | .past == false
+        and .sub == "4:30pm-6:30pm · Hyde Park Art Center")
+      and (.today.lanes.ai | map(select(.title == "Your merge calls"))[0]
+        | .kinds[0] == "ask" and (.sub | startswith("needs you · 1:30pm-2pm")))
+      and ([.today.lanes.ai[] | select(.title != "Your merge calls") | .kinds[0]] | all(. == "ai"))
+      and .today.now.top == "198px"
+      and .today.asks == [{"when": "~1:30pm", "text": "Merge calls before prep"}]
+      and .today.plans == ["Finish the admin follow-up PR", "Hoverboard fasteners"]
+  ' >/dev/null || fail "the Today lane did not render the day it was given: $out"
+  pass "the Today lane renders both lanes, the input marker, the now line, asks, and plans"
+}
+
+test_overlapping_today_blocks_share_their_lane() {
+  local home out
+  home=$(make_home today-overlap)
+  out=$(render_today "$home" '{
+    "date": "2026-01-15", "timezone": "America/Chicago", "built_at": "09:00",
+    "entries": [
+      {"lane": "ai", "start": "12:00", "end": "13:30", "title": "First"},
+      {"lane": "ai", "start": "12:00", "end": "16:00", "title": "Second"},
+      {"lane": "ai", "start": "17:00", "end": "18:00", "title": "Alone"},
+      {"lane": "captain", "start": "21:00", "end": "21:15", "title": "Recap"},
+      {"lane": "captain", "start": "21:15", "end": "21:45", "title": "Approve"}
+    ],
+    "asks": [], "plans": []
+  }')
+  printf '%s' "$out" | jq -e '
+    ([.today.lanes.ai[] | {(.title): .width}] | add) as $w
+    | $w.First == "calc(50% - 8px)" and $w.Second == "calc(50% - 8px)"
+      and $w.Alone == "calc(100% - 8px)"
+      and ([.today.lanes.ai[] | select(.title != "Alone") | .left] | sort)
+        == ["calc(0% + 4px)", "calc(50% + 4px)"]
+      and ([.today.lanes.ai[] | .past] | all(. == false))
+      and ([.today.lanes.captain[] | .width] | unique) == ["calc(50% - 8px)"]
+      and ([.today.lanes.captain[] | .kinds] | all(index("short") != null))
+      and .today.asks[0].text == "Nothing expected from you today."
+      and .today.plans == ["Nothing planned yet."]
+  ' >/dev/null || fail "overlapping blocks did not share their lane: $out"
+  pass "overlapping Today blocks sit side by side instead of on top of each other"
+}
+
+test_a_late_short_block_stays_inside_the_lane() {
+  local home out
+  home=$(make_home today-late)
+  out=$(render_today "$home" '{
+    "date": "2026-01-15", "timezone": "America/Chicago", "built_at": "09:00",
+    "entries": [
+      {"lane": "captain", "start": "23:40", "end": "23:50", "title": "Last check"},
+      {"lane": "ai", "start": "23:45", "end": "23:55", "title": "Night ask", "needs_input": true}
+    ],
+    "asks": [], "plans": []
+  }')
+  printf '%s' "$out" | jq -e '
+    (.today.hours | length) as $n
+    | .today.hours[-1] == "11pm"
+      and ([.today.lanes.captain[], .today.lanes.ai[]]
+        | all(((.top | rtrimstr("px") | tonumber) + (.height | rtrimstr("px") | tonumber)) <= $n * 44))
+      and (.today.lanes.captain[0].sub == "11:40pm-11:50pm")
+  ' >/dev/null || fail "a late short block drew past midnight: $out"
+  pass "a late short block stays inside the lane instead of drawing past midnight"
+}
+
+test_today_strings_render_as_text_never_markup() {
+  local home out
+  home=$(make_home today-text)
+  out=$(render_today "$home" '{
+    "date": "2026-01-15", "timezone": "America/Chicago", "built_at": "12:00",
+    "entries": [
+      {"lane": "captain", "start": "13:00", "end": "14:00", "title": "<img src=x onerror=alert(1)>", "note": "</script><b>n</b>"}
+    ],
+    "asks": [{"when": "<i>soon</i>", "text": "<b>ask</b>"}],
+    "plans": ["<script>alert(1)</script>"]
+  }')
+  printf '%s' "$out" | jq -e '
+    .error == ""
+      and (.today.lanes.captain[0] | .title == "<img src=x onerror=alert(1)>"
+        and (.sub | endswith("</script><b>n</b>")) and .markup == "")
+      and .today.asks == [{"when": "<i>soon</i>", "text": "<b>ask</b>"}]
+      and .today.plans == ["<script>alert(1)</script>"]
+  ' >/dev/null || fail "a Today payload string was not rendered as plain text: $out"
+  pass "Today payload strings render as text, never as markup"
+}
+
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status
 test_an_underway_identifier_label_is_not_replaced_by_run_status
 test_charted_next_reads_newest_filed_first
@@ -275,3 +410,8 @@ test_warnings_are_excluded_from_the_charted_next_count
 test_a_board_of_only_warnings_still_reports_nothing_queued
 test_omitted_warnings_never_count_as_more_queued
 test_an_omitted_kind_keeps_the_existing_queued_rendering
+test_a_board_without_today_keeps_the_lane_hidden
+test_the_today_lane_renders_both_lanes_asks_and_plans
+test_overlapping_today_blocks_share_their_lane
+test_a_late_short_block_stays_inside_the_lane
+test_today_strings_render_as_text_never_markup

@@ -272,8 +272,65 @@ a { color: inherit; text-decoration: none; }
 
 .bb-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--border-default); padding-top: 14px; }
 
+/* ---- Today: the captain's schedule (green) beside the AI's plan (purple) ----
+   The lane maps the board palette onto its own tokens; asks and the now line
+   share the rust call color. */
+:root {
+  --today-surface: var(--surface-card); --today-line: var(--border-soft);
+  --today-text: var(--text-strong); --today-muted: var(--text-muted);
+  --today-me: var(--sea-500); --today-me-bg: var(--sea-050);
+  --today-ai: #6b3fa0; --today-ai-bg: #efe8f7;
+  --today-ask: var(--rust-500); --today-ask-bg: var(--rust-050);
+  --today-now: var(--rust-600);
+}
+.bb-today[hidden] { display: none; }
+.bb-today .bb-section__head { flex-wrap: wrap; }
+.bb-today .bb-section__head .fm-sign--muted { white-space: normal; line-height: 1.3; }
+.bb-today__legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: var(--fs-xs); color: var(--text-muted); }
+.bb-today__legend span { display: inline-flex; align-items: center; gap: 6px; }
+.bb-today__sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.bb-today__body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.bb-today__panel { background: var(--today-surface); border-color: var(--today-line); color: var(--today-text); }
+.bb-today__cal { padding: 10px 12px 12px; }
+.bb-cal__head, .bb-cal__body { display: grid; grid-template-columns: 46px minmax(0, 1fr) minmax(0, 1fr); }
+.bb-cal__body { position: relative; }
+.bb-cal__colh { font-family: var(--font-mono); font-size: var(--fs-2xs); letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--today-muted); padding: 2px 8px 6px; }
+.bb-cal__hours { position: relative; }
+.bb-cal__hr { height: 44px; border-top: 1px solid var(--today-line); padding-right: 6px; text-align: right;
+  font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--today-muted); }
+.bb-cal__lane { position: relative; border-left: 1px solid var(--today-line); }
+.bb-cal__slot { height: 44px; border-top: 1px solid var(--today-line); }
+.bb-ev { position: absolute; border-radius: var(--radius-xs); border-left: 4px solid; padding: 3px 7px;
+  overflow: hidden; font-size: var(--fs-xs); line-height: 1.25; }
+.bb-ev__title { display: block; font-weight: 700; color: var(--today-text); overflow: hidden; text-overflow: ellipsis; }
+.bb-ev__sub { display: block; color: var(--today-muted); font-size: var(--fs-2xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bb-ev--captain { background: var(--today-me-bg); border-color: var(--today-me); }
+.bb-ev--ai { background: var(--today-ai-bg); border-color: var(--today-ai); }
+.bb-ev--ask { background: var(--today-ask-bg); border-color: var(--today-ask); box-shadow: inset 0 0 0 1.5px var(--today-ask); }
+.bb-ev--ask .bb-ev__sub { color: var(--today-ask); font-weight: 700; }
+.bb-ev--short { padding-block: 2px; }
+.bb-ev--short .bb-ev__title { white-space: nowrap; }
+.bb-ev--short:not(.bb-ev--ask) .bb-ev__sub { display: none; }
+.bb-ev--short.bb-ev--ask { display: flex; align-items: baseline; gap: 6px; }
+.bb-ev--short.bb-ev--ask .bb-ev__title { flex: 0 0 auto; max-width: 60%; }
+.bb-ev--short.bb-ev--ask .bb-ev__sub { flex: 1 1 0; min-width: 0; }
+.bb-ev--past { opacity: 0.45; }
+.bb-cal__now { position: absolute; left: 46px; right: 0; border-top: 2px solid var(--today-now); z-index: 5; pointer-events: none; }
+.bb-cal__now span { position: absolute; left: -44px; top: -9px; font-family: var(--font-mono); font-size: var(--fs-2xs);
+  font-weight: 700; color: var(--today-now); }
+.bb-today__lists { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.bb-today__list { padding: 14px 18px; }
+.bb-today__h { margin: 0 0 8px; font-size: var(--fs-sm); font-weight: 800; color: var(--today-text); }
+.bb-today__h--ask { color: var(--today-ask); }
+.bb-today__h--plan { color: var(--today-ai); }
+.bb-today__list ul { margin: 0; padding-left: 18px; }
+.bb-today__list li { margin: 4px 0; font-size: var(--fs-sm); color: var(--today-text); line-height: 1.4; }
+.bb-today__when { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--today-muted); margin-right: 6px; }
+.bb-today__none { font-size: var(--fs-sm); color: var(--today-muted); }
+
 @media (max-width: 900px) {
-  .bb-cols { grid-template-columns: 1fr; }
+  .bb-cols, .bb-today__body { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -295,6 +352,35 @@ a { color: inherit; text-decoration: none; }
 <main class="bb-main">
 
   <div class="bb-stats" id="bb-stats"></div>
+
+  <section class="bb-section bb-today" id="bb-today" hidden>
+    <div class="bb-section__head">
+      <span class="fm-sign fm-sign--eyebrow">
+        <svg class="fm-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+        Today
+      </span>
+      <span class="fm-sign fm-sign--muted" id="bb-today-sub"></span>
+    </div>
+    <div class="bb-today__legend">
+      <span><i class="bb-today__sw" style="background: var(--today-me)"></i>You</span>
+      <span><i class="bb-today__sw" style="background: var(--today-ai)"></i>AI work</span>
+      <span><i class="bb-today__sw" style="background: var(--today-ask)"></i>AI needs your input</span>
+      <span>AI times are estimates</span>
+    </div>
+    <div class="bb-today__body">
+      <div class="fm-card bb-today__panel bb-today__cal" id="bb-today-cal"></div>
+      <div class="bb-today__lists">
+        <div class="fm-card bb-today__panel bb-today__list">
+          <h3 class="bb-today__h bb-today__h--ask">When the AI needs you</h3>
+          <ul id="bb-today-asks"></ul>
+        </div>
+        <div class="fm-card bb-today__panel bb-today__list">
+          <h3 class="bb-today__h bb-today__h--plan">What the AI has planned</h3>
+          <ul id="bb-today-plans"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <div class="bb-cols">
   <section class="bb-section">
@@ -474,6 +560,140 @@ __FM_BEARINGS_BOARD_DATA__
   });
   document.getElementById("bb-call-sub").textContent =
     callTotal ? callTotal + " item" + (callTotal === 1 ? "" : "s") + " wait on you, captain" : "nothing needs you, captain";
+
+  /* Today: the captain's lane and the AI's lane on one clock. Every payload
+     string lands through textContent, never as markup. */
+  if (data.today && typeof data.today === "object") renderToday(data.today);
+  function renderToday(today) {
+    var HOUR_PX = 44;
+    function minutesOf(clock) {
+      var p = String(clock).split(":");
+      return Number(p[0]) * 60 + Number(p[1]);
+    }
+    function clockLabel(m) {
+      var h = Math.floor(m / 60), mm = m % 60;
+      var h12 = h % 12 || 12;
+      return h12 + (mm ? ":" + (mm < 10 ? "0" : "") + mm : "") + (h < 12 || h === 24 ? "am" : "pm");
+    }
+    /* The now line follows the live clock while the viewer's date in the
+       payload's zone is the payload's day, and otherwise stays at build time. */
+    var nowMin = minutesOf(today.built_at);
+    try {
+      var parts = {};
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: today.timezone, year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+      }).formatToParts(new Date()).forEach(function (p) { parts[p.type] = p.value; });
+      if (parts.year + "-" + parts.month + "-" + parts.day === today.date) {
+        nowMin = Number(parts.hour) * 60 + Number(parts.minute);
+      }
+    } catch (e) { /* unknown zone: keep the build time */ }
+
+    /* A block never draws shorter than MIN_BLOCK minutes or past midnight, and
+       layout uses that drawn span, so a short block beside its neighbor never
+       covers it. */
+    var MIN_BLOCK = 30;
+    var entries = (today.entries || []).map(function (e) {
+      var a = minutesOf(e.start), b = minutesOf(e.end);
+      var top = Math.min(a, 24 * 60 - MIN_BLOCK);
+      return { e: e, a: a, b: b, top: top, drawnEnd: Math.max(b, top + MIN_BLOCK) };
+    });
+    var startHour = 8, endHour = 20;
+    entries.forEach(function (x) {
+      startHour = Math.min(startHour, Math.floor(x.top / 60));
+      endHour = Math.max(endHour, Math.ceil(x.drawnEnd / 60));
+    });
+    endHour = Math.min(24, endHour);
+
+    var ymd = today.date.split("-").map(Number);
+    var day = new Date(Date.UTC(ymd[0], ymd[1] - 1, ymd[2]));
+    var dayLabel = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][day.getUTCDay()] +
+      " " + ymd[2] + " " + ["January", "February", "March", "April", "May", "June", "July", "August",
+      "September", "October", "November", "December"][ymd[1] - 1];
+    var zoneLabel = today.timezone.split("/").pop().replace(/_/g, " ");
+    document.getElementById("bb-today-sub").textContent =
+      dayLabel + " · " + zoneLabel + " time · built " + clockLabel(minutesOf(today.built_at));
+
+    var cal = document.getElementById("bb-today-cal");
+    var head = el("div", "bb-cal__head");
+    head.appendChild(el("span", "bb-cal__colh", ""));
+    head.appendChild(el("span", "bb-cal__colh", "You"));
+    head.appendChild(el("span", "bb-cal__colh", "AI"));
+    cal.appendChild(head);
+    var body = el("div", "bb-cal__body");
+    var hours = el("div", "bb-cal__hours");
+    var lanes = { captain: el("div", "bb-cal__lane bb-cal__lane--captain"), ai: el("div", "bb-cal__lane bb-cal__lane--ai") };
+    for (var h = startHour; h < endHour; h++) {
+      hours.appendChild(el("div", "bb-cal__hr", clockLabel(h * 60)));
+      lanes.captain.appendChild(el("div", "bb-cal__slot"));
+      lanes.ai.appendChild(el("div", "bb-cal__slot"));
+    }
+    body.appendChild(hours);
+    body.appendChild(lanes.captain);
+    body.appendChild(lanes.ai);
+
+    /* Overlapping blocks in one lane share its width side by side. */
+    ["captain", "ai"].forEach(function (lane) {
+      var rows = entries.filter(function (x) { return x.e.lane === lane; })
+        .sort(function (p, q) { return p.top - q.top || q.drawnEnd - p.drawnEnd; });
+      var cluster = [], clusterEnd = -1;
+      function flush() {
+        var colEnds = [];
+        cluster.forEach(function (x) {
+          var c = 0;
+          while (c < colEnds.length && colEnds[c] > x.top) c++;
+          colEnds[c] = x.drawnEnd;
+          x.col = c;
+        });
+        cluster.forEach(function (x) { x.cols = colEnds.length; });
+        cluster = [];
+      }
+      rows.forEach(function (x) {
+        if (cluster.length && x.top >= clusterEnd) flush();
+        cluster.push(x);
+        clusterEnd = Math.max(clusterEnd, x.drawnEnd);
+      });
+      flush();
+      rows.forEach(function (x) {
+        var ask = lane === "ai" && x.e.needs_input === true;
+        var ev = el("div", "bb-ev bb-ev--" + (ask ? "ask" : lane) +
+          (x.b - x.a < 45 ? " bb-ev--short" : "") + (x.b <= nowMin ? " bb-ev--past" : ""));
+        ev.style.top = ((x.top - startHour * 60) / 60 * HOUR_PX + 1) + "px";
+        ev.style.height = ((x.drawnEnd - x.top) / 60 * HOUR_PX - 3) + "px";
+        ev.style.left = "calc(" + (100 * x.col / x.cols) + "% + 4px)";
+        ev.style.width = "calc(" + (100 / x.cols) + "% - 8px)";
+        var when = clockLabel(x.a) + "-" + clockLabel(x.b);
+        ev.appendChild(el("span", "bb-ev__title", x.e.title));
+        var sub = ask ? "needs you · " + when : when;
+        if (x.e.note) sub += " · " + x.e.note;
+        ev.appendChild(el("span", "bb-ev__sub", sub));
+        ev.setAttribute("title", x.e.title + " (" + when + ")" + (x.e.note ? " - " + x.e.note : ""));
+        lanes[lane].appendChild(ev);
+      });
+    });
+
+    if (nowMin >= startHour * 60 && nowMin <= endHour * 60) {
+      var now = el("div", "bb-cal__now");
+      now.style.top = ((nowMin - startHour * 60) / 60 * HOUR_PX) + "px";
+      now.appendChild(el("span", null, "now"));
+      body.appendChild(now);
+    }
+    cal.appendChild(body);
+
+    var asks = document.getElementById("bb-today-asks");
+    (today.asks || []).forEach(function (a) {
+      var li = el("li");
+      li.appendChild(el("span", "bb-today__when", a.when));
+      li.appendChild(el("span", "bb-today__ask", a.text));
+      asks.appendChild(li);
+    });
+    if (!(today.asks || []).length) asks.appendChild(el("li", "bb-today__none", "Nothing expected from you today."));
+    var plans = document.getElementById("bb-today-plans");
+    (today.plans || []).forEach(function (t) { plans.appendChild(el("li", null, t)); });
+    if (!(today.plans || []).length) plans.appendChild(el("li", "bb-today__none", "Nothing planned yet."));
+
+    document.getElementById("bb-today").hidden = false;
+  }
 
   /* Captain's Call deck: every item renders as the same full card */
   var deck = document.getElementById("bb-call");

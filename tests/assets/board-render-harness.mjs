@@ -5,7 +5,9 @@
 // Usage: node board-render-harness.mjs <built-board.html>
 // Prints one JSON document:
 //   { stats:[{n,label}], underway:[{title,sub,badges}],
-//     charted:[{title,sub,badges,pickable}], empty, more, error }
+//     charted:[{title,sub,badges,pickable}], empty, more, error,
+//     today:{hidden, sub, head, hours, lanes:{captain,ai}:[{title,sub,kinds,past,
+//            top,height,left,width,tooltip}], now:{top}|null, asks, plans} }
 import { readFileSync } from "node:fs";
 
 const html = readFileSync(process.argv[2], "utf8");
@@ -24,9 +26,16 @@ class Node {
     this.type = "";
     this.value = "";
     this.checked = false;
+    this.style = {};
+    const classes = () => this.className.split(/\s+/).filter(Boolean);
     this.classList = {
       add: (c) => { this.className = (this.className + " " + c).trim(); },
-      contains: (c) => this.className.split(/\s+/).includes(c),
+      remove: (c) => { this.className = classes().filter((x) => x !== c).join(" "); },
+      toggle: (c, on) => {
+        const want = on === undefined ? !classes().includes(c) : on;
+        if (want) { if (!classes().includes(c)) this.classList.add(c); } else this.classList.remove(c);
+      },
+      contains: (c) => classes().includes(c),
     };
   }
   get textContent() {
@@ -67,6 +76,10 @@ globalThis.document = {
   getElementById: (id) => {
     if (!byId.has(id)) {
       const n = new Node("div");
+      // Parse the one static attribute the page toggles: a `hidden` element
+      // in the built HTML starts hidden, as it would in a browser.
+      const tag = html.match(new RegExp('<[a-z]+[^>]*\\sid="' + id + '"[^>]*>'));
+      n.hidden = Boolean(tag && /\shidden[\s>]/.test(tag[0]));
       new Node("div").appendChild(n);
       byId.set(id, n);
     }
@@ -122,5 +135,43 @@ const errorText = [...byId.entries()]
 const empty = ch.children.filter((c) => c.className.includes("bb-empty")).map((c) => c.textContent);
 const more = ch.children.filter((c) => c.className.includes("bb-morechip")).map((c) => c.textContent);
 
+const hasClass = (n, c) => n.className.split(/\s+/).includes(c);
+const findAll = (root, c) => {
+  const out = [];
+  const walk = (n) => { for (const k of n.children) { if (hasClass(k, c)) out.push(k); walk(k); } };
+  walk(root);
+  return out;
+};
+const todaySection = document.getElementById("bb-today");
+const cal = byId.get("bb-today-cal") || new Node("div");
+const laneOf = (name) => {
+  const lane = findAll(cal, "bb-cal__lane--" + name)[0];
+  if (!lane) return [];
+  return lane.children.filter((c) => hasClass(c, "bb-ev")).map((ev) => ({
+    title: ev.children.find((c) => hasClass(c, "bb-ev__title"))?.textContent ?? "",
+    sub: ev.children.find((c) => hasClass(c, "bb-ev__sub"))?.textContent ?? "",
+    kinds: ev.className.split(/\s+/).filter((c) => c.startsWith("bb-ev--") && c !== "bb-ev--past")
+      .map((c) => c.slice("bb-ev--".length)),
+    past: hasClass(ev, "bb-ev--past"),
+    top: ev.style.top, height: ev.style.height, left: ev.style.left, width: ev.style.width,
+    tooltip: ev.attributes.title ?? "",
+    markup: ev.innerHTML + ev.children.map((c) => c.innerHTML).join(""),
+  }));
+};
+const nowLine = findAll(cal, "bb-cal__now")[0];
+const today = {
+  hidden: todaySection.hidden,
+  sub: (byId.get("bb-today-sub") || new Node("span")).textContent,
+  head: findAll(cal, "bb-cal__colh").map((c) => c.textContent),
+  hours: findAll(cal, "bb-cal__hr").map((c) => c.textContent),
+  lanes: { captain: laneOf("captain"), ai: laneOf("ai") },
+  now: nowLine ? { top: nowLine.style.top } : null,
+  asks: (byId.get("bb-today-asks") || new Node("ul")).children.map((li) => ({
+    when: li.children.find((c) => hasClass(c, "bb-today__when"))?.textContent ?? "",
+    text: li.children.find((c) => hasClass(c, "bb-today__ask"))?.textContent ?? li.textContent,
+  })),
+  plans: (byId.get("bb-today-plans") || new Node("ul")).children.map((li) => li.textContent),
+};
+
 process.stdout.write(
-  JSON.stringify({ stats, underway, charted, empty, more, error: errorText }) + "\n");
+  JSON.stringify({ stats, underway, charted, empty, more, error: errorText, today }) + "\n");

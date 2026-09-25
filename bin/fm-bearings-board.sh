@@ -79,6 +79,24 @@
 # first; a row with no comparable date keeps its payload order after every dated
 # row. Anything else in that field refuses rather than sorting on garbage.
 #
+# The payload MAY carry one `today` object, the Today lane: the captain's own
+# schedule beside the AI's planned work for one day. Absent `today` renders the
+# board without that lane. When present, every field below is required unless
+# marked optional:
+#   date       the day shown, YYYY-MM-DD
+#   timezone   the IANA zone the clock times are in, such as America/Chicago;
+#              the board labels the lane with its city and uses it for a live
+#              now line while the viewer's date in that zone is `date`
+#   built_at   the local HH:MM the payload was composed, the now line otherwise
+#   entries    timed blocks, each {lane, start, end, title, note?, needs_input?}:
+#              lane is "captain" or "ai"; start and end are 24-hour local HH:MM
+#              with start before end; note is an optional short string; and
+#              needs_input, allowed true only on an ai entry, marks the moment
+#              the AI will need the captain's input
+#   asks       [{when, text}]: when the AI needs the captain, with `when` an
+#              approximate time label such as "~1:30pm" or "today"
+#   plans      non-empty strings naming what the AI has planned
+#
 # The board path is stable - $FM_HOME/.lavish/bearings-board.html - so a
 # re-invocation rebuilds the same file in place, which keeps the same Lavish
 # session URL and the same canonical process-event source id. Injection escapes
@@ -184,6 +202,28 @@ validate_payload() {  # <data.json>
       and ((has("kind") | not) or (.kind == "queued" or .kind == "warning"))
       and optional_filed
       and (if .kind == "warning" then .dispatchable == false else true end);
+    def clock: type == "string" and test("^([01][0-9]|2[0-3]):[0-5][0-9]$");
+    def clock_minutes: split(":") | (.[0] | tonumber) * 60 + (.[1] | tonumber);
+    def today_entry:
+      type == "object"
+      and (.lane == "captain" or .lane == "ai")
+      and (.start | clock) and (.end | clock)
+      and ((.start | clock_minutes) < (.end | clock_minutes))
+      and (.title | nonempty_string)
+      and optional_string("note")
+      and ((has("needs_input") | not) or (.needs_input | type == "boolean"))
+      and (if .needs_input == true then .lane == "ai" else true end);
+    def today_block:
+      type == "object"
+      and (.date | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") and valid_filed)
+      and (.timezone | type == "string" and test("^[A-Za-z]+(?:[/_+-][A-Za-z0-9]+)*$"))
+      and (.built_at | clock)
+      and (.entries | type == "array")
+      and ([.entries[] | today_entry] | all)
+      and (.asks | type == "array")
+      and ([.asks[] | type == "object" and (.when | nonempty_string) and (.text | nonempty_string)] | all)
+      and (.plans | type == "array")
+      and ([.plans[] | nonempty_string] | all);
     type == "object"
     and (.schema == $schema)
     and (.home | nonempty_string)
@@ -201,6 +241,7 @@ validate_payload() {  # <data.json>
     and ([.underway[] | underway_item] | all)
     and ([.landed[] | landed_item] | all)
     and ([.charted[] | charted_item] | all)
+    and ((has("today") | not) or (.today | today_block))
   ' "$1" >/dev/null
 }
 

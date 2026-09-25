@@ -112,6 +112,9 @@ Compose the payload from the same snapshot with the same ranking judgment as the
 - Every Charted Next row copies the snapshot gate's durable filed date into `filed`, and the board orders the section by it, newest filed first.
   Follow `bin/fm-bearings-board.sh`'s payload contract for the accepted format.
   Omit it or pass null for a row with no durable filed date - the main-inventory or return-catchup warning, an unavailable secondmate home, or a queued row filed before dates were recorded - and the board keeps those rows in payload order after every dated row.
+- Fill the optional `today` lane at build time: read the captain's calendar for today and put those events in the captain lane, and put your own planned work and the open captain calls you expect to raise in the AI lane, marking each point where you will need the captain's input and listing those moments with approximate times in `asks`.
+  The board makes no calendar call itself, so omit `today` whenever the calendar cannot be read rather than guessing the schedule.
+  Follow `bin/fm-bearings-board.sh`'s payload contract for the fields.
 - Every Captain's Call item and every Underway, Recently Landed, and Charted Next row carries an explicit `repo` field. Fill it from the snapshot and task records wherever known; use null or an empty string only as the deliberate genuinely-no-repo marker, in which case the template may show the internal id. Ids otherwise stay in the payload only as the routing channel, and composed reasons name blockers in plain words.
 
 Run `build` once after composing the payload.
