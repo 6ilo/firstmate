@@ -42,6 +42,11 @@ test_blocks_forbidden_forms() {
   expect_block 'git checkout .' 'git checkout .'
   expect_block 'git checkout -- .' 'git checkout .'
   expect_block 'git restore .' 'git restore .'
+  expect_block 'git restore --staged --worktree .' 'git restore .'
+  expect_block 'git restore -SW .' 'git restore .'
+  expect_block 'git branch --delete --force topic' 'git branch -D'
+  expect_block 'git branch -d -f topic' 'git branch -D'
+  expect_block 'git branch -df topic' 'git branch -D'
   pass "blocks push, reset --hard, clean -f, branch -D, checkout ., and restore ."
 }
 
@@ -52,7 +57,17 @@ test_blocks_wrapped_and_chained_forms() {
   expect_block 'env FOO=1 /usr/bin/git push' 'git push'
   expect_block 'git -C /tmp/x -c user.name=a push' 'git push'
   expect_block 'out=$(git push 2>&1)' 'git push'
-  pass "blocks forbidden forms behind chains, env assignments, a path, global options, and a subshell"
+  expect_block 'if ! git push origin HEAD; then echo failed; fi' 'git push'
+  expect_block 'while true; do git push; done' 'git push'
+  expect_block 'if false; then :; else git push; fi' 'git push'
+  expect_block '! git push' 'git push'
+  expect_block 'timeout 60 git push' 'git push'
+  expect_block 'timeout -s KILL 5m git push' 'git push'
+  expect_block 'echo HEAD | xargs git push origin' 'git push'
+  expect_block 'xargs -n 1 git push' 'git push'
+  expect_block 'sudo -u root git push' 'git push'
+  expect_block 'env -u FOO git push' 'git push'
+  pass "blocks forbidden forms behind chains, env assignments, shell keywords, wrappers, a path, global options, and a subshell"
 }
 
 test_allows_everything_else() {
@@ -63,6 +78,11 @@ test_allows_everything_else() {
   expect_allow 'git branch -d topic'
   expect_allow 'git checkout -b fm/topic --'
   expect_allow 'git restore src/file.c'
+  expect_allow 'git restore --staged .'
+  expect_allow 'git restore -S .'
+  expect_allow 'git branch -f topic main'
+  expect_allow 'git branch --delete topic'
+  expect_allow 'if git diff --quiet; then echo clean; fi'
   expect_allow 'echo push'
   expect_allow 'npm run push'
   expect_allow 'grep -rn "git push" docs'

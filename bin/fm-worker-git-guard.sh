@@ -11,14 +11,17 @@
 # get no hook and keep the prose rule alone.
 #
 # Blocked, in any segment of a chained command (; && || | & newline, subshell),
-# after any leading VAR=value assignments, `env`, `command`, `exec`, or `sudo`,
-# with git named bare or by path, and after git's global options (-C <dir>,
-# -c <k=v>, --git-dir=..., and the like):
+# after any leading VAR=value assignments, shell keywords (if then elif else do
+# while until !), and wrappers (`env`, `command`, `exec`, `sudo`, `nohup`,
+# `time`, `timeout` with its duration, `xargs`, with their options), with git
+# named bare or by path, and after git's global options (-C <dir>, -c <k=v>,
+# --git-dir=..., and the like):
 #   git push
 #   git reset ... --hard
 #   git clean ... -f / --force (including clustered short flags such as -fd)
-#   git branch ... -D (including clustered short flags)
-#   git checkout ... .      git restore ... .
+#   git branch ... -D, or --delete/-d with --force/-f (including clusters)
+#   git checkout ... .
+#   git restore ... . (unless --staged/-S without --worktree/-W: unstage only)
 # Anything that is not a git call is never blocked, even when it contains the
 # word push. Splitting is deliberately simple and quote-unaware: a quoted
 # "; git push" inside another git call's argument can be refused, which errs
@@ -36,7 +39,7 @@ set -u
 
 case "${1:-}" in
   -h | --help)
-    sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
     ;;
 esac
@@ -57,7 +60,7 @@ esac
 # when the segment is a forbidden git call; returns 1 otherwise.
 classify_segment() {
   local -a w
-  local i n sub a
+  local i n sub a staged=0 worktree=0 dot=0 del=0 force=0
   # Quotes and escapes are dropped so "git" 'push' still reads as git push.
   a=${1//\"/}
   a=${a//\'/}
@@ -65,11 +68,15 @@ classify_segment() {
   read -r -a w <<<"$a" || true
   n=${#w[@]}
   i=0
-  # Leading env assignments and transparent wrappers.
+  # Leading env assignments, shell keywords, and transparent wrappers; a
+  # numeric word is a wrapper's count or duration (timeout 60, xargs -n 1).
   while [ "$i" -lt "$n" ]; do
     case "${w[$i]}" in
       [A-Za-z_]*=*) i=$((i + 1)) ;;
-      env | command | exec | sudo | nohup | time | -*) i=$((i + 1)) ;;
+      if | then | elif | else | do | while | until | !) i=$((i + 1)) ;;
+      env | command | exec | sudo | nohup | time | timeout | xargs) i=$((i + 1)) ;;
+      -u | -g | -s) i=$((i + 2)) ;;
+      -* | [0-9]*) i=$((i + 1)) ;;
       *) break ;;
     esac
   done
@@ -104,14 +111,34 @@ classify_segment() {
         ;;
       branch)
         case "$a" in
+          --delete) del=1 ;;
+          --force) force=1 ;;
           --*) ;;
           -*D*) printf 'git branch -D'; return 0 ;;
+          -*)
+            case "$a" in -*d*) del=1 ;; esac
+            case "$a" in -*f*) force=1 ;; esac
+            ;;
         esac
         ;;
-      checkout | restore) [ "$a" = . ] && { printf 'git %s .' "$sub"; return 0; } ;;
+      checkout) [ "$a" = . ] && { printf 'git checkout .'; return 0; } ;;
+      restore)
+        case "$a" in
+          .) dot=1 ;;
+          --staged) staged=1 ;;
+          --worktree) worktree=1 ;;
+          --*) ;;
+          -*)
+            case "$a" in -*S*) staged=1 ;; esac
+            case "$a" in -*W*) worktree=1 ;; esac
+            ;;
+        esac
+        ;;
     esac
     i=$((i + 1))
   done
+  [ "$sub" = branch ] && [ "$del" = 1 ] && [ "$force" = 1 ] && { printf 'git branch -D'; return 0; }
+  [ "$sub" = restore ] && [ "$dot" = 1 ] && { [ "$staged" = 0 ] || [ "$worktree" = 1 ]; } && { printf 'git restore .'; return 0; }
   return 1
 }
 
