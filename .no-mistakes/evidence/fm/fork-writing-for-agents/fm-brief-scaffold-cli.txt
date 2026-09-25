@@ -1,0 +1,9 @@
+$ FM_HOME=<tmp> bin/fm-brief.sh live-ship alpha --mode no-mistakes
+scaffolded: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/tmp.tWWDi9e2fC/home/data/live-ship/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+{FIRSTMATE_SPEC} is behavioral: name a file path only when the worker must go there.
+exit=0
+
+$ FM_HOME=<tmp> bin/fm-brief.sh live-scout alpha --scout
+scaffolded: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/tmp.tWWDi9e2fC/home/data/live-scout/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+{FIRSTMATE_SPEC} is behavioral: name a file path only when the worker must go there.
+exit=0
