@@ -126,7 +126,7 @@ The most recent recognized ci log marker wins, so checks-green monitoring report
 `bin/fm-crew-state.sh` owns the evidence guard that recognizes ended CI monitors after green checks, including cancelled runs and skipped rebase steps; a passed run alone never proves a forge merge.
 In the coarse runs-ledger fallback, which has no steps table and no ci log, a terminal failed record whose daemon an explicit `daemon status` probe proves down reports unknown as unverified instead: an instrument failure must never read as work failure.
 The same instrument rule covers the ledger-anchored continuation of a selected run whose head this copy cannot resolve: once the probe answers down, that still-executing record reports unknown as unverified, while a run parked at a gate keeps its gate and findings because an open decision stays open when the instrument dies, and a `needs-decision` or `blocked` event the crew observed first hand stays open with the unverified record named as the reason rather than superseded by it.
-Only when no matching run exists does it consult semantic busy state; exact busy reports working, exact idle permits fallback to the log's resolved current declaration - the newest decision the fold still holds open, otherwise the latest recognized event - when its verb maps to a recognized run-state, and unknown or a dead pane stays unknown instead of trusting a stale log.
+Only when no matching run exists does it consult semantic busy state; exact busy reports working, exact idle permits fallback to the log's resolved current declaration - the newest decision the fold still holds open, otherwise a declared wait still standing after later resolved lines for other keys, otherwise the latest recognized event - when its verb maps to a recognized run-state, and unknown or a dead pane stays unknown instead of trusting a stale log.
 Decision-only events such as `resolved` never become current state or leak their prose into the current-state detail.
 In that status-log fallback, a declared external wait reports the distinct `paused` state with its reason.
 The semantic branch reports working only on an exact busy verdict and names the source that produced it; an unknown verdict never becomes working, never permits the status-log fallback, and never becomes a silent idle.
@@ -191,7 +191,8 @@ On an opted-in non-Pi home, the [supervision host](supervision-host.md) runs the
 A presence-gated sub-supervisor (`bin/fm-supervise-daemon.sh`) still extends walk-away supervision on the remaining harnesses: the `/afk` skill starts it through the tracked foreground helper `bin/fm-afk-start.sh` once the record exists, after which the watcher reverts to daemon-managed one-shot mode and the daemon self-handles routine wakes in bash.
 The watcher and daemon share `bin/fm-classify-lib.sh` for captain-relevant status verbs, declared-wait vocabulary (a `paused:` external wait and a verified `captain-held` transfer alike, through one combined predicate), and status-scan primitives.
 Terminal verbs remain captain-relevant, while a nonterminal progress verb cannot become terminal merely because its prose contains a legacy free-text token such as `merged`; bare legacy free-text lines remain compatible.
-The shared latest-event read takes the most recent line that leads with a recognized verb or legacy token, so continuation prose and trailing blank lines after a multi-line record cannot hide a declared wait.
+The shared latest-event read takes the most recent line that leads with a recognized verb, a legacy token, or an unrecognized status prefix, so a bad declaration stays visible as itself while continuation prose and trailing blank lines after a multi-line record cannot hide a declared wait.
+Both supervisors decide a declared wait through the library's declared-wait read rather than that latest event, so a later `resolved` line for a different phase key - including an `fm-send --resolve-key default` answer to a keyless decision - does not end a standing keyless or keyed `paused:` wait, while a resolved line for the wait's own key or any other later event still does.
 Both supervisors classify the status bytes appended since they last classified that log, never its last line alone, and report every actionable event through the captured endpoint before committing that position.
 The watcher's `.seen-*` and `.hb-surfaced-<task>` markers and the daemon's `.subsuper-seen-status-<task>` marker independently track reported file state and successfully classified position, so an unchanged unreadable state reports once without advancing past unread content, while a changed state retries and an unusable position re-reads the whole log.
 A keyed `needs-decision` or `blocked` transition accepted by the whole-file decision fold is retired only when that fold retires it - an explicit close for its exact key, or a terminal declaration by the ship or scout that owns the log - while a reserved-key transition the fold rejects surfaces as a reconciliation signal without becoming an open decision.
@@ -290,9 +291,9 @@ Placement is proven only at launch, so `bin/fm-spawn.sh` also exports the task i
 
 Firstmate's own no-mistakes gate runs agents inside a checkout that also contains the fleet-captain identity in `AGENTS.md`, so gate execution needs an authority boundary separate from ordinary crewmate worktree isolation.
 The tracked `.no-mistakes.yaml` sets `disable_project_settings: true`; no-mistakes honors that setting only from the trusted default-branch copy, so a pushed branch cannot enable its own project instructions during validation.
-Independently, `fm-spawn.sh`, `fm-send.sh`, `fm-control.sh`, and `fm-teardown.sh` source `bin/fm-gate-refuse-lib.sh` and exit with status 3 before fleet mutation when the gate environment marker is present or the current checkout matches the default no-mistakes gate-repository topology.
-A normal primary checkout or crewmate worktree has neither signal and remains unaffected.
-The helper's header owns the exact signal detection, relocated-home limitation, test-harness bypass, and relationship to no-mistakes' HEAD-continuity guard.
+Independently, the fleet lifecycle entrypoints use `bin/fm-gate-refuse-lib.sh` to refuse gate calls against the real fleet, while permitting validation against a disposable lab home minted by `bin/fm-lab-home.sh`.
+A normal primary checkout or crewmate worktree remains unaffected.
+The refusal library's header owns the gate detection, lab-home exception, test-harness bypass, and relationship to no-mistakes' HEAD-continuity guard; the lab helper's header owns its usage.
 
 ## Two task shapes
 
@@ -375,10 +376,10 @@ Where a no-mistakes pipeline stores evidence in the repo, it publishes that PR-v
 This repo uses that setting, and its own `.no-mistakes/` directory remains local state that stays gitignored and is rejected by CI if tracked; [`configuration.md`](configuration.md) owns the setting.
 PR-based task merges go through `bin/fm-pr-merge.sh`, which records `pr=` and any available `pr_head=` through `bin/fm-pr-check.sh` before calling the forge CLI.
 The helper requires a full canonical URL and rejects malformed URLs or repo override flags before recording merge state.
-A `https://github.com/<owner>/<repo>/pull/<n>` URL requires `gh` and `jq`, is merged only after one live read confirms the pull request is open, not a draft, mergeable, conflict-free, and every unwaived check is green at the current head, then `gh pr merge` binds that verified head with `--match-head-commit`.
+A `https://github.com/<owner>/<repo>/pull/<n>` URL requires `gh` and `jq`, is merged only after live reads confirm the pull request is open, not a draft, mergeable, conflict-free, every unwaived check is green at the current head, and every unwaived check the base branch requires has reported at that head, then `gh pr merge` binds that verified head with `--match-head-commit`.
+A required check that never reported is absent from the checks list rather than red; [`bin/fm-pr-merge.sh`](../bin/fm-pr-merge.sh)'s header owns required-context sources, producer identity, partial-read refusals, and attended check waivers.
 A check run is green when its current run is green, because GitHub leaves a cancelled run in the rollup beside the passing re-run it triggered when the base branch advanced; `bin/fm-pr-merge.sh`'s `github_checks_not_green` owns the rule, which uses `startedAt` to clear only an older completed check run that a passing run with the same name provably replaced, while unfinished check runs and non-green status contexts stay red.
 `--auto`, `--admin`, and branch-deletion flags are refused unless `--attended-override` is passed for an explicit captain instruction; that override never skips the live green check, the away-record read, or a captain hold.
-An attended `--allow-red <check-name>` may appear once, waives only GitHub checks with that exact name, and is refused while the away-posture record exists.
 Because away merge authority is read from that record and then acted on by the forge, the authority read and synchronous forge command share the record's cross-subsystem lock, closing the common live-owner TOCTOU.
 A lock that cannot be taken refuses the merge.
 While the record exists, GitHub auto-merge and any base whose rules cannot prove the absence of a merge queue are refused before submission, and GitLab auto-merge flags or scheduled state are refused while an immediate merge is forced with a final `--auto-merge=false`; a branch-rules read that fails only because the repository's plan does not expose branch rules at all (GitHub's plan-upgrade 403) proves the absence of a merge queue on its own and does not refuse, while every other failure to read that state still does.
@@ -455,16 +456,13 @@ The [Relay configuration reference](configuration.md#promised-public-replies-sta
 
 ## Project memory belongs to projects
 
-Durable project-intrinsic agent knowledge lives in each project's committed `AGENTS.md`, with `CLAUDE.md` as a real `@AGENTS.md` import pointer.
-Ship briefs prompt crewmates to create or update those files through the normal delivery path; `data/projects.md` stays a thin private registry.
-Each project `AGENTS.md` carries self-governance guidance; [`bin/fm-ensure-agents-md.sh`](../bin/fm-ensure-agents-md.sh) owns the canonical wording and idempotent insertion, while its header and help document the explicit mark for equivalent project-owned guidance.
-It refuses a case-variant real memory file such as a lowercase `agents.md`, so the pointer's `@AGENTS.md` import resolves to a real `AGENTS.md` on a case-sensitive filesystem, and surfaces the mismatch for manual reconciliation.
-The full ownership rule - what is project-intrinsic versus fleet-private, and how firstmate keeps the two apart without writing into project clones - is owned by [`AGENTS.md`](../AGENTS.md) (project and knowledge management).
+Project-memory ownership and the crewmate corrections-only boundary are defined in [`AGENTS.md` section 6](../AGENTS.md#6-project-and-knowledge-management); `data/projects.md` stays a thin private registry.
+For manual project initialization, [`bin/fm-ensure-agents-md.sh`](../bin/fm-ensure-agents-md.sh) owns the `CLAUDE.md` pointer, self-governance insertion, and case-variant file refusal; its header and help document the explicit mark for equivalent project-owned guidance.
 
 ## Operational memory routing
 
 `/stow` sweeps the current session for durable knowledge that only exists in conversation and routes each finding to the most specific disk home.
-Home-domain captain preferences go to `data/captain.md`, cross-domain shared captain preferences go to the primary home's `data/captain-shared.md`, fleet-local operational facts and gotchas go to home-local `data/learnings.md`, project-intrinsic knowledge goes through normal crewmate delivery into that project's committed `AGENTS.md`, and task-scoped notes or undone next steps go to the backlog.
+The destination for each kind of knowledge, including project-intrinsic knowledge, is owned by [`AGENTS.md` section 6](../AGENTS.md#6-project-and-knowledge-management).
 Memory writes use inspect-then-update rather than blind append; the internal [`stow` skill](../.agents/skills/stow/SKILL.md) owns tier markers, decay, cold archival, and offload.
 The same pass also persists open-work record state the session is holding - filing a thread that was never recorded and correcting one the session knows went stale - bounded to the open work that session is actually holding.
 It is deliberately not a reconciliation of durable records against repository or PR reality: its input is the volatile context, so it can only preserve what the session still knows, and no reconciliation that outlives a session exists today.
