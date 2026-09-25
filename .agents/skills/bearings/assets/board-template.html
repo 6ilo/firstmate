@@ -313,8 +313,8 @@ a { color: inherit; text-decoration: none; }
 .bb-ev--short .bb-ev__title { white-space: nowrap; }
 .bb-ev--short:not(.bb-ev--ask) .bb-ev__sub { display: none; }
 .bb-ev--short.bb-ev--ask { display: flex; align-items: baseline; gap: 6px; }
-.bb-ev--short.bb-ev--ask .bb-ev__title { flex: 0 1 auto; min-width: 0; }
-.bb-ev--short.bb-ev--ask .bb-ev__sub { flex: 0 1 auto; min-width: 0; }
+.bb-ev--short.bb-ev--ask .bb-ev__title { flex: 0 0 auto; max-width: 60%; }
+.bb-ev--short.bb-ev--ask .bb-ev__sub { flex: 1 1 0; min-width: 0; }
 .bb-ev--past { opacity: 0.45; }
 .bb-cal__now { position: absolute; left: 46px; right: 0; border-top: 2px solid var(--today-now); z-index: 5; pointer-events: none; }
 .bb-cal__now span { position: absolute; left: -44px; top: -9px; font-family: var(--font-mono); font-size: var(--fs-2xs);
