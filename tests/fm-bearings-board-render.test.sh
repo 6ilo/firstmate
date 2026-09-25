@@ -359,6 +359,27 @@ test_overlapping_today_blocks_share_their_lane() {
   pass "overlapping Today blocks sit side by side instead of on top of each other"
 }
 
+test_a_late_short_block_stays_inside_the_lane() {
+  local home out
+  home=$(make_home today-late)
+  out=$(render_today "$home" '{
+    "date": "2026-01-15", "timezone": "America/Chicago", "built_at": "09:00",
+    "entries": [
+      {"lane": "captain", "start": "23:40", "end": "23:50", "title": "Last check"},
+      {"lane": "ai", "start": "23:45", "end": "23:55", "title": "Night ask", "needs_input": true}
+    ],
+    "asks": [], "plans": []
+  }')
+  printf '%s' "$out" | jq -e '
+    (.today.hours | length) as $n
+    | .today.hours[-1] == "11pm"
+      and ([.today.lanes.captain[], .today.lanes.ai[]]
+        | all(((.top | rtrimstr("px") | tonumber) + (.height | rtrimstr("px") | tonumber)) <= $n * 44))
+      and (.today.lanes.captain[0].sub == "11:40pm-11:50pm")
+  ' >/dev/null || fail "a late short block drew past midnight: $out"
+  pass "a late short block stays inside the lane instead of drawing past midnight"
+}
+
 test_today_strings_render_as_text_never_markup() {
   local home out
   home=$(make_home today-text)
@@ -392,4 +413,5 @@ test_an_omitted_kind_keeps_the_existing_queued_rendering
 test_a_board_without_today_keeps_the_lane_hidden
 test_the_today_lane_renders_both_lanes_asks_and_plans
 test_overlapping_today_blocks_share_their_lane
+test_a_late_short_block_stays_inside_the_lane
 test_today_strings_render_as_text_never_markup

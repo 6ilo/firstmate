@@ -273,8 +273,8 @@ a { color: inherit; text-decoration: none; }
 .bb-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--border-default); padding-top: 14px; }
 
 /* ---- Today: the captain's schedule (green) beside the AI's plan (purple) ----
-   The lane carries its own tokens so it follows the viewer's light or dark
-   theme; asks and the now line share the rust call color. */
+   The lane maps the board palette onto its own tokens; asks and the now line
+   share the rust call color. */
 :root {
   --today-surface: var(--surface-card); --today-line: var(--border-soft);
   --today-text: var(--text-strong); --today-muted: var(--text-muted);
@@ -283,26 +283,6 @@ a { color: inherit; text-decoration: none; }
   --today-ask: var(--rust-500); --today-ask-bg: var(--rust-050);
   --today-now: var(--rust-600);
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --today-surface: #1b1d22; --today-line: #2c2f36;
-    --today-text: #e8e8ea; --today-muted: #9a9ea6;
-    --today-me: #4cc682; --today-me-bg: #16301f;
-    --today-ai: #b08ae0; --today-ai-bg: #2a2038;
-    --today-ask: #f08a52; --today-ask-bg: #3a2214;
-    --today-now: #f08a52;
-  }
-  :root:not([data-theme="light"]) .bb-today__panel { color-scheme: dark; }
-}
-:root[data-theme="dark"] {
-  --today-surface: #1b1d22; --today-line: #2c2f36;
-  --today-text: #e8e8ea; --today-muted: #9a9ea6;
-  --today-me: #4cc682; --today-me-bg: #16301f;
-  --today-ai: #b08ae0; --today-ai-bg: #2a2038;
-  --today-ask: #f08a52; --today-ask-bg: #3a2214;
-  --today-now: #f08a52;
-}
-:root[data-theme="dark"] .bb-today__panel { color-scheme: dark; }
 .bb-today[hidden] { display: none; }
 .bb-today .bb-section__head { flex-wrap: wrap; }
 .bb-today .bb-section__head .fm-sign--muted { white-space: normal; line-height: 1.3; }
@@ -331,7 +311,10 @@ a { color: inherit; text-decoration: none; }
 .bb-ev--ask .bb-ev__sub { color: var(--today-ask); font-weight: 700; }
 .bb-ev--short { padding-block: 2px; }
 .bb-ev--short .bb-ev__title { white-space: nowrap; }
-.bb-ev--short .bb-ev__sub { display: none; }
+.bb-ev--short:not(.bb-ev--ask) .bb-ev__sub { display: none; }
+.bb-ev--short.bb-ev--ask { display: flex; align-items: baseline; gap: 6px; }
+.bb-ev--short.bb-ev--ask .bb-ev__title { flex: 1 1 0; min-width: 0; }
+.bb-ev--short.bb-ev--ask .bb-ev__sub { flex: 0 1 auto; min-width: 0; }
 .bb-ev--past { opacity: 0.45; }
 .bb-cal__now { position: absolute; left: 46px; right: 0; border-top: 2px solid var(--today-now); z-index: 5; pointer-events: none; }
 .bb-cal__now span { position: absolute; left: -44px; top: -9px; font-family: var(--font-mono); font-size: var(--fs-2xs);
@@ -606,16 +589,18 @@ __FM_BEARINGS_BOARD_DATA__
       }
     } catch (e) { /* unknown zone: keep the build time */ }
 
-    /* A block never draws shorter than MIN_BLOCK minutes, and layout uses that
-       drawn end, so a short block beside its neighbor never covers it. */
+    /* A block never draws shorter than MIN_BLOCK minutes or past midnight, and
+       layout uses that drawn span, so a short block beside its neighbor never
+       covers it. */
     var MIN_BLOCK = 30;
     var entries = (today.entries || []).map(function (e) {
       var a = minutesOf(e.start), b = minutesOf(e.end);
-      return { e: e, a: a, b: b, drawnEnd: Math.max(b, a + MIN_BLOCK) };
+      var top = Math.min(a, 24 * 60 - MIN_BLOCK);
+      return { e: e, a: a, b: b, top: top, drawnEnd: Math.max(b, top + MIN_BLOCK) };
     });
     var startHour = 8, endHour = 20;
     entries.forEach(function (x) {
-      startHour = Math.min(startHour, Math.floor(x.a / 60));
+      startHour = Math.min(startHour, Math.floor(x.top / 60));
       endHour = Math.max(endHour, Math.ceil(x.drawnEnd / 60));
     });
     endHour = Math.min(24, endHour);
@@ -650,13 +635,13 @@ __FM_BEARINGS_BOARD_DATA__
     /* Overlapping blocks in one lane share its width side by side. */
     ["captain", "ai"].forEach(function (lane) {
       var rows = entries.filter(function (x) { return x.e.lane === lane; })
-        .sort(function (p, q) { return p.a - q.a || q.drawnEnd - p.drawnEnd; });
+        .sort(function (p, q) { return p.top - q.top || q.drawnEnd - p.drawnEnd; });
       var cluster = [], clusterEnd = -1;
       function flush() {
         var colEnds = [];
         cluster.forEach(function (x) {
           var c = 0;
-          while (c < colEnds.length && colEnds[c] > x.a) c++;
+          while (c < colEnds.length && colEnds[c] > x.top) c++;
           colEnds[c] = x.drawnEnd;
           x.col = c;
         });
@@ -664,7 +649,7 @@ __FM_BEARINGS_BOARD_DATA__
         cluster = [];
       }
       rows.forEach(function (x) {
-        if (cluster.length && x.a >= clusterEnd) flush();
+        if (cluster.length && x.top >= clusterEnd) flush();
         cluster.push(x);
         clusterEnd = Math.max(clusterEnd, x.drawnEnd);
       });
@@ -673,8 +658,8 @@ __FM_BEARINGS_BOARD_DATA__
         var ask = lane === "ai" && x.e.needs_input === true;
         var ev = el("div", "bb-ev bb-ev--" + (ask ? "ask" : lane) +
           (x.b - x.a < 45 ? " bb-ev--short" : "") + (x.b <= nowMin ? " bb-ev--past" : ""));
-        ev.style.top = ((x.a - startHour * 60) / 60 * HOUR_PX + 1) + "px";
-        ev.style.height = ((x.drawnEnd - x.a) / 60 * HOUR_PX - 3) + "px";
+        ev.style.top = ((x.top - startHour * 60) / 60 * HOUR_PX + 1) + "px";
+        ev.style.height = ((x.drawnEnd - x.top) / 60 * HOUR_PX - 3) + "px";
         ev.style.left = "calc(" + (100 * x.col / x.cols) + "% + 4px)";
         ev.style.width = "calc(" + (100 / x.cols) + "% - 8px)";
         var when = clockLabel(x.a) + "-" + clockLabel(x.b);
