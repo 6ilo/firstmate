@@ -1,0 +1,9 @@
+ok - path prints the stable home-scoped board location
+ok - build refuses malformed payloads before touching the board
+ok - charted kind is optional and accepts queued and warning
+ok - today is optional, and a valid today lane is carried into the board
+ok - build refuses a malformed today lane before touching the board
+ok - build injects the payload, binds any-origin, then arms the source
+error: listener is not running: lavish-a6105740cd38f765
+fm-bearings-board: cannot arm the board as a process-event source
+not ok - the order-proof board build failed

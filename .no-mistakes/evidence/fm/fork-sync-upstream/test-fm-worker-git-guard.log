@@ -1,0 +1,5 @@
+ok - blocks push, reset --hard, clean -f, branch -D, checkout ., and restore .
+ok - blocks forbidden forms behind chains, env assignments, shell keywords, wrappers, a path, global options, and a subshell
+ok - allows ordinary git calls and non-git commands that mention push
+ok - empty or malformed payloads allow
+all fm-worker-git-guard tests passed
