@@ -170,6 +170,27 @@ exit 0;
 PERL
 }
 
+# Firstmate fills the spec right after scaffolding, so the scaffold's own
+# output and --help both carry the rule that the spec stays behavioral.
+test_spec_rule_is_printed_and_documented() {
+  local home out kind rule='name a file path only when the worker must go there'
+  home="$TMP_ROOT/spec-rule-home"
+  mkdir -p "$home/data"
+  for kind in ship scout; do
+    if [ "$kind" = scout ]; then
+      out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "spec-rule-$kind" alpha --scout 2>&1)
+    else
+      out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "spec-rule-$kind" alpha --mode no-mistakes 2>&1)
+    fi
+    assert_contains "$out" "$rule" "$kind scaffold did not print the behavioral-spec rule"
+    assert_no_grep "$rule" "$home/data/spec-rule-$kind/brief.md" \
+      "$kind brief carried the firstmate-only spec rule to the worker"
+  done
+  assert_contains "$("$ROOT/bin/fm-brief.sh" --help)" "names a file path only when the worker" \
+    "fm-brief.sh --help omitted the behavioral-spec rule"
+  pass "fm-brief.sh: the behavioral-spec rule reaches firstmate, not the worker"
+}
+
 test_help_includes_entire_header() {
   local help
   help=$("$ROOT/bin/fm-brief.sh" --help)
@@ -992,6 +1013,12 @@ test_scout_and_secondmate_scaffold() {
   assert_grep "## Captain's intent" "$brief" "scout brief missing Captain's intent subsection"
   assert_grep "## Firstmate spec" "$brief" "scout brief missing Firstmate spec subsection"
   assert_grep "{FIRSTMATE_SPEC}" "$brief" "scout brief missing the spec placeholder"
+  # shellcheck disable=SC2016 # Literal backticks must remain unexpanded.
+  for field in '`Question:`' '`Answer:`' '`Evidence:`' '`Recommendation:`' '`Open captain calls:`'; do
+    assert_grep "$field" "$brief" "scout brief did not require the $field report front-matter line"
+  done
+  assert_grep "Open the report with five one-line front-matter fields" "$brief" \
+    "scout brief did not put the front matter at the top of the report"
 
   FM_SECONDMATE_CHARTER='Supervise the alpha domain.' \
     FM_HOME="$BRIEF_HOME" "$ROOT/bin/fm-brief.sh" brief-sm-q6 --secondmate alpha >/dev/null 2>&1 \
@@ -1310,6 +1337,7 @@ test_crewmate_scaffolds_forbid_pool_administration() {
 test_script_parses
 test_no_heredoc_in_command_substitution
 test_help_includes_entire_header
+test_spec_rule_is_printed_and_documented
 test_ship_modes_generate_clean_briefs
 test_ship_mode_is_required_and_closed_set
 test_ship_mode_is_explicit_not_registry

@@ -63,6 +63,21 @@ If an addition needs more than a few lines of conditional detail (detail that ma
 A skill's cost is paid only by the sessions that actually load it.
 When in doubt, write the fact into the skill or doc first by patching that owner's existing language, and add only the one-line trigger to `AGENTS.md`.
 
+## Writing for agents
+
+Agents re-read `AGENTS.md`, skills, and generated briefs on every model call, so every sentence there is paid for repeatedly.
+Before saving an edit to `AGENTS.md`, a skill, or the brief scaffold text in `bin/fm-brief.sh`, check each changed instruction against these conditions, adapted from Matt Pocock's writing-for-agents skill (https://github.com/mattpocock/skills/tree/main/skills/productivity/writing-for-agents):
+
+- Each instruction does one job.
+- Its first words carry the action or condition, so a skimming reader gets the rule.
+- It says what to do rather than only what to avoid, except for a hard prohibition.
+- It states when the work is complete, in terms the reader can check.
+- Deleting it would change what an agent does; otherwise delete it.
+- It is not a restatement of a contract another owner states; point to that owner instead.
+- Material needed only in a nameable situation sits behind a pointer rather than inline.
+
+Safety boundaries, exact commands, status-protocol lines, and paths a worker must use stay inline even when shortening.
+
 ## Trigger hygiene
 
 A new skill is dead weight if nothing loads it.
