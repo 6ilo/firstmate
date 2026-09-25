@@ -288,6 +288,42 @@ test_claude_hooks_stale_incarnation_harmless() {
   pass "claude hook events from a superseded incarnation are rejected without breaking the hook"
 }
 
+# Scout and local-only Claude lanes get a PreToolUse git guard in the same
+# per-task settings file; no-mistakes (and direct-PR) lanes keep push.
+test_claude_git_guard_only_on_no_push_lanes() {
+  local lane rec id out settings cmd rc
+  for lane in scout local-only no-mistakes; do
+    id=git-guard-$lane
+    rec=$(make_spawn_case "git-guard-$lane" claude "$id")
+    read_case_record "$rec"
+    if [ "$lane" = scout ]; then
+      out=$(fm_test_run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id" "$PROJ_DIR" --scout 2>&1)
+    else
+      out=$(fm_test_run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id" "$PROJ_DIR" --mode "$lane" --yolo off 2>&1)
+    fi
+    expect_code 0 $? "$lane claude spawn should succeed: $out"
+    settings="$WT_DIR/.claude/settings.local.json"
+    jq -e . "$settings" >/dev/null || fail "$lane: claude hook settings are not valid JSON"
+    jq -e '.hooks.Stop' "$settings" >/dev/null || fail "$lane: the turn-end hook must stay in place"
+    if [ "$lane" = no-mistakes ]; then
+      jq -e '.hooks.PreToolUse' "$settings" >/dev/null \
+        && fail "no-mistakes lane must not carry the git guard"
+      continue
+    fi
+    [ "$(jq -r '.hooks.PreToolUse[0].matcher' "$settings")" = Bash ] \
+      || fail "$lane: git guard must match the Bash tool"
+    cmd=$(jq -r '.hooks.PreToolUse[0].hooks[0].command' "$settings")
+    rc=0
+    out=$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git push origin HEAD"}}' | sh -c "$cmd" 2>&1) || rc=$?
+    [ "$rc" -eq 2 ] || fail "$lane: the generated hook must refuse git push with exit 2, got $rc: $out"
+    assert_contains "$out" 'brief Rule 1' "$lane: the refusal must name the brief rule"
+    rc=0
+    printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | sh -c "$cmd" >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 0 ] || fail "$lane: the generated hook must allow git status, got $rc"
+  done
+  pass "claude git guard is wired for scout and local-only lanes and absent on no-mistakes"
+}
+
 test_codex_unverified_until_a_semantic_source_exists() {
   local rec id=busy-cx-1 out state
   rec=$(make_spawn_case codex-unverified codex "$id")
@@ -429,6 +465,7 @@ test_kimi_and_grok_install_no_unverified_wiring
 test_opencode_plugin_semantic_lifecycle
 test_claude_hooks_semantic_lifecycle
 test_claude_hooks_stale_incarnation_harmless
+test_claude_git_guard_only_on_no_push_lanes
 test_gemini_hooks_semantic_lifecycle
 test_gemini_hooks_stale_incarnation_harmless
 test_raw_gemini_launch_has_no_semantic_wiring

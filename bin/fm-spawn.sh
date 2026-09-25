@@ -401,6 +401,11 @@
 # Claude-Session link, or generated-with line into a commit or PR body;
 # launch_template() below owns the reason it cannot come from the captain's own
 # settings.
+# A claude scout, or a claude ship with --mode local-only, also gets a
+# PreToolUse Bash hook in that per-task .claude/settings.local.json running
+# bin/fm-worker-git-guard.sh, whose header owns the git forms it refuses, so a
+# lane whose brief forbids pushing gets a refused call instead of a push.
+# Direct-PR and no-mistakes ships, secondmates, and other harnesses get none.
 # Publishing the record and moving this home's backlog item to In flight are one
 # step, not two: bin/fm-backlog-transition-lib.sh owns that invariant, and this
 # script performs the transition under the task's own meta lock before it reports
@@ -4258,8 +4263,16 @@ if [ "$KIND" != secondmate ]; then
     j_stop=$(json_escape "touch $(shell_quote "$TURNEND"); $busy_cmd_prefix idle $busy_suffix --event stop 2>/dev/null || true")
     j_stopfail=$(json_escape "$busy_cmd_prefix idle $busy_suffix --event stop-failure 2>/dev/null || true")
     j_sessionend=$(json_escape "$busy_cmd_prefix idle $busy_suffix --event session-end 2>/dev/null || true")
+    # A scout, or a local-only ship, must never push: its brief says so and
+    # bin/fm-worker-git-guard.sh (whose header owns what it refuses) turns a
+    # violation into a refused Bash call. Other lanes keep push.
+    git_guard_hook=
+    if [ "$KIND" = scout ] || { [ "$KIND" = ship ] && [ "$MODE" = local-only ]; }; then
+      j_gitguard=$(json_escape "$(shell_quote "$FM_ROOT/bin/fm-worker-git-guard.sh")")
+      git_guard_hook=",\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"$j_gitguard\"}]}]"
+    fi
     cat >"$WT/.claude/settings.local.json" <<EOF
-{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"$j_submit"}]}],"Stop":[{"hooks":[{"type":"command","command":"$j_stop"}]}],"StopFailure":[{"hooks":[{"type":"command","command":"$j_stopfail"}]}],"SessionEnd":[{"hooks":[{"type":"command","command":"$j_sessionend"}]}]}}
+{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"$j_submit"}]}],"Stop":[{"hooks":[{"type":"command","command":"$j_stop"}]}],"StopFailure":[{"hooks":[{"type":"command","command":"$j_stopfail"}]}],"SessionEnd":[{"hooks":[{"type":"command","command":"$j_sessionend"}]}]$git_guard_hook}}
 EOF
     exclude_path '.claude/settings.local.json'
     ;;
