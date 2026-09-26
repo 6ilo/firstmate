@@ -83,15 +83,41 @@ test_moved_branch_without_named_head_is_refused() {
   pass "a moved remote branch that lacks the named head is refused"
 }
 
-test_no_mistakes_prevalidation_done_is_not_gated() {
-  local repo wt
+# The no-mistakes handoff asks firstmate to start validation; it carries no
+# pull request, so it is refused as a delivery wherever its commit lives and
+# whatever branch, hash, or test counts its note claims.
+test_no_mistakes_handoff_done_is_refused_as_delivery() {
+  local repo wt sha line mode reason rc
   repo="$TMP_ROOT/preval-repo"
   wt="$TMP_ROOT/preval-wt"
   fm_git_worktree "$repo" "$wt" fm/preval
   git -C "$wt" commit -q --allow-empty -m 'only in the disposable copy'
-  accept_done ship no-mistakes "$wt" "$repo" 'done: implementation complete' \
-    || fail "no-mistakes pre-validation done: must not require named-head reachability"
-  pass "no-mistakes pre-validation done: is not gated"
+  sha=$(git -C "$wt" rev-parse --short HEAD)
+  for mode in no-mistakes ''; do
+    for line in 'done: implementation complete' \
+      "done [at=1790000000]: fm/preval $sha committed, 42/42 tests green"; do
+      rc=0
+      reason=$(accept_done ship "$mode" "$wt" "$repo" "$line") || rc=$?
+      [ "$rc" -eq 1 ] || fail "no-mistakes handoff accepted as a delivery (mode='$mode'): $line"
+      case "$reason" in
+        *"validation handoff, not a delivery"*"/no-mistakes"*) ;;
+        *) fail "handoff refusal does not name the start-validation step: $reason" ;;
+      esac
+    done
+  done
+  git -C "$wt" update-ref refs/remotes/origin/fm/preval "$(git -C "$wt" rev-parse HEAD)"
+  rc=0
+  accept_done ship no-mistakes "$wt" "$repo" 'done: implementation complete' >/dev/null || rc=$?
+  [ "$rc" -eq 1 ] || fail "a pushed commit made the no-mistakes handoff a delivery"
+  accept_done ship no-mistakes "$wt" "$repo" 'done: opened https://github.com/o/r/pull/3, CI pending' \
+    || fail "a no-mistakes done naming a pull request was refused as the handoff"
+  accept_done ship no-mistakes "$wt" "$repo" 'done: PR https://example.test/o/r/pull/3' \
+    || fail "a no-mistakes done: PR <url> line was refused as the handoff"
+  accept_done ship direct-PR "$wt" "$repo" 'done: implementation complete' \
+    || fail "a direct-PR done on a reachable head was refused as a handoff"
+  accept_done scout no-mistakes "$wt" "$repo" 'done: implementation complete' \
+    || fail "a scout done was refused as a no-mistakes handoff"
+  pass "no-mistakes handoff done: is refused as a delivery, only for ship no-mistakes"
 }
 
 test_local_only_linked_branch_is_accepted() {
@@ -369,7 +395,7 @@ EOF
 
 test_scout_done_is_not_gated
 test_unpushed_ship_done_is_refused
-test_no_mistakes_prevalidation_done_is_not_gated
+test_no_mistakes_handoff_done_is_refused_as_delivery
 test_remote_containing_named_head_is_accepted
 test_moved_branch_without_named_head_is_refused
 test_free_text_sha_is_not_the_named_head
