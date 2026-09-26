@@ -1,0 +1,216 @@
+--- backlog ---
+## In flight
+
+## Queued
+- [ ] lhs-payment-live - Take LHS payments live (repo: relay-lhs) (kind: captain) (since 2026-09-26) (hold: needs captain Stripe credentials) (hold-kind: captain)
+  Captain hold set: 2026-09-15T12:00:00Z
+  Captain hold due: 2026-10-01
+- [ ] far-call - Far future call (repo: sample) (kind: captain) (since 2026-09-26) (hold: captain choice) (hold-kind: captain)
+  Captain hold set: 2026-09-15T12:00:00Z
+  Captain hold due: 2026-10-20
+- [ ] undated-call - Undated call (repo: sample) (kind: captain) (since 2026-09-26) (hold: captain venue) (hold-kind: captain)
+  Captain hold set: 2026-09-15T12:00:00Z
+- [ ] blocked-due - Sign vendor form blocked-by: other-work (repo: sample) (kind: captain) (since 2026-09-26) (hold: captain signature) (hold-kind: captain)
+  Captain hold set: 2026-09-15T12:00:00Z
+  Captain hold due: 2026-10-15
+- [ ] other-work - Other work (repo: sample) (since 2026-09-26)
+## Done
+
+=================== observation date 2026-09-26T12:00:00Z ===================
+$ fm-fleet-snapshot.sh --captain-holds-due
+lhs-payment-live	2026-10-01	window
+exit=0
+$ fm-bearings-snapshot.sh   (TOON: decisions_open = Captain's Call, gates = Charted Next)
+schema: fm-bearings.v1
+home: /fm-lab.uBBKDw
+generated: "2026-09-26T12:00:00Z"
+prs: "not_requested (run: /bearings include PRs)"
+contributions: 
+  scope: owned contributions per home
+  known: 0
+  checked: 0
+  counts: 
+    captain: 0
+    fleet: 0
+    maintainer: 0
+    nobody: 0
+  complete: true
+  proven_clear: true
+  unmeasured_homes: 0
+  unreadable_records: 0
+  unmeasured: 0
+  stale_verdicts: 0
+  missing_verdicts: 0
+  captain_omitted: 0
+  captain: []
+in_flight: []
+secondmates: []
+secondmate_reconcile: []
+decisions_open[3]{id,key,verb,summary,owner}:
+  lhs-payment-live,lhs-payment-live,captain-hold,"Take LHS payments live: due 2026-10-01: needs captain Stripe credentials",(main)
+  far-call,far-call,captain-hold,"Far future call: due 2026-10-20: captain choice",(main)
+  undated-call,undated-call,captain-hold,"Undated call: captain venue",(main)
+landed: []
+gates[2]{id,title,blocked_by,reason,owner,filed}:
+  blocked-due,Sign vendor form,other-work,"blocked-by other-work: captain signature",(main),2026-09-26
+  other-work,Other work,"-","-",(main),2026-09-26
+reports: []
+recorded_prs: []
+omitted[7]{surface,reveal}:
+  backlog item bodies,"--fields bodies"
+  task paths,"--fields paths"
+  watch/steer actions,"--fields actions"
+  healthy endpoint detail,"--fields endpoints"
+  full scout-report inventory,"--all-reports"
+  "captain holds bucketed blocked, dated, or aged: 1","--all-decisions"
+  live PR discovery + checks,"--include-prs"
+
+=================== observation date 2026-10-07T12:00:00Z ===================
+$ fm-fleet-snapshot.sh --captain-holds-due
+lhs-payment-live	2026-10-01	day
+exit=0
+$ fm-bearings-snapshot.sh   (TOON: decisions_open = Captain's Call, gates = Charted Next)
+schema: fm-bearings.v1
+home: /fm-lab.uBBKDw
+generated: "2026-10-07T12:00:00Z"
+prs: "not_requested (run: /bearings include PRs)"
+contributions: 
+  scope: owned contributions per home
+  known: 0
+  checked: 0
+  counts: 
+    captain: 0
+    fleet: 0
+    maintainer: 0
+    nobody: 0
+  complete: true
+  proven_clear: true
+  unmeasured_homes: 0
+  unreadable_records: 0
+  unmeasured: 0
+  stale_verdicts: 0
+  missing_verdicts: 0
+  captain_omitted: 0
+  captain: []
+in_flight: []
+secondmates: []
+secondmate_reconcile: []
+decisions_open[1]{id,key,verb,summary,owner}:
+  lhs-payment-live,lhs-payment-live,captain-hold,"Take LHS payments live: due 2026-10-01: needs captain Stripe credentials",(main)
+landed: []
+gates[4]{id,title,blocked_by,reason,owner,filed}:
+  far-call,Far future call,"-","held 22d: captain choice",(main),2026-09-26
+  undated-call,Undated call,"-","held 22d: captain venue",(main),2026-09-26
+  blocked-due,Sign vendor form,other-work,"blocked-by other-work: captain signature",(main),2026-09-26
+  other-work,Other work,"-","-",(main),2026-09-26
+reports: []
+recorded_prs: []
+omitted[7]{surface,reveal}:
+  backlog item bodies,"--fields bodies"
+  task paths,"--fields paths"
+  watch/steer actions,"--fields actions"
+  healthy endpoint detail,"--fields endpoints"
+  full scout-report inventory,"--all-reports"
+  "captain holds bucketed blocked, dated, or aged: 3","--all-decisions"
+  live PR discovery + checks,"--include-prs"
+
+=================== observation date 2026-10-08T12:00:00Z ===================
+$ fm-fleet-snapshot.sh --captain-holds-due
+lhs-payment-live	2026-10-01	day
+blocked-due	2026-10-15	window
+exit=0
+$ fm-bearings-snapshot.sh   (TOON: decisions_open = Captain's Call, gates = Charted Next)
+schema: fm-bearings.v1
+home: /fm-lab.uBBKDw
+generated: "2026-10-08T12:00:00Z"
+prs: "not_requested (run: /bearings include PRs)"
+contributions: 
+  scope: owned contributions per home
+  known: 0
+  checked: 0
+  counts: 
+    captain: 0
+    fleet: 0
+    maintainer: 0
+    nobody: 0
+  complete: true
+  proven_clear: true
+  unmeasured_homes: 0
+  unreadable_records: 0
+  unmeasured: 0
+  stale_verdicts: 0
+  missing_verdicts: 0
+  captain_omitted: 0
+  captain: []
+in_flight: []
+secondmates: []
+secondmate_reconcile: []
+decisions_open[2]{id,key,verb,summary,owner}:
+  lhs-payment-live,lhs-payment-live,captain-hold,"Take LHS payments live: due 2026-10-01: needs captain Stripe credentials",(main)
+  blocked-due,blocked-due,captain-hold,"Sign vendor form: due 2026-10-15: captain signature",(main)
+landed: []
+gates[3]{id,title,blocked_by,reason,owner,filed}:
+  far-call,Far future call,"-","held 23d: captain choice",(main),2026-09-26
+  undated-call,Undated call,"-","held 23d: captain venue",(main),2026-09-26
+  other-work,Other work,"-","-",(main),2026-09-26
+reports: []
+recorded_prs: []
+omitted[7]{surface,reveal}:
+  backlog item bodies,"--fields bodies"
+  task paths,"--fields paths"
+  watch/steer actions,"--fields actions"
+  healthy endpoint detail,"--fields endpoints"
+  full scout-report inventory,"--all-reports"
+  "captain holds bucketed blocked, dated, or aged: 2","--all-decisions"
+  live PR discovery + checks,"--include-prs"
+
+=================== observation date 2026-10-13T12:00:00Z ===================
+$ fm-fleet-snapshot.sh --captain-holds-due
+lhs-payment-live	2026-10-01	day
+blocked-due	2026-10-15	window
+far-call	2026-10-20	window
+exit=0
+$ fm-bearings-snapshot.sh   (TOON: decisions_open = Captain's Call, gates = Charted Next)
+schema: fm-bearings.v1
+home: /fm-lab.uBBKDw
+generated: "2026-10-13T12:00:00Z"
+prs: "not_requested (run: /bearings include PRs)"
+contributions: 
+  scope: owned contributions per home
+  known: 0
+  checked: 0
+  counts: 
+    captain: 0
+    fleet: 0
+    maintainer: 0
+    nobody: 0
+  complete: true
+  proven_clear: true
+  unmeasured_homes: 0
+  unreadable_records: 0
+  unmeasured: 0
+  stale_verdicts: 0
+  missing_verdicts: 0
+  captain_omitted: 0
+  captain: []
+in_flight: []
+secondmates: []
+secondmate_reconcile: []
+decisions_open[3]{id,key,verb,summary,owner}:
+  lhs-payment-live,lhs-payment-live,captain-hold,"Take LHS payments live: due 2026-10-01: needs captain Stripe credentials",(main)
+  far-call,far-call,captain-hold,"Far future call: due 2026-10-20: captain choice",(main)
+  blocked-due,blocked-due,captain-hold,"Sign vendor form: due 2026-10-15: captain signature",(main)
+landed: []
+gates[2]{id,title,blocked_by,reason,owner,filed}:
+  undated-call,Undated call,"-","held 28d: captain venue",(main),2026-09-26
+  other-work,Other work,"-","-",(main),2026-09-26
+reports: []
+recorded_prs: []
+omitted[7]{surface,reveal}:
+  backlog item bodies,"--fields bodies"
+  task paths,"--fields paths"
+  watch/steer actions,"--fields actions"
+  healthy endpoint detail,"--fields endpoints"
+  full scout-report inventory,"--all-reports"
+  "captain holds bucketed blocked, dated, or aged: 1","--all-decisions"
+  live PR discovery + checks,"--include-prs"

@@ -1,0 +1,38 @@
+## S10: repeat an active hold without --due keeps the date; --due moves it
+$ fm-captain-hold.sh hold far-call --reason "captain choice"
+far-call
+- [ ] far-call - Far future call (repo: sample) (kind: captain) (since 2026-09-26) (hold: captain choice) (hold-kind: captain)
+  Captain hold set: 2026-09-15T12:00:00Z
+  Captain hold due: 2026-10-20
+$ fm-captain-hold.sh hold far-call --reason "captain choice" --due 2026-10-25
+far-call
+- [ ] far-call - Far future call (repo: sample) (kind: captain) (since 2026-09-26) (hold: captain choice) (hold-kind: captain)
+  Captain hold set: 2026-09-15T12:00:00Z
+  Captain hold due: 2026-10-25
+
+## S11: captain answers lhs-payment-live
+$ fm-captain-hold.sh answer lhs-payment-live --decision-file answer.txt --release
+released: lhs-payment-live
+exit=0
+$ FM_SNAPSHOT_NOW=2026-10-10 fm-fleet-snapshot.sh --captain-holds-due
+blocked-due	2026-10-15	window
+$ FM_SNAPSHOT_NOW=2026-10-10 fm-bearings-snapshot.sh --fields decisions_open
+decisions_open[1]{id,key,verb,summary,owner}:
+  blocked-due,blocked-due,captain-hold,"Sign vendor form: due 2026-10-15: captain signature",(main)
+landed: []
+gates[4]{id,title,blocked_by,reason,owner,filed}:
+  lhs-payment-live,Take LHS payments live,"-","-",(main),2026-09-26
+  far-call,Far future call,"-","held 25d: captain choice",(main),2026-09-26
+
+## next heartbeat after the answer: absorbed, answered call marker retired
+$ FM_SNAPSHOT_NOW=2026-10-10T12:00:00Z FM_HEARTBEAT=1 FM_POLL=1 fm-watch.sh
+  -> watcher still blocking after heartbeat (absorbed; heartbeat-streak=1); stdout: ''
+  markers:
+     .hold-due-notified-blocked-due: window 2026-10-15|
+
+## S12: re-hold the answered call without --due -> new lifecycle carries no due date
+lhs-payment-live
+- [ ] lhs-payment-live - Take LHS payments live (repo: relay-lhs) (kind: captain) (since 2026-09-26) (hold: second credential needed) (hold-kind: captain)
+  Captain hold set: 2026-10-10T12:00:00Z
+
+blocked-due	2026-10-15	window

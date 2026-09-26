@@ -1,0 +1,9 @@
+## S5 watcher run 1: 2026-09-26 (lhs-payment-live 5 days out)
+$ FM_SNAPSHOT_NOW=2026-09-26T12:00:00Z FM_HEARTBEAT=1 FM_POLL=1 fm-watch.sh
+  -> watcher exited rc=0 with wake:
+     check: captain hold due: lhs-payment-live due 2026-10-01 (notice ahead)
+  markers:
+     .hold-due-notified-lhs-payment-live: window 2026-10-01|
+--- .wake-queue ---
+1790443757	1	check	captain-hold-due:lhs-payment-live:window:2026-10-01	check: captain hold due: lhs-payment-live due 2026-10-01 (notice ahead)
+--- stderr ---

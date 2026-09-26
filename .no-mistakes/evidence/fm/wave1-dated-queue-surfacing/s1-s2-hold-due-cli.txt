@@ -1,0 +1,46 @@
+## S1: hold captain calls with --due (hold-set pinned 2026-09-15)
+$ fm-captain-hold.sh hold lhs-payment-live --title "Take LHS payments live" --reason "needs captain Stripe credentials" --repo relay-lhs --due 2026-10-01
+lhs-payment-live
+exit=0
+$ fm-captain-hold.sh hold far-call --title "Far future call" --reason "captain choice" --repo sample --due 2026-10-20
+far-call
+exit=0
+$ fm-captain-hold.sh hold undated-call --title "Undated call" --reason "captain venue" --repo sample 
+undated-call
+exit=0
+
+--- backlog after holds ---
+## In flight
+
+## Queued
+- [ ] lhs-payment-live - Take LHS payments live (repo: relay-lhs) (kind: captain) (since 2026-09-26) (hold: needs captain Stripe credentials) (hold-kind: captain)
+  Captain hold set: 2026-09-15T12:00:00Z
+  Captain hold due: 2026-10-01
+- [ ] far-call - Far future call (repo: sample) (kind: captain) (since 2026-09-26) (hold: captain choice) (hold-kind: captain)
+  Captain hold set: 2026-09-15T12:00:00Z
+  Captain hold due: 2026-10-20
+- [ ] undated-call - Undated call (repo: sample) (kind: captain) (since 2026-09-26) (hold: captain venue) (hold-kind: captain)
+  Captain hold set: 2026-09-15T12:00:00Z
+## Done
+
+## S2 (adversarial): impossible / malformed --due dates refused, record untouched
+$ fm-captain-hold.sh hold lhs-payment-live --reason ... --due 2026-13-01
+fm-captain-hold: --due must be a real calendar date: 2026-13-01
+exit=1
+$ fm-captain-hold.sh hold lhs-payment-live --reason ... --due 2026-02-30
+fm-captain-hold: --due must be a real calendar date: 2026-02-30
+exit=1
+$ fm-captain-hold.sh hold lhs-payment-live --reason ... --due 2026-19-29
+fm-captain-hold: --due must be a real calendar date: 2026-19-29
+exit=1
+$ fm-captain-hold.sh hold lhs-payment-live --reason ... --due 2026-9-30
+fm-captain-hold: --due must be a YYYY-MM-DD date: 2026-9-30
+exit=1
+$ fm-captain-hold.sh hold lhs-payment-live --reason ... --due tomorrow
+fm-captain-hold: --due must be a YYYY-MM-DD date: tomorrow
+exit=1
+--- lhs-payment-live record after refusals ---
+- [ ] lhs-payment-live - Take LHS payments live (repo: relay-lhs) (kind: captain) (since 2026-09-26) (hold: needs captain Stripe credentials) (hold-kind: captain)
+  Captain hold set: 2026-09-15T12:00:00Z
+  Captain hold due: 2026-10-01
+- [ ] far-call - Far future call (repo: sample) (kind: captain) (since 2026-09-26) (hold: captain choice) (hold-kind: captain)

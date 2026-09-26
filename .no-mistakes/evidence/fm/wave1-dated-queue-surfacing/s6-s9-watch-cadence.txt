@@ -1,0 +1,37 @@
+(queue drained+acked after run 1; stray watcher from a harness bug was killed and this transcript re-driven)
+
+## S6 run 2: 2026-09-27, still in window -> notice ahead must NOT repeat
+$ FM_SNAPSHOT_NOW=2026-09-27T12:00:00Z FM_HEARTBEAT=1 FM_POLL=1 fm-watch.sh
+  -> watcher still blocking after heartbeat (absorbed; heartbeat-streak=1); stdout: ''
+  markers:
+     .hold-due-notified-lhs-payment-live: window 2026-10-01|
+
+## S7 run 3: 2026-10-01 due day -> one due-now notice (left UNDRAINED on purpose)
+$ FM_SNAPSHOT_NOW=2026-10-01T12:00:00Z FM_HEARTBEAT=1 FM_POLL=1 fm-watch.sh
+  -> watcher exited rc=0 with wake:
+     check: captain hold due: lhs-payment-live due 2026-10-01 (due now)
+  markers:
+     .hold-due-notified-lhs-payment-live: window 2026-10-01|day 2026-10-01|
+
+## S8 run 4: 2026-10-08, blocked-due enters its window while the previous notice is still undrained
+$ FM_SNAPSHOT_NOW=2026-10-08T12:00:00Z FM_HEARTBEAT=1 FM_POLL=1 fm-watch.sh
+  -> watcher exited rc=0 with wake:
+     check: captain hold due: blocked-due due 2026-10-15 (notice ahead)
+  markers:
+     .hold-due-notified-blocked-due: window 2026-10-15|
+     .hold-due-notified-lhs-payment-live: window 2026-10-01|day 2026-10-01|
+--- .wake-queue (both undrained notices must be present under distinct keys) ---
+1790443794	2	check	captain-hold-due:lhs-payment-live:day:2026-10-01	check: captain hold due: lhs-payment-live due 2026-10-01 (due now)
+1790443796	3	check	captain-hold-due:blocked-due:window:2026-10-15	check: captain hold due: blocked-due due 2026-10-15 (notice ahead)
+
+$ fm-wake-drain.sh   (what firstmate reads on wake)
+     1790443794	2	check	captain-hold-due:lhs-payment-live:day:2026-10-01	check: captain hold due: lhs-payment-live due 2026-10-01 (due now)
+     1790443796	3	check	captain-hold-due:blocked-due:window:2026-10-15	check: captain hold due: blocked-due due 2026-10-15 (notice ahead)
+     (acked through 3)
+
+## S9 run 5: 2026-10-10, nothing new -> absorbed, notices never repeat
+$ FM_SNAPSHOT_NOW=2026-10-10T12:00:00Z FM_HEARTBEAT=1 FM_POLL=1 fm-watch.sh
+  -> watcher still blocking after heartbeat (absorbed; heartbeat-streak=1); stdout: ''
+  markers:
+     .hold-due-notified-blocked-due: window 2026-10-15|
+     .hold-due-notified-lhs-payment-live: window 2026-10-01|day 2026-10-01|
