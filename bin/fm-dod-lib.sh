@@ -494,35 +494,17 @@ fm_dod_should_gate_ship_done() {  # <kind> <mode> <line>
   esac
 }
 
-# 0 when <note> names a pull request, merge request, or change URL that
-# bin/fm-pr-lib.sh parses, anywhere in its words.
-fm_dod_note_names_pr() {  # <note>
-  local word words
-  read -r -a words <<< "$1" || true
-  for word in "${words[@]}"; do
-    case "$word" in http://*|https://*) ;; *) continue ;; esac
-    word=${word%%[),.;:\"\']}
-    ( fm_pr_url_parse "$word" ) >/dev/null 2>&1 && return 0
-  done
-  return 1
-}
-
-# 0 when this ship done: is the no-mistakes pipeline handoff: a done that is
-# not a ready report and names no pull request. It asks firstmate to start
-# validation, so it is never a delivery, whatever branch, commit, or local test
-# result it reports.
+# 0 when this ship done: is the no-mistakes pipeline handoff: any done that is
+# not a ready report. It is never a delivery, whatever branch, commit, pull
+# request mention, or local test result it reports.
 fm_dod_is_nm_handoff() {  # <kind> <mode> <line>
-  local note
   [ "$1" = ship ] || return 1
   [ "$(status_line_verb "$3")" = "done" ] || return 1
   case "$2" in
     no-mistakes|'') ;;
     *) return 1 ;;
   esac
-  fm_dod_should_gate_ship_done "$@" && return 1
-  note=$(status_line_note "$3")
-  fm_dod_pr_url_from_done_note "$note" >/dev/null && return 1
-  ! fm_dod_note_names_pr "$note"
+  ! fm_dod_should_gate_ship_done "$@"
 }
 
 # The PR/MR URL from a `done: PR <url>...` note, or empty.
@@ -663,7 +645,12 @@ fm_dod_named_head_reachable_outside_worktree() {  # <worktree> <project> <mode> 
 fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta>]
   local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} url sha gerrit
   if fm_dod_is_nm_handoff "$kind" "$mode" "$line"; then
-    printf '%s\n' "no-mistakes validation handoff, not a delivery: no pull request yet - steer the worker to run /no-mistakes; only done: PR <url> checks green is ready"
+    case "$(status_line_note "$line")" in
+      *http://*|*https://*)
+        printf '%s\n' "no-mistakes done names a URL but is not a delivery: it is not the checks-green ready report - only done: PR <url> checks green is ready" ;;
+      *)
+        printf '%s\n' "no-mistakes validation handoff, not a delivery: no pull request yet - steer the worker to run /no-mistakes; only done: PR <url> checks green is ready" ;;
+    esac
     return 1
   fi
   fm_dod_should_gate_ship_done "$kind" "$mode" "$line" || return 0

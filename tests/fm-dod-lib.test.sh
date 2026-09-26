@@ -109,10 +109,17 @@ test_no_mistakes_handoff_done_is_refused_as_delivery() {
   rc=0
   accept_done ship no-mistakes "$wt" "$repo" 'done: implementation complete' >/dev/null || rc=$?
   [ "$rc" -eq 1 ] || fail "a pushed commit made the no-mistakes handoff a delivery"
-  accept_done ship no-mistakes "$wt" "$repo" 'done: opened https://github.com/o/r/pull/3, CI pending' \
-    || fail "a no-mistakes done naming a pull request was refused as the handoff"
-  accept_done ship no-mistakes "$wt" "$repo" 'done: PR https://example.test/o/r/pull/3' \
-    || fail "a no-mistakes done: PR <url> line was refused as the handoff"
+  for line in 'done: opened https://github.com/o/r/pull/3, CI pending' \
+    'done: PR https://example.test/o/r/pull/3' \
+    "done: follow-up to https://github.com/o/r/pull/12 committed $sha, 42/42 tests green"; do
+    rc=0
+    reason=$(accept_done ship no-mistakes "$wt" "$repo" "$line") || rc=$?
+    [ "$rc" -eq 1 ] || fail "a no-mistakes done naming a URL but not the ready report was accepted: $line"
+    case "$reason" in
+      *"not a delivery"*"not the checks-green ready report"*) ;;
+      *) fail "refusal of a URL-naming done does not say it is not the ready report: $reason" ;;
+    esac
+  done
   accept_done ship direct-PR "$wt" "$repo" 'done: implementation complete' \
     || fail "a direct-PR done on a reachable head was refused as a handoff"
   accept_done scout no-mistakes "$wt" "$repo" 'done: implementation complete' \
