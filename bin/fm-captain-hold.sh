@@ -21,7 +21,8 @@
 #
 # Usage:
 #   fm-captain-hold.sh hold <task-id> --reason <reason> \
-#     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD]
+#     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD] \
+#     [--due YYYY-MM-DD]
 #   fm-captain-hold.sh answer <task-id> --decision-file <path> [--release]
 #   fm-captain-hold.sh answers [<legacy-origin> | --any-origin] --source <provenance>   (keyed answers on stdin)
 #   fm-captain-hold.sh reconcile-requests --source-id <source-id> --source <provenance>   (task ids on stdin)
@@ -52,6 +53,12 @@
 # `--until` records the captain's own deferral date through `tasks-axi hold
 # --until`, so a "revisit later" answer is stored as a date instead of a live
 # card.
+# `--due` records the date the call must be answered by as a `Captain hold due:`
+# line directly under the hold-set stamp (tasks-axi has no deadline field).
+# bin/fm-fleet-snapshot.sh owns what that date does: it keeps the call live in
+# Captain's Call from its lead window until answered, and bin/fm-watch.sh
+# notifies firstmate as the window opens and on the day. Repeating an active
+# hold without `--due` keeps its due date; a new hold lifecycle drops it.
 #
 # `answer` records the captain's exact words and resolves the call in the same
 # act. It requires a non-empty captain decision file of at most 8192 bytes and
@@ -760,22 +767,46 @@ body_hold_set_timestamp() {  # <decoded-task-body>
     | head -1
 }
 
-write_hold_set_stamp() {  # <task-id> <shown-body> <timestamp> <preserve-existing-0-or-1>
-  local id=$1 body=$2 hold_set=$3 preserve=$4 existing new_body tmp
+# The due stamp is the first non-blank line after a leading hold-set stamp,
+# the same line bin/fm-fleet-snapshot.sh reads. Prints its date or nothing.
+body_hold_due_date() {  # <body-after-the-hold-set-stamp>
+  printf '%s\n' "$1" \
+    | sed -n '1s/^Captain hold due: \([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)$/\1/p'
+}
+
+trim_leading_newlines() {  # <text>
+  local text=$1
+  while :; do
+    case "$text" in
+      $'\n'*) text=${text#$'\n'} ;;
+      *) break ;;
+    esac
+  done
+  printf '%s' "$text"
+}
+
+write_hold_set_stamp() {  # <task-id> <shown-body> <timestamp> <preserve-existing-0-or-1> [<due-date>]
+  local id=$1 body=$2 hold_set=$3 preserve=$4 due=${5:-} existing existing_due='' new_body tmp
   body=$(decode_shown_value "$body") \
     || fail "could not decode the existing body for $id"
   existing=$(body_hold_set_timestamp "$body")
-  if [ "$preserve" = 1 ] && [ -n "$existing" ]; then
-    return 0
-  fi
   if [ -n "$existing" ]; then
-    body=${body#"Captain hold set: $existing"}
-    case "$body" in
-      $'\n\n'*) body=${body#$'\n\n'} ;;
-      $'\n'*) body=${body#$'\n'} ;;
-    esac
+    body=$(trim_leading_newlines "${body#"Captain hold set: $existing"}")
+    existing_due=$(body_hold_due_date "$body")
+    if [ -n "$existing_due" ]; then
+      body=$(trim_leading_newlines "${body#"Captain hold due: $existing_due"}")
+    fi
+  fi
+  if [ "$preserve" = 1 ] && [ -n "$existing" ]; then
+    # An active lifecycle keeps its timestamp, and its due date unless replaced.
+    [ -n "$due" ] || due=$existing_due
+    [ "$due" != "$existing_due" ] || return 0
+    hold_set=$existing
   fi
   new_body=$(printf 'Captain hold set: %s' "$hold_set")
+  if [ -n "$due" ]; then
+    new_body=$(printf '%s\nCaptain hold due: %s' "$new_body" "$due")
+  fi
   if [ -n "$body" ]; then
     new_body=$(printf '%s\n\n%s' "$new_body" "$body")
   fi
@@ -811,7 +842,7 @@ verify_entry_durable() {  # <origin-or-empty> <entry>; prints "<id> <how>"
 }
 
 command_hold() {
-  local id=${1:-} title='' reason='' repo='' origin='' until='' show state existing_title body='' hold_kind hold_set occurrence
+  local id=${1:-} title='' reason='' repo='' origin='' until='' due='' show state existing_title body='' hold_kind hold_set occurrence
   local existing_hold_kind='' existing_held='' preserve_hold_set=0
   [ "$#" -ge 1 ] || { usage >&2; exit 2; }
   shift
@@ -822,6 +853,7 @@ command_hold() {
       --repo) shift; repo=${1:-} ;;
       --origin) shift; origin=${1:-} ;;
       --until) shift; until=${1:-} ;;
+      --due) shift; due=${1:-} ;;
       *) usage >&2; exit 2 ;;
     esac
     shift
@@ -836,6 +868,12 @@ command_hold() {
     case "$until" in
       [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) : ;;
       *) fail "--until must be a YYYY-MM-DD date: $until" ;;
+    esac
+  fi
+  if [ -n "$due" ]; then
+    case "$due" in
+      [0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]) : ;;
+      *) fail "--due must be a YYYY-MM-DD date: $due" ;;
     esac
   fi
   hold_set=${FM_CAPTAIN_HOLD_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
@@ -885,7 +923,7 @@ command_hold() {
   # snapshot may see the harmless stamp by itself, but can never see a newly
   # held task without the timestamp that defines this hold lifecycle's age.
   task_show_or_fail "$id" "task $id disappeared before recording its hold-set stamp"
-  write_hold_set_stamp "$id" "$(show_field "$show" body)" "$hold_set" "$preserve_hold_set"
+  write_hold_set_stamp "$id" "$(show_field "$show" body)" "$hold_set" "$preserve_hold_set" "$due"
   task_show_or_fail "$id" "task $id disappeared while recording its hold-set stamp"
   [ -n "$(body_hold_set_timestamp "$(show_field_value "$show" body)")" ] \
     || fail "task $id did not retain its hold-set stamp"

@@ -112,6 +112,11 @@
 #                          running a check or removing poll artifacts
 #   heartbeat              fleet-scan backstop found an unsurfaced captain-relevant
 #                          status, unless afk is active
+#   check: captain hold due: <id> due <date> (notice ahead|due now)[; ...]
+#                          at heartbeat cadence, a captain hold whose due date
+#                          entered its lead window or arrived, once per call
+#                          per phase (bin/fm-fleet-snapshot.sh
+#                          --captain-holds-due owns which calls are due)
 #   check: inactive-outcome bounded poll-loop reconciliation found a suspicious
 #                          inactive terminal outcome that still lacks its durable
 #                          upstream receipt
@@ -2243,6 +2248,76 @@ heartbeat_scan_finds_actionable() {
   return "$found"
 }
 
+# Captain holds with a due date (bin/fm-captain-hold.sh hold --due). Which calls
+# are due, and whether each is in its lead window or on its day, is owned by
+# bin/fm-fleet-snapshot.sh --captain-holds-due; the watcher only notifies
+# firstmate once per call per phase at heartbeat cadence. A per-call marker
+# records the "<phase> <due-date>" lines already notified, so the window notice
+# and the day notice each fire exactly once for that date; a call that leaves
+# the due list (answered, released, or re-dated outside its window) loses its
+# marker, and a new due date is new news.
+_hold_due_marker() {  # <task-id>
+  printf '%s/.hold-due-notified-%s' "$STATE" "$1"
+}
+
+# Read the due list into FM_HOLD_DUE_CURRENT and set FM_HOLD_DUE_PENDING to the
+# "<id> TAB <due> TAB <phase>" lines not yet notified in their current phase.
+# Returns 1, changing nothing, when the backlog read fails, so a broken read
+# neither wakes nor forgets markers. Runs in the caller's shell so
+# prune_hold_due_markers sees the same list.
+FM_HOLD_DUE_CURRENT=
+FM_HOLD_DUE_PENDING=
+hold_due_read() {
+  local out id due phase marker pending=''
+  out=$(FM_HOME="$FM_HOME" "$SCRIPT_DIR/fm-fleet-snapshot.sh" --captain-holds-due 2>/dev/null) \
+    || return 1
+  while IFS=$'\t' read -r id due phase; do
+    case "$id" in ''|*[!A-Za-z0-9._-]*) continue ;; esac
+    marker=$(_hold_due_marker "$id")
+    grep -Fqx "day $due" "$marker" 2>/dev/null && continue
+    [ "$phase" = window ] && grep -Fqx "window $due" "$marker" 2>/dev/null && continue
+    pending="$pending$id"$'\t'"$due"$'\t'"$phase"$'\n'
+  done <<EOF
+$out
+EOF
+  FM_HOLD_DUE_CURRENT=$out
+  FM_HOLD_DUE_PENDING=$pending
+}
+
+mark_hold_due_notified() {  # <pending-lines>
+  local id due phase rc=0
+  while IFS=$'\t' read -r id due phase; do
+    [ -n "$id" ] || continue
+    printf '%s %s\n' "$phase" "$due" >> "$(_hold_due_marker "$id")" || rc=1
+  done <<EOF
+$1
+EOF
+  return "$rc"
+}
+
+prune_hold_due_markers() {
+  local marker id
+  for marker in "$STATE"/.hold-due-notified-*; do
+    [ -f "$marker" ] || continue
+    id=${marker##*/.hold-due-notified-}
+    printf '%s\n' "$FM_HOLD_DUE_CURRENT" | cut -f1 | grep -Fqx -- "$id" || rm -f "$marker"
+  done
+}
+
+hold_due_reason() {  # <pending-lines>
+  local id due phase text=''
+  while IFS=$'\t' read -r id due phase; do
+    [ -n "$id" ] || continue
+    case "$phase" in
+      day) text="${text:+$text; }$id due $due (due now)" ;;
+      *) text="${text:+$text; }$id due $due (notice ahead)" ;;
+    esac
+  done <<EOF
+$1
+EOF
+  printf 'check: captain hold due: %s' "$text"
+}
+
 # event_wait_or_sleep: the terminal wait of each supervision cycle. For a home
 # with push-capable windows (herdr), it replaces the blind `sleep POLL` with a
 # bounded wait on the backend's native transition stream, so a crew going
@@ -3167,6 +3242,25 @@ EOF
   hb=$(( HEARTBEAT * (1 << streak) ))
   [ "$hb" -gt "$HEARTBEAT_MAX" ] && hb=$HEARTBEAT_MAX
   if [ "$(age_of "$STATE/.last-heartbeat")" -ge "$hb" ]; then
+    # Due captain calls first, in every posture: the captain must hear of a
+    # dated call before its date, not only when a status line happens to move.
+    # The schedule is left untouched so the next cycle still runs the ordinary
+    # heartbeat triage below, unless the marker write failed, when touching it
+    # holds a repeat to the heartbeat cadence instead of every cycle.
+    if hold_due_read; then
+      prune_hold_due_markers
+      if [ -n "$FM_HOLD_DUE_PENDING" ]; then
+        reason=$(hold_due_reason "$FM_HOLD_DUE_PENDING")
+        fm_wake_append check captain-hold-due "$reason" || exit 1
+        if ! mark_hold_due_notified "$FM_HOLD_DUE_PENDING"; then
+          triage_log "captain-hold due marker write failed"
+          touch "$STATE/.last-heartbeat"
+        fi
+        wake "$reason"
+      fi
+    else
+      triage_log "captain-hold due read unavailable"
+    fi
     # Triage: in always-on mode a heartbeat is benign unless the cheap fleet-scan
     # turns up a captain-relevant status the per-wake path missed. Absorb the
     # no-change case (advance the schedule and back off exactly as wake() would,

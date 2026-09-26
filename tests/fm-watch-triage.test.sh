@@ -5862,7 +5862,7 @@ test_heartbeat_no_change_absorbed() {
   sig=$(seen_sig "$state/routine.status"); printf '%s' "$sig" > "$state/.seen-routine_status"
   # A quiet fleet with a fast heartbeat cadence.
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
-    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 "$WATCH" > "$out" &
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 FM_DATA_OVERRIDE="$dir/data" "$WATCH" > "$out" &
   pid=$!
   if ! wait_poll_cycle "$state" "$pid"; then
     reap "$pid"; fail "watcher exited for a no-change heartbeat (should absorb): $(cat "$out")"
@@ -5897,7 +5897,7 @@ test_heartbeat_backstop_surfaces_a_masked_status() {
     > "$state/miss.status"
   sig=$(seen_sig "$state/miss.status"); printf '%s' "$sig" > "$state/.seen-miss_status"
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
-    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 "$WATCH" > "$out" &
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 FM_DATA_OVERRIDE="$dir/data" "$WATCH" > "$out" &
   pid=$!
   wait_for_exit "$pid" 100 \
     || fail "heartbeat backstop missed a decision hidden behind a later working: line"
@@ -5919,7 +5919,7 @@ test_heartbeat_backstop_surfaces_unsurfaced_status() {
   printf 'done: PR https://example.test/pr/5\n' > "$state/miss.status"
   sig=$(seen_sig "$state/miss.status"); printf '%s' "$sig" > "$state/.seen-miss_status"
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
-    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 "$WATCH" > "$out" &
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=1 FM_DATA_OVERRIDE="$dir/data" "$WATCH" > "$out" &
   pid=$!
   wait_for_exit "$pid" 100 || fail "heartbeat backstop did not surface an unsurfaced captain-relevant status"
   grep -Fx "heartbeat" "$out" >/dev/null || fail "backstop did not exit with a heartbeat wake"
@@ -5929,6 +5929,118 @@ test_heartbeat_backstop_surfaces_unsurfaced_status() {
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "drain after the backstop heartbeat failed"
   grep "$(printf '\theartbeat\t')" "$drain_out" >/dev/null || fail "backstop heartbeat was not queued"
   pass "heartbeat backstop fail-safe surfaces a captain-relevant status the per-wake path missed"
+}
+
+# --- heartbeat: due captain holds notify once ahead and once on the day -----
+
+# One watcher run at a pinned observation date against the case's own backlog,
+# re-armed as the ordinary handling successor so an earlier run's stop is not
+# itself resurfaced. The caller asserts on <out> and the state it left.
+due_watch_bg() {  # <dir> <out> <snapshot-now>
+  local dir=$1 out=$2 now=$3
+  PATH="$dir/fakebin:$PATH" FM_STATE_OVERRIDE="$dir/state" FM_DATA_OVERRIDE="$dir/data" \
+    FM_SNAPSHOT_NOW="$now" FM_WATCH_HANDLING_SUCCESSOR=1 \
+    FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 \
+    FM_HEARTBEAT=1 FM_SECONDMATE_LIVENESS_SECS=99999999 "$WATCH" > "$out" &
+}
+
+# The heartbeat after <pid> started was absorbed (no due wake left to give).
+due_wait_absorbed() {  # <state> <pid>
+  local state=$1 pid=$2 i=0
+  rm -f "$state/.heartbeat-streak"
+  while [ "$i" -lt 200 ]; do
+    [ "$(cat "$state/.heartbeat-streak" 2>/dev/null || echo 0)" -ge 1 ] && return 0
+    kill -0 "$pid" 2>/dev/null || return 1
+    sleep 0.1
+    i=$((i + 1))
+  done
+  return 1
+}
+
+test_heartbeat_notifies_due_captain_holds_once_per_phase() {
+  local dir state out pid marker
+  dir=$(make_case heartbeat-hold-due); state="$dir/state"; out="$dir/watch.out"
+  marker="$state/.hold-due-notified-pay-live"
+  mkdir -p "$dir/data"
+  cat > "$dir/data/backlog.md" <<'EOF'
+## In flight
+
+## Queued
+- [ ] pay-live - Payment live (repo: sample) (kind: ship) (since 2026-09-01) (hold: needs captain credentials) (hold-kind: captain)
+  Captain hold set: 2026-09-01T00:00:00Z
+  Captain hold due: 2026-09-22
+- [ ] undated-call - Undated call (repo: sample) (kind: captain) (since 2026-09-01) (hold: choose a route) (hold-kind: captain)
+  Captain hold set: 2026-09-01T00:00:00Z
+
+## Done
+EOF
+
+  # Eight days out the call is not due yet: the heartbeat is absorbed.
+  due_watch_bg "$dir" "$out" 2026-09-14T12:00:00Z; pid=$!
+  due_wait_absorbed "$state" "$pid" || { reap "$pid"; fail "a call outside its lead window woke firstmate: $(cat "$out")"; }
+  reap "$pid"
+  [ ! -s "$out" ] || fail "a call outside its lead window printed a wake: $(cat "$out")"
+  [ ! -e "$marker" ] || fail "a call outside its lead window was marked notified"
+
+  # Three days out the window is open: one notice ahead.
+  due_watch_bg "$dir" "$out" 2026-09-19T12:00:00Z; pid=$!
+  wait_for_exit "$pid" 100 || fail "a call inside its lead window did not wake firstmate"
+  grep -Fx "check: captain hold due: pay-live due 2026-09-22 (notice ahead)" "$out" >/dev/null \
+    || fail "the notice-ahead wake reason is wrong: $(cat "$out")"
+  grep -F "$(printf '\tcheck\tcaptain-hold-due\t')" "$state/.wake-queue" >/dev/null \
+    || fail "the notice-ahead wake was not queued durably"
+  grep -Fx "window 2026-09-22" "$marker" >/dev/null || fail "the notice ahead was not recorded"
+  ack_stopped_cycle "$state" >/dev/null 2>&1 || fail "could not acknowledge the notice-ahead wake"
+
+  # Still inside the window: the notice ahead never repeats.
+  due_watch_bg "$dir" "$out" 2026-09-20T12:00:00Z; pid=$!
+  due_wait_absorbed "$state" "$pid" || { reap "$pid"; fail "the notice ahead repeated: $(cat "$out")"; }
+  reap "$pid"
+  [ ! -s "$out" ] || fail "the notice ahead repeated: $(cat "$out")"
+  grep -Fx "window 2026-09-22" "$marker" >/dev/null \
+    || fail "an absorbed heartbeat dropped the record of a still-due call's notice"
+
+  # On the day: one due-now notice, joined by a call first seen already past due.
+  cat > "$dir/data/backlog.md.new" <<'EOF'
+## In flight
+
+## Queued
+- [ ] pay-live - Payment live (repo: sample) (kind: ship) (since 2026-09-01) (hold: needs captain credentials) (hold-kind: captain)
+  Captain hold set: 2026-09-01T00:00:00Z
+  Captain hold due: 2026-09-22
+- [ ] late-call - Late call blocked-by: other-work (repo: sample) (kind: captain) (since 2026-09-21) (hold: sign the form) (hold-kind: captain)
+  Captain hold set: 2026-09-21T00:00:00Z
+  Captain hold due: 2026-09-21
+- [ ] other-work - Other work (repo: sample) (kind: ship) (since 2026-09-01)
+
+## Done
+EOF
+  mv "$dir/data/backlog.md.new" "$dir/data/backlog.md"
+  due_watch_bg "$dir" "$out" 2026-09-22T12:00:00Z; pid=$!
+  wait_for_exit "$pid" 100 || fail "the due day did not wake firstmate"
+  grep -Fx "check: captain hold due: late-call due 2026-09-21 (due now); pay-live due 2026-09-22 (due now)" "$out" >/dev/null \
+    || fail "the due-now wake reason is wrong: $(cat "$out")"
+  grep -Fx "day 2026-09-22" "$marker" >/dev/null || fail "the due-now notice was not recorded"
+  [ "$(grep -c 'window' "$state/.hold-due-notified-late-call")" = 0 ] \
+    || fail "a call first seen past due also got a notice ahead"
+  ack_stopped_cycle "$state" >/dev/null 2>&1 || fail "could not acknowledge the due-now wake"
+
+  # After the day the due-now notice never repeats.
+  due_watch_bg "$dir" "$out" 2026-09-24T12:00:00Z; pid=$!
+  due_wait_absorbed "$state" "$pid" || { reap "$pid"; fail "the due-now notice repeated: $(cat "$out")"; }
+  reap "$pid"
+  [ ! -s "$out" ] || fail "the due-now notice repeated: $(cat "$out")"
+  grep -Fx "day 2026-09-22" "$marker" >/dev/null \
+    || fail "an absorbed heartbeat dropped the record of a past-due call's notice"
+
+  # An answered call leaves the due list and its marker is retired.
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$dir/data/backlog.md"
+  due_watch_bg "$dir" "$out" 2026-09-24T12:00:00Z; pid=$!
+  due_wait_absorbed "$state" "$pid" || { reap "$pid"; fail "an empty due list woke firstmate: $(cat "$out")"; }
+  reap "$pid"
+  [ ! -e "$marker" ] && [ ! -e "$state/.hold-due-notified-late-call" ] \
+    || fail "markers of calls no longer due were not retired"
+  pass "a due captain hold wakes firstmate once as its window opens and once on the day"
 }
 
 # --- beacon stays fresh while absorbing -------------------------------------
@@ -6399,6 +6511,7 @@ test_procevent_marker_failure_exits_and_replays
 test_heartbeat_no_change_absorbed
 test_heartbeat_backstop_surfaces_unsurfaced_status
 test_heartbeat_backstop_surfaces_a_masked_status
+test_heartbeat_notifies_due_captain_holds_once_per_phase
 test_beacon_stays_fresh_while_absorbing
 test_afk_signal_records_heartbeat_endpoint
 test_afk_present_reverts_watcher_to_one_shot

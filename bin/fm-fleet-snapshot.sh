@@ -22,24 +22,31 @@
 #     hold_reason, and hold_until when tasks-axi emits it. They also carry
 #     normalized current_role, requires_child_metadata, blocked_by_ids,
 #     unresolved_blocker_ids, captain_actionable, hold_set, hold_age_days,
-#     and hold_bucket fields.
+#     hold_due, hold_due_days, hold_due_phase, and hold_bucket fields.
 #     Repeated blocker tokens remain ordered; a blocker resolves only when its
 #     structured record is Done, and missing ids stay open.
 #     There is no separate decision type: any captain-held task is the same
 #     primitive, whatever kind its row carries.
 #     hold_bucket is the single classification for every captain hold, decided
 #     only from structured fields - state, hold_kind, hold_until,
-#     unresolved_blocker_ids, and the machine-written hold-set timestamp. No
-#     hold reason or body prose is ever matched. The buckets are total and
+#     unresolved_blocker_ids, and the machine-written hold-set and due stamps.
+#     No hold reason or body prose is ever matched. The buckets are total and
 #     mutually exclusive, so every captain hold lands in exactly one and none
-#     can fall through: "blocked" when any blocker is unresolved, else "dated"
-#     when hold_until is still in the future, else "aged" when an undated hold
-#     is at least FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS old (default 14; legacy
-#     unstamped holds fall back to `since`), else "live". A non-captain or Done
-#     row carries null.
+#     can fall through: "live" when a `Captain hold due:` date (the first
+#     non-blank body line after the hold-set stamp, written by
+#     bin/fm-captain-hold.sh hold --due) is at most FM_SNAPSHOT_DUE_LEAD_DAYS
+#     (default 7) away or already past, else "blocked" when any blocker is
+#     unresolved, else "dated" when hold_until is still in the future, else
+#     "aged" when an undated hold is at least FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS
+#     old (default 14; legacy unstamped holds fall back to `since`), else
+#     "live". A non-captain or Done row carries null.
 #     captain_actionable means "waiting on the captain now" and is exactly
 #     hold_bucket == "live".
 #     hold_age_days is the hold's age when computable, else null.
+#     hold_due is the due stamp's date, hold_due_days the whole days from the
+#     observation date to it (negative once past), and hold_due_phase is
+#     "window" inside the lead window, "day" on or after the due date, else
+#     null; --captain-holds-due prints exactly the rows with a phase.
 #     Aging is a projection safety net only: the durable deferral remains
 #     re-holding with --until.
 #     Renderers keep every non-live bucket out of the default Captain's Call,
@@ -211,6 +218,13 @@ case "$FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS" in
     exit 2
     ;;
 esac
+FM_SNAPSHOT_DUE_LEAD_DAYS=${FM_SNAPSHOT_DUE_LEAD_DAYS:-7}
+case "$FM_SNAPSHOT_DUE_LEAD_DAYS" in
+  ''|*[!0-9]*)
+    echo "fm-fleet-snapshot: FM_SNAPSHOT_DUE_LEAD_DAYS must be a non-negative integer" >&2
+    exit 2
+    ;;
+esac
 
 # shellcheck source=bin/fm-backend.sh
 # shellcheck disable=SC1091
@@ -234,6 +248,7 @@ usage() {
   cat <<'EOF'
 usage: fm-fleet-snapshot.sh --json
        fm-fleet-snapshot.sh --secondmate-home-summary
+       fm-fleet-snapshot.sh --captain-holds-due
 
 Print a structured snapshot of the firstmate fleet.
 JSON is the stable machine-readable output contract. The default snapshot
@@ -241,6 +256,11 @@ refreshes only its parent-side remote-summary cache as an observational side eff
 
 --contribution-input emits the canonical local backlog/tasks ownership pair only,
 without worker observations or cross-home collection.
+
+--captain-holds-due prints one `<id> TAB <due-date> TAB <phase>` line per
+local captain hold whose due date is within FM_SNAPSHOT_DUE_LEAD_DAYS (default
+7), phase `window` before the due date and `day` on or after it, soonest first.
+It reads only this home's backlog; bin/fm-watch.sh consumes it.
 
 --secondmate-home-summary emits the bounded structured summary used after a
 validated registered-home handoff. It is local-only, skips nested secondmate
@@ -252,8 +272,10 @@ Its invalidity object names the normalized failure kind and affected ids.
 Actionable tasks-axi captain holds appear as decisions_open and stay visible in
 queued with hold_reason, hold_kind, hold_until,
 hold_bucket, hold_age_days, and plural blocker fields for downstream
-projections. A captain hold is actionable only when every blocker is Done, any
-hold-until date has arrived, and an undated hold remains below the aging threshold.
+projections. A captain hold is actionable when its `Captain hold due:` date is
+within FM_SNAPSHOT_DUE_LEAD_DAYS (default 7) or has passed; otherwise only when
+every blocker is Done, any hold-until date has arrived, and an undated hold
+remains below the aging threshold.
 Cross-home collection uses FM_SNAPSHOT_SECONDMATES (default 20, 0 lifts the
 count bound) and FM_SNAPSHOT_SECONDMATE_MAX_BYTES.
 Every sampled remote home's state/home-summary.json is fetched concurrently
@@ -291,6 +313,7 @@ case "${1:---json}" in
   --json) ;;
   --secondmate-home-summary) OUTPUT_MODE=secondmate-home-summary ;;
   --contribution-input) OUTPUT_MODE=contribution-input ;;
+  --captain-holds-due) OUTPUT_MODE=captain-holds-due ;;
   -h|--help) usage; exit 0 ;;
   *) usage >&2; exit 2 ;;
 esac
@@ -390,7 +413,8 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
 
   # shellcheck disable=SC2094
   jq -Rn --arg path "$backlog" --arg today "$SNAPSHOT_TODAY" --arg now "$SNAPSHOT_NOW" \
-    --argjson age_days "$FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS" '
+    --argjson age_days "$FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS" \
+    --argjson due_lead "$FM_SNAPSHOT_DUE_LEAD_DAYS" '
     def trim: gsub("^[[:space:]]+|[[:space:]]+$"; "");
     def timestamp_epoch($d):
       if ($d | type) != "string" then null
@@ -497,6 +521,7 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
              hold_kind:metadata($rest; "hold-kind"),
              hold_until:metadata($rest; "hold-until"),
              hold_set:null,
+             hold_due:null,
              blocked_by:cap($rest; ".*blocked-by:[[:space:]]*(?<v>[^[:space:])]+).*"),
              blocked_by_ids:blocked_by_ids($rest),
              blocked_reason:blocked_reason($rest),
@@ -533,6 +558,9 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
     | .records |= map(
         if (.body_lines | length) > 0 then
           .hold_set = cap(.body_lines[0]; "^Captain hold set:[[:space:]]*(?<v>[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)?)$")
+          | .hold_due = (if .hold_set != null and (.body_lines | length) > 1
+              then cap(.body_lines[1]; "^Captain hold due:[[:space:]]*(?<v>[0-9]{4}-[0-9]{2}-[0-9]{2})$")
+              else null end)
           | .local_note = (.local_note
               // (if any(.body_lines[];
                     test("^Resolution recorded by fm-(captain|decision)-hold\\.$"))
@@ -560,8 +588,15 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
                else "done" end)
           | .requires_child_metadata = (.current_role == "worker")
           | .hold_age_days = days_between((.hold_set // .since); $now)
+          | .hold_due_days = (if .hold_due == null then null else days_between($today; .hold_due) end)
+          | .hold_due_phase =
+              (if .hold_kind != "captain" or .hold_reason == null or .state == "done"
+                  or .hold_due_days == null or .hold_due_days > $due_lead then null
+               elif .hold_due_days <= 0 then "day"
+               else "window" end)
           | .hold_bucket =
               (if .hold_kind != "captain" or .hold_reason == null or .state == "done" then null
+               elif .hold_due_phase != null then "live"
                elif (.unresolved_blocker_ids | length) > 0 then "blocked"
                elif .hold_until != null and .hold_until > $today then "dated"
                elif .hold_until == null and .hold_age_days != null
@@ -1006,6 +1041,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
          | {id,key:.id,verb:"captain-hold",summary:(.title | trunc(160)),
             reason:(.hold_reason | trunc(160)),
             hold_until:(.hold_until // null),
+            hold_due:(.hold_due // null),
             hold_bucket:(.hold_bucket // null),
             hold_age_days:(.hold_age_days // null),source:"backlog"} ]) as $captain_holds_all
     | ([ $backlog.records[]? | select(landed_record)
@@ -1119,6 +1155,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
           hold_reason:((.hold_reason // null) | if . == null then null else trunc(160) end),
           hold_kind:((.hold_kind // null) | if . == null then null else trunc(40) end),
           hold_until:((.hold_until // null) | if . == null then null else trunc(40) end),
+          hold_due:(.hold_due // null),
           hold_bucket:(.hold_bucket // null),
           hold_age_days:(.hold_age_days // null),
           captain_actionable:(.captain_actionable // false),
@@ -1988,6 +2025,14 @@ contribution_tasks_json() {
   done | jq -s .
 }
 
+if [ "$OUTPUT_MODE" = captain-holds-due ]; then
+  # Backlog-only read for the watcher's due-date notice: no workers, no homes.
+  printf '%s\n' "$BACKLOG_JSON" | jq -r '
+    [.records[] | select(.structured and .hold_due_phase != null)]
+    | sort_by(.hold_due, .id)[]
+    | [.id, .hold_due, .hold_due_phase] | @tsv'
+  exit 0
+fi
 if [ "$OUTPUT_MODE" = contribution-input ]; then
   # Reuse the canonical backlog parser, without observing workers or other homes.
   contribution_tasks=$(contribution_tasks_json) || { echo "fm-fleet-snapshot: contribution task read failed" >&2; exit 1; }

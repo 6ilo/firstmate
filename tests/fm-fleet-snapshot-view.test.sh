@@ -314,6 +314,95 @@ EOF
   pass "captain-hold buckets are total, mutually exclusive, and never decided by prose"
 }
 
+test_due_captain_hold_is_live_from_its_lead_window() {
+  local home fakebin out due
+  home=$(make_home hold-due)
+  cat > "$home/data/backlog.md" <<'EOF'
+## In flight
+
+## Queued
+- [ ] due-aged - Aged call with a due date (repo: sample) (kind: ship) (hold: needs captain credentials) (hold-kind: captain)
+  Captain hold set: 2026-06-01T00:00:00Z
+  Captain hold due: 2026-07-22
+- [ ] due-deferred - Deferred call due before its date gate (repo: sample) (kind: captain) (hold: revisit later) (hold-kind: captain) (hold-until: 2026-08-15)
+  Captain hold set: 2026-07-01T00:00:00Z
+
+  Captain hold due: 2026-07-18
+- [ ] due-blocked - Blocked call with a due date blocked-by: upstream-work (repo: sample) (kind: captain) (hold: sign the form) (hold-kind: captain)
+  Captain hold set: 2026-07-01T00:00:00Z
+  Captain hold due: 2026-07-30
+- [ ] due-history - Due line that is only history (repo: sample) (kind: captain) (hold: choose a route) (hold-kind: captain)
+  Captain hold set: 2026-06-01T00:00:00Z
+  Resolution recorded by fm-captain-hold.
+  Captain hold due: 2026-07-16
+- [ ] due-unheld - Due stamp without a captain hold (repo: sample) (kind: ship)
+  Captain hold set: 2026-06-01T00:00:00Z
+  Captain hold due: 2026-07-16
+- [ ] upstream-work - Land the upstream change (repo: sample) (kind: ship)
+
+## Done
+- [x] due-done - Answered due call (repo: sample) (kind: captain) (hold: choose) (hold-kind: captain) (done 2026-07-10)
+  Captain hold set: 2026-06-01T00:00:00Z
+  Captain hold due: 2026-07-16
+EOF
+  fakebin=$(make_fakebin "$home")
+  snap() {  # <now> [extra env]
+    local now=$1
+    shift
+    env PATH="$fakebin:$PATH" FM_HOME="$home" FM_DATA_OVERRIDE="$home/data" \
+      FM_SNAPSHOT_NOW="$now" "$@"
+  }
+
+  # 2026-07-14: due-aged is 8 days out (still aged), due-deferred 4 days out
+  # (live despite its later date gate), due-blocked 16 days out (blocked).
+  out=$(snap 2026-07-14T09:00:00Z "$SNAPSHOT" --json) || fail "snapshot failed"
+  printf '%s' "$out" | jq -e '
+    def r($id): [.backlog.records[] | select(.id == $id)][0];
+    (r("due-aged") | .hold_due == "2026-07-22" and .hold_due_days == 8
+       and .hold_due_phase == null and .hold_bucket == "aged")
+    and (r("due-deferred") | .hold_due == "2026-07-18" and .hold_due_phase == "window"
+       and .hold_bucket == "live" and .captain_actionable == true)
+    and (r("due-blocked") | .hold_due_phase == null and .hold_bucket == "blocked")
+    and (r("due-history") | .hold_due == null and .hold_bucket == "aged")
+    and (r("due-unheld") | .hold_due_phase == null and .hold_bucket == null)
+    and (r("due-done") | .hold_due_phase == null and .hold_bucket == null)
+  ' >/dev/null || fail "due stamps did not classify from their lead window: $out"
+  due=$(snap 2026-07-14T09:00:00Z "$SNAPSHOT" --captain-holds-due) || fail "due list failed"
+  [ "$due" = "$(printf 'due-deferred\t2026-07-18\twindow')" ] \
+    || fail "the due list before the aged call's window is wrong: $due"
+  out=$(snap 2026-07-14T09:00:00Z "$SNAPSHOT" --secondmate-home-summary) || fail "home summary failed"
+  printf '%s' "$out" | jq -e '
+    (.decisions_open | any(.id == "due-deferred" and .hold_due == "2026-07-18"))
+      and (.queued | any(.id == "due-aged" and .hold_due == "2026-07-22"))
+  ' >/dev/null || fail "the home summary did not carry due dates to the parent: $out"
+
+  # 2026-07-15: the aged call enters its seven-day window and becomes live.
+  due=$(snap 2026-07-15T09:00:00Z "$SNAPSHOT" --captain-holds-due) || fail "due list failed"
+  [ "$due" = "$(printf 'due-deferred\t2026-07-18\twindow\ndue-aged\t2026-07-22\twindow')" ] \
+    || fail "an aged call did not become due seven days ahead: $due"
+
+  # On and after each date the phase is day; a blocked call joins its window.
+  due=$(snap 2026-07-23T09:00:00Z "$SNAPSHOT" --captain-holds-due) || fail "due list failed"
+  [ "$due" = "$(printf 'due-deferred\t2026-07-18\tday\ndue-aged\t2026-07-22\tday\ndue-blocked\t2026-07-30\twindow')" ] \
+    || fail "past-due calls did not stay due in their day phase: $due"
+  out=$(snap 2026-07-23T09:00:00Z "$SNAPSHOT" --json) || fail "snapshot failed"
+  printf '%s' "$out" | jq -e '
+    [.backlog.records[] | select(.id == "due-aged" or .id == "due-blocked")]
+    | all(.hold_bucket == "live" and .captain_actionable == true)
+      and ([.[] | select(.id == "due-aged")][0].hold_due_days == -1)
+  ' >/dev/null || fail "a call inside its window must be live over aging and blockers: $out"
+
+  # The lead window is configurable, and a malformed one is refused.
+  due=$(snap 2026-07-14T09:00:00Z FM_SNAPSHOT_DUE_LEAD_DAYS=0 "$SNAPSHOT" --captain-holds-due) \
+    || fail "due list with a zero lead failed"
+  [ -z "$due" ] || fail "a zero lead window must list only calls on or past their date: $due"
+  if snap 2026-07-14T09:00:00Z FM_SNAPSHOT_DUE_LEAD_DAYS=soon "$SNAPSHOT" --captain-holds-due \
+    >/dev/null 2>&1; then
+    fail "a malformed lead window was accepted"
+  fi
+  pass "a due captain hold is live from its lead window until answered, over aging, date gates, and blockers"
+}
+
 test_main_inventory_orphan_and_unstructured_disclosure() {
   local home fakebin out
   home=$(make_home main-inventory)
@@ -1159,6 +1248,7 @@ test_fixture_snapshot_json
 test_home_summary_excludes_secondmate_from_child_inventory
 test_undated_captain_hold_phrasing_and_aging
 test_hold_buckets_are_total_and_text_blind
+test_due_captain_hold_is_live_from_its_lead_window
 test_main_inventory_orphan_and_unstructured_disclosure
 test_normalized_roles_and_plural_blocker_readiness
 test_event_hints_follow_reconciled_current_state

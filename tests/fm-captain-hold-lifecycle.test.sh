@@ -1158,6 +1158,80 @@ EOF
   pass "a deferred captain call leaves the live Captain's Call until its date and stays answerable"
 }
 
+test_due_date_keeps_a_call_on_captains_call_until_answered() {
+  local home body json due
+  home=$(make_home due-date)
+  body_of() {  # <id>: the task's indented body lines, unindented
+    awk -v id="$1" '
+      $0 ~ "^- \\[.\\] " id " " { on = 1; next }
+      on && /^  / { sub(/^  /, ""); print; next }
+      on { exit }
+    ' "$home/data/backlog.md"
+  }
+  FM_CAPTAIN_HOLD_NOW=2026-06-01T12:00:00Z run_captain "$home" hold sample-pay --title "Take payments live" \
+    --reason "needs captain credentials" --repo sample --due 2026-07-22 >/dev/null \
+    || fail "could not hold a call with a due date"
+  body=$(body_of sample-pay)
+  [ "$body" = "$(printf 'Captain hold set: 2026-06-01T12:00:00Z\nCaptain hold due: 2026-07-22')" ] \
+    || fail "the due stamp is not the line under the hold-set stamp: $body"
+
+  # Repeating the active hold keeps its stamp and due date; --due replaces it.
+  FM_CAPTAIN_HOLD_NOW=2026-06-05T12:00:00Z run_captain "$home" hold sample-pay \
+    --reason "needs captain credentials" >/dev/null || fail "could not repeat the hold"
+  [ "$(body_of sample-pay)" = "$body" ] || fail "repeating the hold changed its stamps: $(body_of sample-pay)"
+  FM_CAPTAIN_HOLD_NOW=2026-06-05T12:00:00Z run_captain "$home" hold sample-pay \
+    --reason "needs captain credentials" --due 2026-07-24 >/dev/null || fail "could not move the due date"
+  [ "$(body_of sample-pay)" = "$(printf 'Captain hold set: 2026-06-01T12:00:00Z\nCaptain hold due: 2026-07-24')" ] \
+    || fail "moving the due date lost the hold-set stamp or kept the old date: $(body_of sample-pay)"
+  if run_captain "$home" hold sample-pay --reason "needs captain credentials" --due 2026-7-24 \
+    > "$home/bad-due.out" 2> "$home/bad-due.err"; then
+    fail "hold accepted a malformed --due date"
+  fi
+
+  # Eighteen days before its date the old hold has aged into Charted Next; seven
+  # days before, it is back on Captain's Call, marked with its date.
+  json=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_NOW=2026-07-06T12:00:00Z \
+    FM_BEARINGS_NOW=2026-07-06T12:00:00Z "$BEARINGS" --json) || fail "Bearings failed before the window"
+  printf '%s' "$json" | jq -e '
+    (.decisions_open | any(.id == "sample-pay") | not)
+      and (.gates | any(.id == "sample-pay" and (.reason | startswith("held 35d"))))
+  ' >/dev/null || fail "an aged call outside its window left the Charted Next gate: $json"
+  run_captain "$home" hold sample-other --title "Pick a sample venue" \
+    --reason "captain venue choice" --repo sample >/dev/null || fail "could not hold an undated call"
+  json=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_NOW=2026-07-17T12:00:00Z \
+    FM_BEARINGS_NOW=2026-07-17T12:00:00Z "$BEARINGS" --json) || fail "Bearings failed in the window"
+  printf '%s' "$json" | jq -e '
+    (.decisions_open[0] | .id == "sample-pay" and (.summary | contains("due 2026-07-24")))
+      and (.decisions_open | any(.id == "sample-other"))
+      and (.gates | any(.id == "sample-pay") | not)
+  ' >/dev/null || fail "a call inside its window did not lead Captain's Call with its date: $json"
+  due=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_DATA_OVERRIDE="$home/data" \
+    FM_SNAPSHOT_NOW=2026-07-24T12:00:00Z "$ROOT/bin/fm-fleet-snapshot.sh" --captain-holds-due) \
+    || fail "the due list failed"
+  [ "$due" = "$(printf 'sample-pay\t2026-07-24\tday')" ] || fail "the due day is not listed: $due"
+
+  # Answering releases the call; a new hold lifecycle starts with no due date.
+  printf 'Keys entered.\n' > "$home/answer.txt"
+  run_captain "$home" answer sample-pay --decision-file "$home/answer.txt" --release >/dev/null \
+    || fail "could not answer the due call"
+  due=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_DATA_OVERRIDE="$home/data" \
+    FM_SNAPSHOT_NOW=2026-07-24T12:00:00Z "$ROOT/bin/fm-fleet-snapshot.sh" --captain-holds-due) \
+    || fail "the due list failed after the answer"
+  [ -z "$due" ] || fail "an answered call stayed due: $due"
+  FM_CAPTAIN_HOLD_NOW=2026-07-25T12:00:00Z run_captain "$home" hold sample-pay \
+    --reason "needs a second credential" >/dev/null || fail "could not re-hold the call"
+  body=$(body_of sample-pay)
+  [ "$(printf '%s\n' "$body" | sed -n 1p)" = "Captain hold set: 2026-07-25T12:00:00Z" ] \
+    || fail "the re-hold did not start a new lifecycle: $body"
+  [ "$(printf '%s\n' "$body" | sed -n 2p)" != "Captain hold due: 2026-07-24" ] \
+    || fail "a new hold lifecycle inherited the old due date: $body"
+  due=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_DATA_OVERRIDE="$home/data" \
+    FM_SNAPSHOT_NOW=2026-07-25T12:00:00Z "$ROOT/bin/fm-fleet-snapshot.sh" --captain-holds-due) \
+    || fail "the due list failed after the re-hold"
+  [ -z "$due" ] || fail "a re-held call without --due is due: $due"
+  pass "a due date keeps a captain call on Captain's Call from seven days ahead until answered"
+}
+
 # The recorded-answer guard survives an out-of-band close: a bare tasks-axi done
 # fails verify until answer records the captain's word, and an ordinary finished
 # task can never be dressed up as an answered captain call.
@@ -4043,6 +4117,7 @@ test_release_frees_held_work
 test_hold_stamp_precedes_hold_visibility
 test_interrupted_answer_preserves_hold_age
 test_deferral_leaves_captains_call_until_due
+test_due_date_keeps_a_call_on_captains_call_until_answered
 test_out_of_band_close_is_recordable
 test_visual_review_uses_shared_completion_owner
 test_none_inventory_and_resolved_prose_do_not_create_holds
