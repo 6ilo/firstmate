@@ -38,7 +38,8 @@
 # buckets are total and mutually exclusive, so every captain hold appears in
 # exactly one decision bucket and none can fall through both. An actively worked
 # held task may also appear in Underway. A "live" hold is a default Captain's Call
-# entry; "blocked", "dated", and "aged" leave the default Captain's Call, render
+# entry, noted "due <date>" when its own backlog record carries a due stamp;
+# "blocked", "dated", and "aged" leave the default Captain's Call, render
 # as Charted Next gates stating why (the blocking work, the until date, or the
 # floored age), and are counted in omitted[].
 # --all-decisions reveals every captain hold available within the bounded snapshot
@@ -407,7 +408,8 @@ MODEL=$(printf '%s' "$SNAP" | jq \
             + (if $remaining > 0 then " +\($remaining) more" else "" end))
       end;
   def hold_note:
-    if .hold_bucket == "blocked" then bounded_blocker_note(70)
+    if .hold_bucket == "live" and .hold_due != null then ("due " + .hold_due)
+    elif .hold_bucket == "blocked" then bounded_blocker_note(70)
     elif .hold_bucket == "dated" then ("until " + (.hold_until // "-"))
     elif .hold_bucket == "aged" and .hold_age_days != null then
       ("held " + (.hold_age_days | tostring) + "d")

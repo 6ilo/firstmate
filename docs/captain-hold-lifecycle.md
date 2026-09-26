@@ -62,6 +62,9 @@ Repeat and edge cases:
 - Re-holding released work starts a new timestamped lifecycle.
 - A closed task is refused rather than reopened.
 - `--until` stores the captain's own deferral date through tasks-axi's date gate.
+- `--due` stores the date the call must be settled by as a `Captain hold due:` line directly under the hold-set stamp, because tasks-axi has no deadline field.
+  Repeating an active hold keeps its due date unless `--due` replaces it, and a new hold lifecycle starts without one.
+  An answer moves the line below its resolution block, where it is inert history.
 
 ### Answering a call (`answer`)
 
@@ -339,7 +342,7 @@ For a main-home call, the reconcile option is the recovery path for whatever sti
 `bin/fm-fleet-snapshot.sh` parses canonical tasks-axi `(hold: ...)`, `(hold-kind: ...)`, and `(hold-until: ...)` metadata alongside existing backlog fields.
 It resolves every repeated `blocked-by:` edge against structured Done records and keeps missing blockers unresolved.
 It then assigns every captain hold exactly one `hold_bucket`.
-The bucket is decided only from structured fields: `hold_kind`, `state`, `hold_until`, `unresolved_blocker_ids`, and the machine-written hold-set timestamp.
+The bucket is decided only from structured fields: `hold_kind`, `state`, `hold_until`, `unresolved_blocker_ids`, and the machine-written hold-set and due stamps.
 Hold reason and body prose are never matched, so no wording can hide, reveal, or reclassify a decision.
 
 The buckets are total and mutually exclusive.
@@ -347,6 +350,7 @@ The first matching row in this order decides the bucket:
 
 | Order | `hold_bucket` | Condition |
 | --- | --- | --- |
+| 0 | `live` | The due date is at most 7 days away or already past. |
 | 1 | `blocked` | Any blocker is unresolved. |
 | 2 | `dated` | `hold_until` is in the future. |
 | 3 | `aged` | An undated hold's hold-set timestamp is at least `FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS` old (default 14, floored elapsed days). |
@@ -354,6 +358,10 @@ The first matching row in this order decides the bucket:
 
 No captain hold can fall through them and none can match two, which is what keeps a hold from vanishing from every view.
 `captain_actionable` - waiting on the captain now - is exactly `hold_bucket == "live"`.
+A due date wins over every other condition because the captain has to hear of a dated call before its date, not after it: the rows below only decide where the call sits until its window opens.
+`hold_due_phase` is `window` inside the 7-day lead window, `day` on or after the date, and null otherwise.
+`bin/fm-fleet-snapshot.sh --captain-holds-due` lists exactly the calls with a phase, and at heartbeat cadence `bin/fm-watch.sh` turns each call's first `window` and first `day` into one `check: captain hold due` notification to firstmate.
+That notice reaches firstmate only while this home's supervision cycle runs; Captain's Call carries the call either way.
 
 Existing undated holds without a hold-set stamp fall back to the task's `since` date.
 That aging is a projection safety net only.
@@ -368,7 +376,7 @@ It preserves every captain hold in the bounded queued inventory of the owning ho
 
 | `hold_bucket` | Where the hold appears |
 | --- | --- |
-| `live` | A default Captain's Call entry. |
+| `live` | A default Captain's Call entry; a call with a due date in this home's backlog is noted `due <date>`. |
 | `blocked`, `dated`, or `aged` | Leaves the default Captain's Call, renders as a Charted Next gate stating why - the blocking work, the `until <date>`, or the floored age - and contributes to the concrete `omitted[]` disclosure. |
 
 `--all-decisions` reveals every captain hold available within the remote-summary bound and drops its gate.
@@ -523,6 +531,7 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 - Hold-set stamping precedes visible hold state, preserves an active lifecycle's timestamp, and resets after release.
 - Interrupted answer closure retains the stamp until close and restores resolution-first ordering on retry.
 - Deferral through `--until` leaves `captain_actionable` false until due.
+- A `--due` date is stamped under the hold-set stamp, kept on repeat, replaced by a new `--due`, dropped by a new lifecycle, and puts an aged call back on Captain's Call seven days ahead.
 
 ### Legacy paths
 
@@ -615,11 +624,12 @@ That suite drives its Lavish session through a protocol-shaped stub.
 It separates a resolution from the durable-transfer close and from a still-open key.
 It reports the last real transition across re-openings and both key positions, and treats a prose mention as no transition.
 
-Projection regressions live in two suites:
+Projection and notification regressions live in three suites:
 
 | Suite | What it covers |
 | --- | --- |
-| `tests/fm-fleet-snapshot-view.test.sh` | The total structured-only bucket classifier, hold-until parsing, kind-independent captain actionability, undated-hold aging, and title stripping. |
+| `tests/fm-fleet-snapshot-view.test.sh` | The total structured-only bucket classifier, hold-until parsing, due-date lead windows and phases, kind-independent captain actionability, undated-hold aging, and title stripping. |
+| `tests/fm-watch-triage.test.sh` | The due-date notification firing once as the window opens and once on the day, never repeating, and retiring when the call is answered. |
 | `tests/fm-bearings-snapshot.test.sh` | Default and expanded decision-bucket membership, deferral explanations, blocker-overflow disclosure, working-hold dual surfaces, remote-summary schema invalidation, exact leading-kind inference, artifact-kind mismatch and answered-question exclusion, kind-bearing and kindless local-only landings publishing their recorded note, and scout-report precedence over competing pull-request links. |
 
 ### Refreshing this record
@@ -627,7 +637,7 @@ Projection regressions live in two suites:
 The exact commands and their summarized outputs are recorded in the shipping PR's evidence.
 To refresh this record, run:
 
-- The four suites above: `tests/fm-captain-hold-lifecycle.test.sh`, `tests/fm-classify-decision-key.test.sh`, `tests/fm-fleet-snapshot-view.test.sh`, and `tests/fm-bearings-snapshot.test.sh`.
+- The five suites above: `tests/fm-captain-hold-lifecycle.test.sh`, `tests/fm-classify-decision-key.test.sh`, `tests/fm-fleet-snapshot-view.test.sh`, `tests/fm-watch-triage.test.sh`, and `tests/fm-bearings-snapshot.test.sh`.
 - `tests/fm-send-resolve-key.test.sh`, `tests/fm-bearings-board.test.sh`, and `tests/fm-procevent.test.sh`.
 - `bin/fm-lint.sh`.
 
