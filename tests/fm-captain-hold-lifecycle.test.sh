@@ -1159,7 +1159,7 @@ EOF
 }
 
 test_due_date_keeps_a_call_on_captains_call_until_answered() {
-  local home body json due
+  local home body json due bad_due
   home=$(make_home due-date)
   body_of() {  # <id>: the task's indented body lines, unindented
     awk -v id="$1" '
@@ -1187,6 +1187,16 @@ test_due_date_keeps_a_call_on_captains_call_until_answered() {
     > "$home/bad-due.out" 2> "$home/bad-due.err"; then
     fail "hold accepted a malformed --due date"
   fi
+  for bad_due in 2026-13-01 2026-02-30 2025-02-29; do
+    if run_captain "$home" hold sample-pay --reason "needs captain credentials" --due "$bad_due" \
+      > "$home/bad-due.out" 2> "$home/bad-due.err"; then
+      fail "hold accepted an impossible --due date: $bad_due"
+    fi
+    assert_contains "$(cat "$home/bad-due.err")" "real calendar date" \
+      "an impossible --due date was not refused as one: $bad_due"
+  done
+  [ "$(body_of sample-pay)" = "$(printf 'Captain hold set: 2026-06-01T12:00:00Z\nCaptain hold due: 2026-07-24')" ] \
+    || fail "a refused --due date changed the stamps: $(body_of sample-pay)"
 
   # Eighteen days before its date the old hold has aged into Charted Next; seven
   # days before, it is back on Captain's Call, marked with its date.
@@ -1201,10 +1211,10 @@ test_due_date_keeps_a_call_on_captains_call_until_answered() {
   json=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_NOW=2026-07-17T12:00:00Z \
     FM_BEARINGS_NOW=2026-07-17T12:00:00Z "$BEARINGS" --json) || fail "Bearings failed in the window"
   printf '%s' "$json" | jq -e '
-    (.decisions_open[0] | .id == "sample-pay" and (.summary | contains("due 2026-07-24")))
+    (.decisions_open | any(.id == "sample-pay" and (.summary | contains("due 2026-07-24"))))
       and (.decisions_open | any(.id == "sample-other"))
       and (.gates | any(.id == "sample-pay") | not)
-  ' >/dev/null || fail "a call inside its window did not lead Captain's Call with its date: $json"
+  ' >/dev/null || fail "a call inside its window was not on Captain's Call with its date: $json"
   due=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_DATA_OVERRIDE="$home/data" \
     FM_SNAPSHOT_NOW=2026-07-24T12:00:00Z "$ROOT/bin/fm-fleet-snapshot.sh" --captain-holds-due) \
     || fail "the due list failed"

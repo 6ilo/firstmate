@@ -34,9 +34,8 @@
 #     mutually exclusive, so every captain hold lands in exactly one and none
 #     can fall through: "live" when a `Captain hold due:` date (the first
 #     non-blank body line after the hold-set stamp, written by
-#     bin/fm-captain-hold.sh hold --due) is at most FM_SNAPSHOT_DUE_LEAD_DAYS
-#     (default 7) away or already past, else "blocked" when any blocker is
-#     unresolved, else "dated" when hold_until is still in the future, else
+#     bin/fm-captain-hold.sh hold --due) is at most 7 days away or already
+#     past, else "blocked" when any blocker is unresolved, else "dated" when hold_until is still in the future, else
 #     "aged" when an undated hold is at least FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS
 #     old (default 14; legacy unstamped holds fall back to `since`), else
 #     "live". A non-captain or Done row carries null.
@@ -218,13 +217,6 @@ case "$FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS" in
     exit 2
     ;;
 esac
-FM_SNAPSHOT_DUE_LEAD_DAYS=${FM_SNAPSHOT_DUE_LEAD_DAYS:-7}
-case "$FM_SNAPSHOT_DUE_LEAD_DAYS" in
-  ''|*[!0-9]*)
-    echo "fm-fleet-snapshot: FM_SNAPSHOT_DUE_LEAD_DAYS must be a non-negative integer" >&2
-    exit 2
-    ;;
-esac
 
 # shellcheck source=bin/fm-backend.sh
 # shellcheck disable=SC1091
@@ -258,8 +250,8 @@ refreshes only its parent-side remote-summary cache as an observational side eff
 without worker observations or cross-home collection.
 
 --captain-holds-due prints one `<id> TAB <due-date> TAB <phase>` line per
-local captain hold whose due date is within FM_SNAPSHOT_DUE_LEAD_DAYS (default
-7), phase `window` before the due date and `day` on or after it, soonest first.
+local captain hold whose due date is at most 7 days away, phase `window`
+before the due date and `day` on or after it, soonest first.
 It reads only this home's backlog; bin/fm-watch.sh consumes it.
 
 --secondmate-home-summary emits the bounded structured summary used after a
@@ -273,7 +265,7 @@ Actionable tasks-axi captain holds appear as decisions_open and stay visible in
 queued with hold_reason, hold_kind, hold_until,
 hold_bucket, hold_age_days, and plural blocker fields for downstream
 projections. A captain hold is actionable when its `Captain hold due:` date is
-within FM_SNAPSHOT_DUE_LEAD_DAYS (default 7) or has passed; otherwise only when
+at most 7 days away or has passed; otherwise only when
 every blocker is Done, any hold-until date has arrived, and an undated hold
 remains below the aging threshold.
 Cross-home collection uses FM_SNAPSHOT_SECONDMATES (default 20, 0 lifts the
@@ -413,8 +405,7 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
 
   # shellcheck disable=SC2094
   jq -Rn --arg path "$backlog" --arg today "$SNAPSHOT_TODAY" --arg now "$SNAPSHOT_NOW" \
-    --argjson age_days "$FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS" \
-    --argjson due_lead "$FM_SNAPSHOT_DUE_LEAD_DAYS" '
+    --argjson age_days "$FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS" '
     def trim: gsub("^[[:space:]]+|[[:space:]]+$"; "");
     def timestamp_epoch($d):
       if ($d | type) != "string" then null
@@ -591,7 +582,7 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
           | .hold_due_days = (if .hold_due == null then null else days_between($today; .hold_due) end)
           | .hold_due_phase =
               (if .hold_kind != "captain" or .hold_reason == null or .state == "done"
-                  or .hold_due_days == null or .hold_due_days > $due_lead then null
+                  or .hold_due_days == null or .hold_due_days > 7 then null
                elif .hold_due_days <= 0 then "day"
                else "window" end)
           | .hold_bucket =
@@ -1041,7 +1032,6 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
          | {id,key:.id,verb:"captain-hold",summary:(.title | trunc(160)),
             reason:(.hold_reason | trunc(160)),
             hold_until:(.hold_until // null),
-            hold_due:(.hold_due // null),
             hold_bucket:(.hold_bucket // null),
             hold_age_days:(.hold_age_days // null),source:"backlog"} ]) as $captain_holds_all
     | ([ $backlog.records[]? | select(landed_record)
@@ -1155,7 +1145,6 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
           hold_reason:((.hold_reason // null) | if . == null then null else trunc(160) end),
           hold_kind:((.hold_kind // null) | if . == null then null else trunc(40) end),
           hold_until:((.hold_until // null) | if . == null then null else trunc(40) end),
-          hold_due:(.hold_due // null),
           hold_bucket:(.hold_bucket // null),
           hold_age_days:(.hold_age_days // null),
           captain_actionable:(.captain_actionable // false),

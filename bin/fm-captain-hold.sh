@@ -872,9 +872,11 @@ command_hold() {
   fi
   if [ -n "$due" ]; then
     case "$due" in
-      [0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]) : ;;
+      [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) : ;;
       *) fail "--due must be a YYYY-MM-DD date: $due" ;;
     esac
+    jq -en --arg d "$due" '($d + "T00:00:00Z") | fromdateiso8601 | todate[:10] == $d' >/dev/null 2>&1 \
+      || fail "--due must be a real calendar date: $due"
   fi
   hold_set=${FM_CAPTAIN_HOLD_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
   case "$hold_set" in

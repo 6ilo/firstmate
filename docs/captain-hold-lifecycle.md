@@ -350,7 +350,7 @@ The first matching row in this order decides the bucket:
 
 | Order | `hold_bucket` | Condition |
 | --- | --- | --- |
-| 0 | `live` | The due date is at most `FM_SNAPSHOT_DUE_LEAD_DAYS` away (default 7) or already past. |
+| 0 | `live` | The due date is at most 7 days away or already past. |
 | 1 | `blocked` | Any blocker is unresolved. |
 | 2 | `dated` | `hold_until` is in the future. |
 | 3 | `aged` | An undated hold's hold-set timestamp is at least `FM_SNAPSHOT_UNDATED_HOLD_AGE_DAYS` old (default 14, floored elapsed days). |
@@ -359,7 +359,7 @@ The first matching row in this order decides the bucket:
 No captain hold can fall through them and none can match two, which is what keeps a hold from vanishing from every view.
 `captain_actionable` - waiting on the captain now - is exactly `hold_bucket == "live"`.
 A due date wins over every other condition because the captain has to hear of a dated call before its date, not after it: the rows below only decide where the call sits until its window opens.
-`hold_due_phase` is `window` inside the lead window, `day` on or after the date, and null otherwise.
+`hold_due_phase` is `window` inside the 7-day lead window, `day` on or after the date, and null otherwise.
 `bin/fm-fleet-snapshot.sh --captain-holds-due` lists exactly the calls with a phase, and at heartbeat cadence `bin/fm-watch.sh` turns each call's first `window` and first `day` into one `check: captain hold due` notification to firstmate.
 That notice reaches firstmate only while this home's supervision cycle runs; Captain's Call carries the call either way.
 
@@ -376,7 +376,7 @@ It preserves every captain hold in the bounded queued inventory of the owning ho
 
 | `hold_bucket` | Where the hold appears |
 | --- | --- |
-| `live` | A default Captain's Call entry; calls with a due date lead, soonest first, noted `due <date>`. |
+| `live` | A default Captain's Call entry; a call with a due date in this home's backlog is noted `due <date>`. |
 | `blocked`, `dated`, or `aged` | Leaves the default Captain's Call, renders as a Charted Next gate stating why - the blocking work, the `until <date>`, or the floored age - and contributes to the concrete `omitted[]` disclosure. |
 
 `--all-decisions` reveals every captain hold available within the remote-summary bound and drops its gate.
@@ -531,7 +531,7 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 - Hold-set stamping precedes visible hold state, preserves an active lifecycle's timestamp, and resets after release.
 - Interrupted answer closure retains the stamp until close and restores resolution-first ordering on retry.
 - Deferral through `--until` leaves `captain_actionable` false until due.
-- A `--due` date is stamped under the hold-set stamp, kept on repeat, replaced by a new `--due`, dropped by a new lifecycle, and puts an aged call back at the head of Captain's Call seven days ahead.
+- A `--due` date is stamped under the hold-set stamp, kept on repeat, replaced by a new `--due`, dropped by a new lifecycle, and puts an aged call back on Captain's Call seven days ahead.
 
 ### Legacy paths
 

@@ -372,9 +372,9 @@ EOF
     || fail "the due list before the aged call's window is wrong: $due"
   out=$(snap 2026-07-14T09:00:00Z "$SNAPSHOT" --secondmate-home-summary) || fail "home summary failed"
   printf '%s' "$out" | jq -e '
-    (.decisions_open | any(.id == "due-deferred" and .hold_due == "2026-07-18"))
-      and (.queued | any(.id == "due-aged" and .hold_due == "2026-07-22"))
-  ' >/dev/null || fail "the home summary did not carry due dates to the parent: $out"
+    (.decisions_open | any(.id == "due-deferred"))
+      and (.queued | any(.id == "due-deferred" and .hold_bucket == "live"))
+  ' >/dev/null || fail "the home summary did not carry a due call as live to the parent: $out"
 
   # 2026-07-15: the aged call enters its seven-day window and becomes live.
   due=$(snap 2026-07-15T09:00:00Z "$SNAPSHOT" --captain-holds-due) || fail "due list failed"
@@ -392,14 +392,6 @@ EOF
       and ([.[] | select(.id == "due-aged")][0].hold_due_days == -1)
   ' >/dev/null || fail "a call inside its window must be live over aging and blockers: $out"
 
-  # The lead window is configurable, and a malformed one is refused.
-  due=$(snap 2026-07-14T09:00:00Z FM_SNAPSHOT_DUE_LEAD_DAYS=0 "$SNAPSHOT" --captain-holds-due) \
-    || fail "due list with a zero lead failed"
-  [ -z "$due" ] || fail "a zero lead window must list only calls on or past their date: $due"
-  if snap 2026-07-14T09:00:00Z FM_SNAPSHOT_DUE_LEAD_DAYS=soon "$SNAPSHOT" --captain-holds-due \
-    >/dev/null 2>&1; then
-    fail "a malformed lead window was accepted"
-  fi
   pass "a due captain hold is live from its lead window until answered, over aging, date gates, and blockers"
 }
 

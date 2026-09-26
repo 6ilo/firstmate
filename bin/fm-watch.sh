@@ -2304,6 +2304,19 @@ prune_hold_due_markers() {
   done
 }
 
+# One durable wake row per call and phase, so a notice not yet drained is never
+# replaced by a later call's notice under the same queue key.
+hold_due_enqueue() {  # <pending-lines>
+  local id due phase
+  while IFS=$'\t' read -r id due phase; do
+    [ -n "$id" ] || continue
+    fm_wake_append check "captain-hold-due:$id:$phase:$due" \
+      "$(hold_due_reason "$id"$'\t'"$due"$'\t'"$phase")" || return 1
+  done <<EOF
+$1
+EOF
+}
+
 hold_due_reason() {  # <pending-lines>
   local id due phase text=''
   while IFS=$'\t' read -r id due phase; do
@@ -3251,7 +3264,7 @@ EOF
       prune_hold_due_markers
       if [ -n "$FM_HOLD_DUE_PENDING" ]; then
         reason=$(hold_due_reason "$FM_HOLD_DUE_PENDING")
-        fm_wake_append check captain-hold-due "$reason" || exit 1
+        hold_due_enqueue "$FM_HOLD_DUE_PENDING" || exit 1
         if ! mark_hold_due_notified "$FM_HOLD_DUE_PENDING"; then
           triage_log "captain-hold due marker write failed"
           touch "$STATE/.last-heartbeat"
