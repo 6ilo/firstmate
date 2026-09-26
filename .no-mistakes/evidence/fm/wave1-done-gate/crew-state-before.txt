@@ -1,0 +1,41 @@
+# SAME drive at base 637bf90 (before the change)
+### case incident  mode=no-mistakes pushed=0
+status line: done: fm/demo committed 45046ac, 42/42 tests green
+state: done · source: status-log · fm/demo committed 45046ac, 42/42 tests green
+
+### case prmention  mode=no-mistakes pushed=0
+status line: done: follow-up to https://github.com/o/r/pull/12 committed, 42/42 tests green
+state: done · source: status-log · follow-up to https://github.com/o/r/pull/12 committed, 42/42 tests green
+
+### case issueurl  mode=no-mistakes pushed=0
+status line: done: fixes https://github.com/o/r/issues/7, 42/42 tests green
+state: done · source: status-log · fixes https://github.com/o/r/issues/7, 42/42 tests green
+
+### case emptynote  mode=no-mistakes pushed=0
+status line: done:
+state: done · source: status-log
+
+### case emptymode  mode= pushed=0
+status line: done: implementation complete
+state: done · source: status-log · implementation complete
+
+### case nm-ready-pushed  mode=no-mistakes pushed=1
+status line: done: PR https://github.com/o/r/pull/5 checks green
+state: done · source: status-log · PR https://github.com/o/r/pull/5 checks green
+
+### case nm-ready-unpushed  mode=no-mistakes pushed=0
+status line: done: PR https://github.com/o/r/pull/5 checks green
+state: blocked · source: status-log · named head 4a9c12a75a160872a3651662ffffa95fe849e62b is unreachable outside the worker copy
+
+### case directpr-pushed  mode=direct-PR pushed=1
+status line: done: PR https://github.com/o/r/pull/6
+state: done · source: status-log · PR https://github.com/o/r/pull/6
+
+### case directpr-unpushed  mode=direct-PR pushed=0
+status line: done: PR https://github.com/o/r/pull/6
+state: blocked · source: status-log · named head 492c16d904a5bd429328c9711f057556148e0165 is unreachable outside the worker copy
+
+### case localonly-unpushed  mode=local-only pushed=0
+status line: done: committed on ship branch
+state: done · source: status-log · committed on ship branch
+

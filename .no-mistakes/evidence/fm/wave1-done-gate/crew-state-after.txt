@@ -1,0 +1,41 @@
+# fm-crew-state.sh live drive at change d5d2a3c (lab FM_HOME, real git origin, real tmux fm-lab socket)
+### case incident  mode=no-mistakes pushed=0
+status line: done: fm/demo committed 432c59f, 42/42 tests green
+state: blocked · source: status-log · no-mistakes validation handoff, not a delivery: no pull request yet - steer the worker to run /no-mistakes; only done: PR <url> checks green is ready
+
+### case prmention  mode=no-mistakes pushed=0
+status line: done: follow-up to https://github.com/o/r/pull/12 committed, 42/42 tests green
+state: blocked · source: status-log · no-mistakes done names a pull request but is not a delivery: it is not the checks-green ready report - only done: PR <url> checks green is ready
+
+### case issueurl  mode=no-mistakes pushed=0
+status line: done: fixes https://github.com/o/r/issues/7, 42/42 tests green
+state: blocked · source: status-log · no-mistakes validation handoff, not a delivery: no pull request yet - steer the worker to run /no-mistakes; only done: PR <url> checks green is ready
+
+### case emptynote  mode=no-mistakes pushed=0
+status line: done:
+state: blocked · source: status-log · no-mistakes validation handoff, not a delivery: no pull request yet - steer the worker to run /no-mistakes; only done: PR <url> checks green is ready
+
+### case emptymode  mode= pushed=0
+status line: done: implementation complete
+state: blocked · source: status-log · no-mistakes validation handoff, not a delivery: no pull request yet - steer the worker to run /no-mistakes; only done: PR <url> checks green is ready
+
+### case nm-ready-pushed  mode=no-mistakes pushed=1
+status line: done: PR https://github.com/o/r/pull/5 checks green
+state: done · source: status-log · PR https://github.com/o/r/pull/5 checks green
+
+### case nm-ready-unpushed  mode=no-mistakes pushed=0
+status line: done: PR https://github.com/o/r/pull/5 checks green
+state: blocked · source: status-log · named head 8335921380f5b6bb49c63d8ee8392c6dc9c2a8c6 is unreachable outside the worker copy
+
+### case directpr-pushed  mode=direct-PR pushed=1
+status line: done: PR https://github.com/o/r/pull/6
+state: done · source: status-log · PR https://github.com/o/r/pull/6
+
+### case directpr-unpushed  mode=direct-PR pushed=0
+status line: done: PR https://github.com/o/r/pull/6
+state: blocked · source: status-log · named head b2b11487236b655ce4f73e4c7502e12cd0a017de is unreachable outside the worker copy
+
+### case localonly-unpushed  mode=local-only pushed=0
+status line: done: committed on ship branch
+state: done · source: status-log · committed on ship branch
+
