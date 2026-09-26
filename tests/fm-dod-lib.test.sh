@@ -94,7 +94,7 @@ test_no_mistakes_handoff_done_is_refused_as_delivery() {
   git -C "$wt" commit -q --allow-empty -m 'only in the disposable copy'
   sha=$(git -C "$wt" rev-parse --short HEAD)
   for mode in no-mistakes ''; do
-    for line in 'done: implementation complete' \
+    for line in 'done: implementation complete' 'done:' \
       "done [at=1790000000]: fm/preval $sha committed, 42/42 tests green" \
       'done: fixes https://github.com/o/r/issues/7, 42/42 tests green' \
       'done: implemented per https://docs.example/x'; do

@@ -499,7 +499,7 @@ fm_dod_should_gate_ship_done() {  # <kind> <mode> <line>
 fm_dod_note_names_pr() {  # <note>
   local word words
   read -r -a words <<< "$1" || true
-  for word in "${words[@]}"; do
+  for word in "${words[@]+"${words[@]}"}"; do
     case "$word" in http://*|https://*) ;; *) continue ;; esac
     word=${word%%[),.;:\"\']}
     ( fm_pr_url_parse "$word" ) >/dev/null 2>&1 && return 0
