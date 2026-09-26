@@ -95,7 +95,9 @@ test_no_mistakes_handoff_done_is_refused_as_delivery() {
   sha=$(git -C "$wt" rev-parse --short HEAD)
   for mode in no-mistakes ''; do
     for line in 'done: implementation complete' \
-      "done [at=1790000000]: fm/preval $sha committed, 42/42 tests green"; do
+      "done [at=1790000000]: fm/preval $sha committed, 42/42 tests green" \
+      'done: fixes https://github.com/o/r/issues/7, 42/42 tests green' \
+      'done: implemented per https://docs.example/x'; do
       rc=0
       reason=$(accept_done ship "$mode" "$wt" "$repo" "$line") || rc=$?
       [ "$rc" -eq 1 ] || fail "no-mistakes handoff accepted as a delivery (mode='$mode'): $line"
@@ -110,7 +112,7 @@ test_no_mistakes_handoff_done_is_refused_as_delivery() {
   accept_done ship no-mistakes "$wt" "$repo" 'done: implementation complete' >/dev/null || rc=$?
   [ "$rc" -eq 1 ] || fail "a pushed commit made the no-mistakes handoff a delivery"
   for line in 'done: opened https://github.com/o/r/pull/3, CI pending' \
-    'done: PR https://example.test/o/r/pull/3' \
+    'done: PR https://github.com/o/r/pull/3' \
     "done: follow-up to https://github.com/o/r/pull/12 committed $sha, 42/42 tests green"; do
     rc=0
     reason=$(accept_done ship no-mistakes "$wt" "$repo" "$line") || rc=$?

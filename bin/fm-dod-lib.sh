@@ -494,6 +494,19 @@ fm_dod_should_gate_ship_done() {  # <kind> <mode> <line>
   esac
 }
 
+# 0 when <note> names a pull request, merge request, or change URL that
+# bin/fm-pr-lib.sh parses, anywhere in its words. It picks a refusal reason only.
+fm_dod_note_names_pr() {  # <note>
+  local word words
+  read -r -a words <<< "$1" || true
+  for word in "${words[@]}"; do
+    case "$word" in http://*|https://*) ;; *) continue ;; esac
+    word=${word%%[),.;:\"\']}
+    ( fm_pr_url_parse "$word" ) >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+
 # 0 when this ship done: is the no-mistakes pipeline handoff: any done that is
 # not a ready report. It is never a delivery, whatever branch, commit, pull
 # request mention, or local test result it reports.
@@ -645,12 +658,11 @@ fm_dod_named_head_reachable_outside_worktree() {  # <worktree> <project> <mode> 
 fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta>]
   local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} url sha gerrit
   if fm_dod_is_nm_handoff "$kind" "$mode" "$line"; then
-    case "$(status_line_note "$line")" in
-      *http://*|*https://*)
-        printf '%s\n' "no-mistakes done names a URL but is not a delivery: it is not the checks-green ready report - only done: PR <url> checks green is ready" ;;
-      *)
-        printf '%s\n' "no-mistakes validation handoff, not a delivery: no pull request yet - steer the worker to run /no-mistakes; only done: PR <url> checks green is ready" ;;
-    esac
+    if fm_dod_note_names_pr "$(status_line_note "$line")"; then
+      printf '%s\n' "no-mistakes done names a pull request but is not a delivery: it is not the checks-green ready report - only done: PR <url> checks green is ready"
+    else
+      printf '%s\n' "no-mistakes validation handoff, not a delivery: no pull request yet - steer the worker to run /no-mistakes; only done: PR <url> checks green is ready"
+    fi
     return 1
   fi
   fm_dod_should_gate_ship_done "$kind" "$mode" "$line" || return 0
