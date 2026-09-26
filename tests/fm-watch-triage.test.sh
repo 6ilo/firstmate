@@ -6020,11 +6020,12 @@ EOF
   wait_for_exit "$pid" 100 || fail "the due day did not wake firstmate"
   grep -Fx "check: captain hold due: late-call due 2026-09-21 (due now); pay-live due 2026-09-22 (due now)" "$out" >/dev/null \
     || fail "the due-now wake reason is wrong: $(cat "$out")"
-  grep -F "$(printf '\tcheck\tcaptain-hold-due:late-call:day:2026-09-21\tcheck: captain hold due: late-call due 2026-09-21 (due now)')" \
-    "$state/.wake-queue" >/dev/null && \
-    grep -F "$(printf '\tcheck\tcaptain-hold-due:pay-live:day:2026-09-22\tcheck: captain hold due: pay-live due 2026-09-22 (due now)')" \
-    "$state/.wake-queue" >/dev/null \
-    || fail "two due calls did not each get their own durable wake row: $(cat "$state/.wake-queue")"
+  if ! grep -F "$(printf '\tcheck\tcaptain-hold-due:late-call:day:2026-09-21\tcheck: captain hold due: late-call due 2026-09-21 (due now)')" \
+    "$state/.wake-queue" >/dev/null ||
+    ! grep -F "$(printf '\tcheck\tcaptain-hold-due:pay-live:day:2026-09-22\tcheck: captain hold due: pay-live due 2026-09-22 (due now)')" \
+    "$state/.wake-queue" >/dev/null; then
+    fail "two due calls did not each get their own durable wake row: $(cat "$state/.wake-queue")"
+  fi
   grep -Fx "day 2026-09-22" "$marker" >/dev/null || fail "the due-now notice was not recorded"
   [ "$(grep -c 'window' "$state/.hold-due-notified-late-call")" = 0 ] \
     || fail "a call first seen past due also got a notice ahead"
