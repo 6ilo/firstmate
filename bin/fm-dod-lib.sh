@@ -18,8 +18,10 @@
 # (secondmate ledger-first publish of a child done). A ship `done:` is not
 # accepted while the named head exists only in the worker's disposable copy.
 # The check tests that head, not whether some branch moved. In no-mistakes
-# mode the pre-validation `done: {summary}` is the pipeline handoff and is
-# not gated; only the later CI-ready `done: PR <url> checks green` is, or on a
+# mode the pre-validation `done: {summary}` is the pipeline handoff: it is
+# refused as a delivery without a reachability test (fm_dod_is_nm_handoff), so
+# no caller reads it as done, publishes it upstream, or presents it as landed;
+# only the later CI-ready `done: PR <url> checks green` is gated, or on a
 # Gerrit project the later `done: PR <change url> published for review`. The
 # named head is the worker copy's HEAD, except that a done naming the task's
 # recorded pr= passes when the forge holds that head: a forge-reported
@@ -477,7 +479,8 @@ fm_dod_note_reports_published_change() {  # <note>
 }
 
 # 0 when this ship done: is one the named-head gate must accept or refuse.
-# no-mistakes pre-validation done: is the pipeline handoff and is not gated.
+# no-mistakes pre-validation done: is the pipeline handoff and is not gated
+# here; fm_dod_is_nm_handoff refuses it as a delivery instead.
 # Empty mode is treated as no-mistakes, the unregistered-project default.
 fm_dod_should_gate_ship_done() {  # <kind> <mode> <line>
   local note
@@ -490,6 +493,32 @@ fm_dod_should_gate_ship_done() {  # <kind> <mode> <line>
       fm_dod_note_reports_ci_ready "$note" || fm_dod_note_reports_published_change "$note" ;;
     *) return 1 ;;
   esac
+}
+
+# 0 when <note> names a pull request, merge request, or change URL that
+# bin/fm-pr-lib.sh parses, anywhere in its words. It picks a refusal reason only.
+fm_dod_note_names_pr() {  # <note>
+  local word words
+  read -r -a words <<< "$1" || true
+  for word in "${words[@]+"${words[@]}"}"; do
+    case "$word" in http://*|https://*) ;; *) continue ;; esac
+    word=${word%%[),.;:\"\']}
+    ( fm_pr_url_parse "$word" ) >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+
+# 0 when this ship done: is the no-mistakes pipeline handoff: any done that is
+# not a ready report. It is never a delivery, whatever branch, commit, pull
+# request mention, or local test result it reports.
+fm_dod_is_nm_handoff() {  # <kind> <mode> <line>
+  [ "$1" = ship ] || return 1
+  [ "$(status_line_verb "$3")" = "done" ] || return 1
+  case "$2" in
+    no-mistakes|'') ;;
+    *) return 1 ;;
+  esac
+  ! fm_dod_should_gate_ship_done "$@"
 }
 
 # The PR/MR URL from a `done: PR <url>...` note, or empty.
@@ -615,6 +644,7 @@ fm_dod_named_head_reachable_outside_worktree() {  # <worktree> <project> <mode> 
   [ "$mode" = local-only ] && fm_dod_ref_contains "$project" refs/heads "$sha"
 }
 
+# 1 when <line> is the no-mistakes handoff (fm_dod_is_nm_handoff).
 # 0 when <line> is not a ship done: to gate, when it names the task's recorded
 # PR whose head the forge holds, when it names a Gerrit change whose current
 # patch set carries the worker copy's HEAD tree, or otherwise when its named
@@ -628,6 +658,14 @@ fm_dod_named_head_reachable_outside_worktree() {  # <worktree> <project> <mode> 
 # (bin/fm-fleet-snapshot.sh), so the marker is read from <state>.
 fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta>]
   local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} url sha gerrit
+  if fm_dod_is_nm_handoff "$kind" "$mode" "$line"; then
+    if fm_dod_note_names_pr "$(status_line_note "$line")"; then
+      printf '%s\n' "no-mistakes done names a pull request but is not a delivery: it is not the checks-green ready report - only done: PR <url> checks green is ready"
+    else
+      printf '%s\n' "no-mistakes validation handoff, not a delivery: no pull request yet - steer the worker to run /no-mistakes; only done: PR <url> checks green is ready"
+    fi
+    return 1
+  fi
   fm_dod_should_gate_ship_done "$kind" "$mode" "$line" || return 0
   if url=$(fm_dod_pr_url_from_done_note "$(status_line_note "$line")") \
     && fm_dod_recorded_pr_on_forge "$state" "$id" "$meta" "$mode" "$url"; then

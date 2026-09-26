@@ -89,12 +89,17 @@ write_child() { # <home> <id> <status> [spawn-gen]
   git -C "$home/projects/$id" update-ref refs/remotes/origin/main "$sha"
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "worktree=$home/projects/$id" "project=$home/projects/$id" \
-    'harness=codex' 'kind=ship' 'mode=no-mistakes' 'yolo=off' \
+    'harness=codex' 'kind=ship' 'mode=direct-PR' 'yolo=off' \
     "spawn_gen=$spawn_gen" 'pr=https://example.test/owner/repo/pull/1' \
     "pr_head=$sha"
   printf '%s\n' "$status" > "$home/state/$id.status"
   : > "$home/state/$id.turn-ended"
   age "$home/state/$id.meta" "$home/state/$id.status" "$home/state/$id.turn-ended"
+}
+
+set_child_mode() { # <home> <id> <mode>
+  awk -v mode="$3" '{ sub(/^mode=.*/, "mode=" mode); print }' "$1/state/$2.meta" > "$1/state/$2.meta.tmp"
+  mv "$1/state/$2.meta.tmp" "$1/state/$2.meta"
 }
 
 write_mate_meta() {
@@ -177,6 +182,7 @@ test_main_direct_terminal_presentation_receipt() {
 test_unpushed_ci_ready_done_is_not_published() {
   make_world unpushed-ready; bind_secondmate local
   write_child "$MATE" child 'done: PR https://example.test/owner/repo/pull/1 checks green, risk low'
+  set_child_mode "$MATE" child no-mistakes
   git -C "$MATE/projects/child" commit -q --allow-empty -m 'only in the copy'
   grep -v '^pr=\|^pr_head=' "$MATE/state/child.meta" > "$MATE/state/child.meta.tmp"
   mv "$MATE/state/child.meta.tmp" "$MATE/state/child.meta"
@@ -186,12 +192,37 @@ test_unpushed_ci_ready_done_is_not_published() {
   pass "unpushed CI-ready ship done: is not published upstream"
 }
 
+# A no-mistakes worker's first done: is the handoff that asks the mate to
+# start validation. It names a branch, a commit, and local test counts but no
+# pull request, so it is never published upstream as the child's outcome,
+# even when its commit is reachable outside the copy; the later CI-ready line is.
+test_no_mistakes_handoff_done_is_not_published() {
+  local sha
+  make_world nm-handoff; bind_secondmate local
+  write_child "$MATE" child 'working: implementing'
+  sha=$(git -C "$MATE/projects/child" rev-parse --short HEAD)
+  printf 'done: fm/child %s committed, 42/42 tests green\n' "$sha" > "$MATE/state/child.status"
+  set_child_mode "$MATE" child no-mistakes
+  grep -v '^pr=\|^pr_head=' "$MATE/state/child.meta" > "$MATE/state/child.meta.tmp"
+  mv "$MATE/state/child.meta.tmp" "$MATE/state/child.meta"
+  FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
+  FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
+  [ ! -s "$MAIN/state/mate.status" ] || fail "no-mistakes handoff done: was published upstream: $(cat "$MAIN/state/mate.status")"
+  [ "$(outcome_count "$MATE" reported)" = 0 ] || fail "no-mistakes handoff done: left a delivery receipt"
+  printf 'done: PR https://example.test/owner/repo/pull/9 checks green\n' >> "$MATE/state/child.status"
+  FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
+  grep -Fq 'child child done: PR https://example.test/owner/repo/pull/9 checks green' "$MAIN/state/mate.status" \
+    || fail "the CI-ready line after the handoff was not published: $(cat "$MAIN/state/mate.status" 2>/dev/null)"
+  pass "no-mistakes handoff done: is never published upstream; the CI-ready line is"
+}
+
 # The ledger pass runs on every poll, so a ship done: already delivered does
 # not pay for the git reachability check again.
 test_delivered_ledger_done_skips_git_gate() {
   local real_git
   make_world gate-once; bind_secondmate local
   write_child "$MATE" child 'done: PR https://example.test/owner/repo/pull/2 checks green'
+  set_child_mode "$MATE" child no-mistakes
   real_git=$(command -v git)
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> %q\nexec %q "$@"\n' \
     "$WORLD/git.log" "$real_git" > "$WORLD/fakebin/git"
@@ -219,7 +250,7 @@ test_local_secondmate_delivers_terminal_ledger_line() {
   write_child "$MATE" child 'done: PR https://example.test/owner/repo/pull/1 checks green'
   FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
   key=$(reported_outcome_key "$MATE" child 'done') || fail "ledger receipt did not retain its collision-resistant key"
-  expected="done [key=$key]: child child done: PR https://example.test/owner/repo/pull/1 checks green pr=https://example.test/owner/repo/pull/1 mode=no-mistakes yolo=off"
+  expected="done [key=$key]: child child done: PR https://example.test/owner/repo/pull/1 checks green pr=https://example.test/owner/repo/pull/1 mode=direct-PR yolo=off"
   sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "$expected" \
     || fail "secondmate did not deliver the child's ledger line on a plain poll: $(cat "$MAIN/state/mate.status" 2>/dev/null)"
   [ "$(outcome_count "$MATE" reported)" = 1 ] || fail "ledger delivery receipt was not durable"
@@ -342,11 +373,11 @@ test_secondmate_ledger_delivery_carries_report_and_failure() {
   scout_key=$(reported_outcome_key "$MATE" scout 'done') || fail "scout receipt key missing"
   boom_key=$(reported_outcome_key "$MATE" boom failed) || fail "failed receipt key missing"
   replaced_key=$(reported_outcome_key "$MATE" replaced-pr 'done') || fail "replacement PR receipt key missing"
-  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$scout_key]: child scout done: report written pr=https://example.test/owner/repo/pull/1 mode=no-mistakes yolo=off report=data/scout/report.md" \
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$scout_key]: child scout done: report written pr=https://example.test/owner/repo/pull/1 mode=direct-PR yolo=off report=data/scout/report.md" \
     || fail "scout delivery lost its report pointer: $(cat "$MAIN/state/mate.status")"
-  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "failed [key=$boom_key]: child boom failed: build broke pr=https://example.test/owner/repo/pull/1 mode=no-mistakes yolo=off" \
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "failed [key=$boom_key]: child boom failed: build broke pr=https://example.test/owner/repo/pull/1 mode=direct-PR yolo=off" \
     || fail "failed line was not delivered under the failed verb: $(cat "$MAIN/state/mate.status")"
-  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$replaced_key]: child replaced-pr done: PR https://example.test/owner/repo/pull/22 pr=https://example.test/owner/repo/pull/22 mode=no-mistakes yolo=off" \
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$replaced_key]: child replaced-pr done: PR https://example.test/owner/repo/pull/22 pr=https://example.test/owner/repo/pull/22 mode=direct-PR yolo=off" \
     || fail "ledger fallback did not prefer the terminal ready line PR: $(cat "$MAIN/state/mate.status")"
   printf 'working: retrying\ndone: fixed on retry\n' >> "$MATE/state/boom.status"
   FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
@@ -383,15 +414,15 @@ test_pr_field_requires_recorded_pr_or_ready_signal_line() {
   placeholder_key=$(reported_outcome_key "$MATE" placeholder 'done') \
     || fail "unsubstituted-stamp ready receipt key missing"
   scout_key=$(reported_outcome_key "$MATE" lookout 'done') || fail "scout receipt key missing"
-  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$prose_key]: child prose done: cleanup finished mode=no-mistakes yolo=off" \
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$prose_key]: child prose done: cleanup finished mode=direct-PR yolo=off" \
     || fail "a PR mentioned only in prose was claimed as the delivery: $(cat "$MAIN/state/mate.status")"
-  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$ready_key]: child ready done: PR https://example.test/owner/repo/pull/44 checks green pr=https://example.test/owner/repo/pull/44 mode=no-mistakes yolo=off" \
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$ready_key]: child ready done: PR https://example.test/owner/repo/pull/44 checks green pr=https://example.test/owner/repo/pull/44 mode=direct-PR yolo=off" \
     || fail "a ready-signal terminal line did not carry its PR: $(cat "$MAIN/state/mate.status")"
-  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$stamped_key]: child stamped done: PR https://example.test/owner/repo/pull/66 checks green pr=https://example.test/owner/repo/pull/66 mode=no-mistakes yolo=off" \
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$stamped_key]: child stamped done: PR https://example.test/owner/repo/pull/66 checks green pr=https://example.test/owner/repo/pull/66 mode=direct-PR yolo=off" \
     || fail "a stamped ready-signal terminal line did not carry its PR: $(cat "$MAIN/state/mate.status")"
-  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$placeholder_key]: child placeholder done: PR https://example.test/owner/repo/pull/77 checks green pr=https://example.test/owner/repo/pull/77 mode=no-mistakes yolo=off" \
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$placeholder_key]: child placeholder done: PR https://example.test/owner/repo/pull/77 checks green pr=https://example.test/owner/repo/pull/77 mode=direct-PR yolo=off" \
     || fail "a ready-signal line whose stamp was left unsubstituted lost its PR: $(cat "$MAIN/state/mate.status")"
-  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$scout_key]: child lookout done: PR https://example.test/owner/repo/pull/55 mode=no-mistakes yolo=off" \
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$scout_key]: child lookout done: PR https://example.test/owner/repo/pull/55 mode=direct-PR yolo=off" \
     || fail "a scout's ready-looking line carried a PR claim: $(cat "$MAIN/state/mate.status")"
   pass "pr= requires the recorded PR or a ready-signal terminal line, whatever its stamp, and never a scout"
 }
@@ -833,7 +864,7 @@ test_watcher_poll_delivers_child_ledger_line_to_parent() {
   done
   reap "$pid"
   key=$(reported_outcome_key "$MATE" child 'done') || fail "watcher ledger receipt key missing"
-  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$key]: child child done: PR https://example.test/owner/repo/pull/1 checks green pr=https://example.test/owner/repo/pull/1 mode=no-mistakes yolo=off" \
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$key]: child child done: PR https://example.test/owner/repo/pull/1 checks green pr=https://example.test/owner/repo/pull/1 mode=direct-PR yolo=off" \
     || fail "the watcher poll did not deliver the child's ledger line to the parent: $(cat "$MAIN/state/mate.status" 2>/dev/null; cat "$WORLD/mate-watch.out")"
   [ ! -s "$WORLD/forge.log" ] || fail "ledger delivery invoked a forge command"
   pass "the real watcher poll delivers a child's terminal ledger line to the parent channel"
@@ -966,6 +997,7 @@ SH
 
 test_main_direct_terminal_presentation_receipt
 test_unpushed_ci_ready_done_is_not_published
+test_no_mistakes_handoff_done_is_not_published
 test_delivered_ledger_done_skips_git_gate
 test_local_secondmate_delivers_terminal_ledger_line
 test_secondmate_multiline_terminal_outcome_is_delivered_once
