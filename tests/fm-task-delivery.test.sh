@@ -209,6 +209,42 @@ EOF
   pass "fm-spawn: a scout spawn resolves no delivery posture from the registry"
 }
 
+# Backlog work keeps the captain's merge approval, so a backlog-lane ship spawn
+# refuses --yolo on; an unknown lane and a lane on a secondmate are refused too,
+# and every refusal leaves no task metadata behind.
+test_spawn_lane_refusals() {
+  local rec home proj fakebin label flags expect out status n=0
+  rec=$(make_home lanes)
+  IFS='|' read -r home proj fakebin <<EOF
+$rec
+EOF
+  while IFS='|' read -r label flags expect; do
+    [ -n "$label" ] || continue
+    n=$((n + 1))
+    write_brief "$home" "delivery-lane-$n" no-mistakes
+    # shellcheck disable=SC2086  # flags is an intentional word-split arg list
+    out=$(run_spawn "$home" "$fakebin" "delivery-lane-$n" "$proj" claude $flags)
+    status=$?
+    [ "$status" -ne 0 ] || fail "$label: expected a non-zero exit"
+    assert_contains "$out" "$expect" "$label: refusal did not explain the lane rule"
+    assert_absent "$home/state/delivery-lane-$n.meta" "$label: refused spawn wrote task metadata"
+  done <<'ROWS'
+backlog lane with yolo on|--mode no-mistakes --yolo on --lane backlog|--lane backlog is refused with --yolo on
+unknown lane|--mode no-mistakes --yolo off --lane overnight|--lane must be ask or backlog
+empty lane value|--mode no-mistakes --yolo off --lane=|--lane must be ask or backlog
+ROWS
+  out=$(run_spawn "$home" "$fakebin" delivery-lane-sm "$home" --secondmate --lane ask)
+  status=$?
+  [ "$status" -ne 0 ] || fail "a secondmate spawn carrying --lane should exit non-zero"
+  assert_contains "$out" "--lane applies only to ship and scout spawns" "secondmate spawn did not refuse --lane"
+
+  # The permitted backlog shape clears the lane check and only fails later, at the refusing tmux.
+  write_brief "$home" delivery-lane-ok no-mistakes
+  out=$(run_spawn "$home" "$fakebin" delivery-lane-ok "$proj" claude --mode no-mistakes --yolo off --lane backlog)
+  assert_not_contains "$out" "--lane" "a backlog lane with --yolo off was refused"
+  pass "fm-spawn: --lane is validated and backlog work never runs with --yolo on"
+}
+
 # Promotion is where a scout's ship contract is finally decided, so it requires the
 # same explicit values and writes them into the task's durable record.
 test_promote_requires_and_records_the_delivery_contract() {
@@ -1617,6 +1653,7 @@ test_scout_and_secondmate_refuse_delivery_flags
 test_spawn_refuses_a_brief_mode_mismatch
 test_spawn_notices_a_rigor_downgrade_against_the_registry
 test_scout_records_no_delivery_posture
+test_spawn_lane_refusals
 test_promote_requires_and_records_the_delivery_contract
 test_promote_refuses_a_symlinked_task_record
 test_promotion_delivers_the_real_definition_of_done

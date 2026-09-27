@@ -62,6 +62,8 @@ fm_git_identity fmtest fmtest@example.invalid
 TEARDOWN="$ROOT/bin/fm-teardown.sh"
 PR_CHECK="$ROOT/bin/fm-pr-check.sh"
 TMP_ROOT=$(fm_test_tmproot fm-teardown-tests)
+# Teardown releases heavy validation slots; keep every case off the machine ledger.
+export FM_HEAVY_SLOT_DIR="$TMP_ROOT/heavy-slots"
 REAL_GIT_FOR_TEST=$(command -v git)
 export REAL_GIT_FOR_TEST
 REAL_PS_FOR_TEST=$(command -v ps)
@@ -2134,6 +2136,32 @@ test_teardown_missing_busy_sidecar_completes() {
   pass "teardown completes when an exact busy-state sidecar is already absent"
 }
 
+test_teardown_releases_the_task_heavy_slot() {
+  local case_dir rc home out
+  local -a slot_env
+  case_dir=$(make_case heavy-slot-release)
+  write_meta "$case_dir" local-only ship
+  home=$(cd "$ROOT" && pwd -P)
+  slot_env=("FM_HEAVY_SLOT_DIR=$case_dir/ledger" FM_HEAVY_SLOT_LOAD1=1 FM_HEAVY_SLOT_PRESSURE_LEVEL=1
+    FM_HEAVY_SLOT_SWAP_USED_MB=0 FM_HEAVY_SLOT_BROWSER_PAGES=0)
+  env "${slot_env[@]}" "$ROOT/bin/fm-heavy-slot.sh" acquire --task task-x1 --home "$home" --lane ask --pid "$$" >/dev/null \
+    || fail "heavy-slot-release: fixture acquire for task-x1 refused"
+  env "${slot_env[@]}" "$ROOT/bin/fm-heavy-slot.sh" acquire --task other-y2 --home "$home" --lane ask --pid "$$" >/dev/null \
+    || fail "heavy-slot-release: fixture acquire for other-y2 refused"
+
+  set +e
+  FM_HEAVY_SLOT_DIR="$case_dir/ledger" run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "heavy-slot-release: teardown should succeed"
+  out=$(env "${slot_env[@]}" "$ROOT/bin/fm-heavy-slot.sh" list)
+  assert_contains "$out" "held=1/3" "heavy-slot-release: teardown did not free exactly the task's slot"
+  assert_contains "$out" ",other-y2," "heavy-slot-release: teardown freed another task's slot"
+  assert_not_contains "$out" ",task-x1," "heavy-slot-release: teardown left the task's slot held"
+  pass "teardown releases the heavy validation slot the task still holds"
+}
+
 test_herdr_teardown_clears_escalation_marker() {
   local case_dir marker
   case_dir=$(make_case herdr-marker-cleanup)
@@ -4075,6 +4103,7 @@ test_local_only_force_overrides_unpushed
 test_secondmate_pr_registration_publishes_ready_line
 test_secondmate_home_teardown_delivers_final_line_or_refuses
 test_teardown_missing_busy_sidecar_completes
+test_teardown_releases_the_task_heavy_slot
 test_herdr_teardown_clears_escalation_marker
 test_herdr_flat_teardown_refuses_orphaning_records_then_retry_completes
 test_herdr_flat_teardown_refuses_records_on_unparseable_presence

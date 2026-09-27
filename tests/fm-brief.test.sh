@@ -1320,8 +1320,8 @@ test_crewmate_scaffolds_forbid_pool_administration() {
   # One shared string, not two copies: the emitted rule must be byte-identical
   # across the ship and scout scaffolds so a later edit cannot fix one and miss
   # the other.
-  ship_rule=$(awk '/^7\. Never administer/,/^$/' "$home/data/brief-pool-no-mistakes/brief.md")
-  scout_rule=$(awk '/^7\. Never administer/,/^$/' "$brief")
+  ship_rule=$(awk '/^8\. /{exit} /^7\. Never administer/,/^$/' "$home/data/brief-pool-no-mistakes/brief.md")
+  scout_rule=$(awk '/^8\. /{exit} /^7\. Never administer/,/^$/' "$brief")
   [ -n "$ship_rule" ] || fail "ship brief emitted no shared-infrastructure rule to compare"
   [ "$ship_rule" = "$scout_rule" ] \
     || fail "ship and scout shared-infrastructure rules have drifted apart"
@@ -1342,6 +1342,57 @@ test_crewmate_scaffolds_forbid_pool_administration() {
     "secondmate charter must not inherit the crewmate pool-administration prohibition"
 
   pass "fm-brief.sh: every crewmate scaffold forbids administering the shared worktree pool"
+}
+
+# Every crewmate scaffold carries the heavy-slot rule with a runnable acquire
+# and release command for its own task and home; a secondmate charter does not.
+test_crewmate_scaffolds_carry_the_heavy_slot_rule() {
+  local home id brief kind acquire release out ship_rule scout_rule
+  home="$TMP_ROOT/heavy-slot-home"
+  mkdir -p "$home/data" "$home/state"
+  home=$(cd "$home" && pwd -P)
+  for kind in ship scout; do
+    id="brief-heavy-$kind"
+    if [ "$kind" = ship ]; then
+      FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" alpha --mode no-mistakes >/dev/null 2>&1 \
+        || fail "fm-brief.sh ship exited non-zero"
+    else
+      FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" alpha --scout >/dev/null 2>&1 \
+        || fail "fm-brief.sh --scout exited non-zero"
+    fi
+    brief="$home/data/$id/brief.md"
+    assert_grep "Playwright or any headless browser" "$brief" "$kind brief does not list what is heavy"
+    assert_grep "Not heavy: single affected test files, lint, one-package typecheck" "$brief" \
+      "$kind brief does not list what is not heavy"
+    assert_grep "close the Playwright browsers and preview or Lavish tabs" "$brief" \
+      "$kind brief does not tell the worker to close browsers"
+    # shellcheck disable=SC2016 # Literal backticks and brackets must remain unexpanded.
+    assert_grep 'paused [at=<epoch>]: waiting for a heavy validation slot' "$brief" \
+      "$kind brief does not declare the wait on refusal"
+    # The acquire and release commands the worker is told to run really work.
+    # shellcheck disable=SC2016 # Literal backticks must remain unexpanded.
+    acquire=$(grep -o '`[^`]*fm-heavy-slot.sh'"'"' acquire [^`]*`' "$brief" | head -1 | tr -d '`')
+    # shellcheck disable=SC2016 # Literal backticks must remain unexpanded.
+    release=$(grep -o '`[^`]*fm-heavy-slot.sh'"'"' release [^`]*`' "$brief" | head -1 | tr -d '`')
+    [ -n "$acquire" ] && [ -n "$release" ] || fail "$kind brief has no runnable acquire and release commands"
+    out=$(FM_HEAVY_SLOT_DIR="$TMP_ROOT/heavy-slot-ledger" FM_HEAVY_SLOT_LOAD1=1 \
+      FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=0 FM_HEAVY_SLOT_BROWSER_PAGES=0 \
+      bash -c "$acquire" 2>&1) || fail "$kind brief's acquire command failed: $out"
+    assert_contains "$out" "acquired heavy slot task=$id lane=ask" "$kind brief's acquire did not take a slot for its task"
+    out=$(FM_HEAVY_SLOT_DIR="$TMP_ROOT/heavy-slot-ledger" bash -c "$release" 2>&1) \
+      || fail "$kind brief's release command failed: $out"
+    assert_contains "$out" "released heavy slot task=$id" "$kind brief's release did not free its slot"
+  done
+  ship_rule=$(awk '/^8\. Hold a machine-wide heavy slot/,/^$/' "$home/data/brief-heavy-ship/brief.md" | sed 's/brief-heavy-ship/ID/g')
+  scout_rule=$(awk '/^8\. Hold a machine-wide heavy slot/,/^$/' "$home/data/brief-heavy-scout/brief.md" | sed 's/brief-heavy-scout/ID/g')
+  [ -n "$ship_rule" ] && [ "$ship_rule" = "$scout_rule" ] || fail "ship and scout heavy-slot rules have drifted apart"
+
+  FM_SECONDMATE_CHARTER='Supervise the alpha domain.' \
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-heavy-mate --secondmate alpha >/dev/null 2>&1 \
+    || fail "fm-brief.sh --secondmate exited non-zero"
+  assert_no_grep "fm-heavy-slot.sh" "$home/data/brief-heavy-mate/brief.md" \
+    "a secondmate charter must not carry the crewmate heavy-slot rule"
+  pass "fm-brief.sh: ship and scout scaffolds carry a runnable heavy-slot rule"
 }
 
 test_script_parses
@@ -1379,3 +1430,4 @@ test_branch_prefix_is_refused_where_it_does_not_apply
 test_branch_prefix_value_is_validated
 test_branch_prefix_command_is_shell_safe
 test_crewmate_scaffolds_forbid_pool_administration
+test_crewmate_scaffolds_carry_the_heavy_slot_rule

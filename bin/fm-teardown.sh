@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Tear down a finished task: return the treehouse worktree, release the Orca
 # worktree, or retire a secondmate home; kill the recorded runtime endpoint,
-# clear volatile state, and transition this home's backlog item for ship and
-# scout tasks before reporting success (a secondmate teardown transitions none,
+# clear volatile state (including any heavy validation slot the task holds),
+# and transition this home's backlog item for ship and scout tasks before
+# reporting success (a secondmate teardown transitions none,
 # since secondmates are not backlog items), then refresh/prune the project's
 # clone for PR-based ship tasks.
 # An endpoint whose close could not do its job REFUSES before any record naming
@@ -3728,6 +3729,9 @@ if [ -n "$LAUNCH_HOME_TOKEN" ]; then
 fi
 remove_pr_poll_artifacts "$STATE" "$ID" || exit 1
 retire_busy_state "$STATE" "$ID" "$BUSY_GEN" || exit 1
+# Free any machine-wide heavy validation slot this task still holds
+# (bin/fm-heavy-slot.sh); a ledger it cannot reach is left to that script's reap.
+"$SCRIPT_DIR/fm-heavy-slot.sh" release --task "$ID" --home "$FM_HOME" >/dev/null 2>&1 || true
 # Opt-in fleet activity ledger (docs/fleet-ledger.md), before the status log is
 # retired so its last lines are captured; off costs one file test.
 [ ! -e "$CONFIG/fleet-ledger" ] || FM_HOME=$FM_HOME FM_STATE_OVERRIDE=$STATE FM_CONFIG_OVERRIDE=$CONFIG "$SCRIPT_DIR/fm-fleet-ledger.sh" cleaned_up "$ID" || true
