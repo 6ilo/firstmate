@@ -1,0 +1,47 @@
+## S10 bearings snapshot --json: plan objects on main in_flight and queued (gates) rows
+{
+  "in_flight": [
+    {
+      "id": "fm-f",
+      "has_plan": true,
+      "plan": {
+        "size": "S"
+      }
+    }
+  ],
+  "gates": [
+    {
+      "id": "fm-q",
+      "has_plan": false,
+      "plan": null
+    },
+    {
+      "id": "fm-p",
+      "has_plan": true,
+      "plan": {
+        "order": 2,
+        "size": "M",
+        "target": "2026-11-01",
+        "type": "upkeep",
+        "waits_on": [
+          "captain sign-off"
+        ],
+        "urgency": 2
+      }
+    },
+    {
+      "id": "fm-n",
+      "has_plan": false,
+      "plan": null
+    }
+  ]
+}
+## S11 TOON output identical with and without the sidecar
+json rows without sidecar (urgency-only / absent):
+[{"id":"fm-f","plan":null},{"id":"fm-q","plan":null},{"id":"fm-p","plan":{"urgency":2}},{"id":"fm-n","plan":null}]
+TOON identical (excluding generated timestamp): yes
+TOON sample:
+23:  fm-f,ship,unknown,firstmate,Flight,"backend target gone: firstmate:fm-fm-f"
+31:  fm-p,Planned queued,"-","-",(main),2026-09-28
+32:  fm-n,No plan queued,"-","-",(main),2026-09-28
+36:  fm-f,tmux,"firstmate:fm-fm-f",false,not_checked

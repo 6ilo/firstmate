@@ -1,0 +1,209 @@
+## S1 happy path add with all fields
+$ bin/fm-tasks-axi.sh add fm-a Alpha work --size m --type feature --order 3 --target 2026-10-15 --waits-on vendor quote --urgency 1
+ok: added fm-a -> Queued
+task:
+  id: fm-a
+  title: Alpha work
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: task
+  repo: "-"
+  priority: 1
+  created: 2026-09-28
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start fm-a` to move it to in flight
+  - Run `tasks-axi block fm-a --by <other>` to record a dependency
+[rc=0]
+$ bin/fm-backlog-plan.sh get fm-a
+{
+  "order": 3,
+  "size": "M",
+  "target": "2026-10-15",
+  "type": "feature",
+  "waits_on": [
+    "vendor quote"
+  ]
+}
+[rc=0]
+## S2 flag-first add
+$ bin/fm-tasks-axi.sh add --kind ship --size S fm-z Zed flag first --type fix
+ok: added fm-z (ship) -> Queued
+task:
+  id: fm-z
+  title: Zed flag first
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: ship
+  repo: "-"
+  priority: "-"
+  created: 2026-09-28
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start fm-z` to move it to in flight
+  - Run `tasks-axi block fm-z --by <other>` to record a dependency
+[rc=0]
+$ bin/fm-backlog-plan.sh get fm-z
+{
+  "size": "S",
+  "type": "fix"
+}
+[rc=0]
+## S3 refuse bad values before tasks-axi
+$ bin/fm-tasks-axi.sh add fm-bad bad --size XL
+fm-backlog-plan: --size must be S, M, or L (got: XL)
+[rc=2]
+$ bin/fm-tasks-axi.sh add fm-bad2 bad --target 2026-02-30
+fm-backlog-plan: --target must be a real date as YYYY-MM-DD (got: 2026-02-30)
+[rc=2]
+$ bin/fm-tasks-axi.sh add fm-bad3 bad --type chore
+fm-backlog-plan: --type must be feature, fix, or upkeep (got: chore)
+[rc=2]
+rows mentioning fm-bad:
+0
+0
+## S4 no id with planning fields refused, nothing written
+$ bin/fm-tasks-axi.sh add --size S --type fix
+fm-tasks-axi: planning fields need the task id: add <id> ...
+[rc=2]
+$ bin/fm-tasks-axi.sh update --size L
+fm-tasks-axi: planning fields need the task id: update <id> ...
+[rc=2]
+## S5 planning-only update, incl --json, id after flags
+$ bin/fm-tasks-axi.sh update fm-a --size L
+[rc=0]
+$ bin/fm-tasks-axi.sh update --json fm-a --order 1
+[rc=0]
+$ bin/fm-tasks-axi.sh update fm-z --json --waits-on -
+[rc=0]
+$ bin/fm-backlog-plan.sh list
+{
+  "fm-a": {
+    "order": 1,
+    "size": "L",
+    "target": "2026-10-15",
+    "type": "feature",
+    "waits_on": [
+      "vendor quote"
+    ]
+  },
+  "fm-z": {
+    "size": "S",
+    "type": "fix"
+  }
+}
+[rc=0]
+## S6 update with real tasks-axi field plus plan field
+$ bin/fm-tasks-axi.sh update --priority 0 fm-z --title Zed renamed --size M
+ok: updated fm-z (title, priority)
+task:
+  id: fm-z
+  title: Zed renamed
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: ship
+  repo: "-"
+  priority: 0
+  created: 2026-09-28
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[1]:
+  - Run `tasks-axi show fm-z --full` to see the result
+[rc=0]
+$ bin/fm-backlog-plan.sh get fm-z
+{
+  "size": "M",
+  "type": "fix"
+}
+[rc=0]
+## S7 rm and delete drop plan records
+$ bin/fm-tasks-axi.sh add fm-d Delete me --size S
+ok: added fm-d -> Queued
+task:
+  id: fm-d
+  title: Delete me
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: task
+  repo: "-"
+  priority: "-"
+  created: 2026-09-28
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start fm-d` to move it to in flight
+  - Run `tasks-axi block fm-d --by <other>` to record a dependency
+[rc=0]
+$ bin/fm-tasks-axi.sh delete fm-d
+ok: removed fm-d
+help[1]:
+  - Run `tasks-axi list` to see remaining tasks
+[rc=0]
+$ bin/fm-tasks-axi.sh rm --json fm-z
+{
+  "ok": true,
+  "action": "rm",
+  "id": "fm-z",
+  "removed": true
+}
+[rc=0]
+$ bin/fm-backlog-plan.sh list
+{
+  "fm-a": {
+    "order": 1,
+    "size": "L",
+    "target": "2026-10-15",
+    "type": "feature",
+    "waits_on": [
+      "vendor quote"
+    ]
+  }
+}
+[rc=0]
+## S8 done keeps record
+$ bin/fm-tasks-axi.sh done fm-a
+ok: done fm-a -> Done
+help[1]:
+  - Run `tasks-axi ready` to dispatch work unblocked by this
+[rc=0]
+$ bin/fm-backlog-plan.sh get fm-a
+{
+  "order": 1,
+  "size": "L",
+  "target": "2026-10-15",
+  "type": "feature",
+  "waits_on": [
+    "vendor quote"
+  ]
+}
+[rc=0]

@@ -1,0 +1,5 @@
+ok - add and update record, merge, and clear planning fields beside the tasks-axi row
+ok - the plan is keyed by the first positional id wherever the flags sit, and a missing id is refused
+ok - a row written without its planning fields exits 1 and names the fields to re-record
+ok - bad planning values, --mint, stray commands, and unknown items are refused with nothing written
+ok - list reads every record, cleared items drop out, rm follows the row, and a corrupt sidecar is named

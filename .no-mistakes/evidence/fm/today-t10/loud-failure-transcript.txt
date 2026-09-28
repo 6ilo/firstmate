@@ -1,0 +1,49 @@
+## S9a post-write plan failure (sidecar corrupted -> set exits 1)
+$ bin/fm-tasks-axi.sh add --kind ship fm-q Queued q --size S --type=feature --waits-on vendor release
+ok: added fm-q (ship) -> Queued
+task:
+  id: fm-q
+  title: Queued q
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: ship
+  repo: "-"
+  priority: "-"
+  created: 2026-09-28
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start fm-q` to move it to in flight
+  - Run `tasks-axi block fm-q --by <other>` to record a dependency
+fm-backlog-plan: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.5ivrQJ/data/backlog-plan.json is not a JSON object; fix or remove it
+fm-tasks-axi: add wrote the backlog row, but planning fields for fm-q were not recorded: --size 'S' --type 'feature' --waits-on 'vendor release'; rerun update fm-q with them
+[rc=1]
+row written?
+- [ ] fm-q - Queued q (kind: ship) (since 2026-09-28)
+## S9b refusal-coded (rc 2) post-write failure: PATH shim tasks-axi that reports success but writes nothing, so plan set refuses unknown id
+$ env PATH=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/tmp.ldfocwX9TL:/Users/anwulikaanigbodesktop/.bun/bin:/opt/homebrew/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.10/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/homebrew/bin:/Users/anwulikaanigbodesktop/.local/bin:/Users/anwulikaanigbodesktop/go/bin:/Users/anwulikaanigbodesktop/.cargo/bin:/Users/anwulikaanigbodesktop/bin:/opt/homebrew/sbin:/usr/local/sbin:/Users/anwulikaanigbodesktop/.claude/plugins/cache/thedotmack/claude-mem/13.28.0/bin:/Users/anwulikaanigbodesktop/.claude/plugins/cache/claude-plugins-official/playground/fbe07fb6ce7d/bin:/Users/anwulikaanigbodesktop/.claude/plugins/cache/claude-plugins-official/vercel/0.50.0/bin:/Users/anwulikaanigbodesktop/.claude/plugins/cache/claude-plugins-official/github/fbe07fb6ce7d/bin:/Users/anwulikaanigbodesktop/.claude/plugins/cache/claude-plugins-official/neon/2.0.1/bin:/Users/anwulikaanigbodesktop/.claude/plugins/cache/claude-plugins-official/claude-code-setup/1.0.0/bin:/Users/anwulikaanigbodesktop/.claude/plugins/cache/claude-plugins-official/stripe/0.10.3/bin:/Users/anwulikaanigbodesktop/.claude/plugins/cache/claude-plugins-official/linear/fbe07fb6ce7d/bin bin/fm-tasks-axi.sh add fm-ghost Ghost --size L --order 5
+shim tasks-axi: add fm-ghost Ghost
+[rc=0]
+direct plan set on unknown id (shows refusal code 2):
+$ bin/fm-backlog-plan.sh set fm-ghost --size L
+fm-backlog-plan: no backlog item fm-ghost in this home; add it with bin/fm-tasks-axi.sh add first
+[rc=2]
+## S9c planning-only update of an unknown id stays the plan script's refusal (rc 2), no tasks-axi run
+$ bin/fm-tasks-axi.sh update fm-nope --size S
+fm-backlog-plan: no backlog item fm-nope in this home; add it with bin/fm-tasks-axi.sh add first
+[rc=2]
+## S9b refusal-coded (rc 2) plan failure after tasks-axi reported a write (shim fakes only 'add'; 'show' is real so plan set refuses with rc 2)
+$ bin/fm-tasks-axi.sh add fm-ghost Ghost --size L --order 5
+shim: pretended add add fm-ghost Ghost
+fm-backlog-plan: no backlog item fm-ghost in this home; add it with bin/fm-tasks-axi.sh add first
+fm-tasks-axi: add wrote the backlog row, but planning fields for fm-ghost were not recorded: --size 'L' --order '5'; rerun update fm-ghost with them
+[rc=1]
+$ bin/fm-backlog-plan.sh get fm-ghost
+{}
