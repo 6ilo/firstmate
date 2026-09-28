@@ -1,0 +1,8 @@
+{
+  "schema": "fm-today-receipt.v1",
+  "answer_id": "ans_01J9ZC6P4T",
+  "task_id": "today-t1",
+  "outcome": "refused",
+  "recorded_at": "2026-09-28T14:10:40Z",
+  "reason": "The passkey signature did not verify"
+}

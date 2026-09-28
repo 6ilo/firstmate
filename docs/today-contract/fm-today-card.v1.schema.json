@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/6ilo/firstmate/docs/today-contract/fm-today-card.v1.schema.json",
+  "title": "fm-today-card.v1",
+  "description": "One captain call as the portal shows it. Firstmate composes every card; the portal renders it and never edits it. docs/today-contract.md owns the meaning of every field and the card_hash definition.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "task_id", "kind", "title", "question", "options", "repo", "text_check", "card_hash"],
+  "properties": {
+    "schema": { "const": "fm-today-card.v1" },
+    "task_id": { "$ref": "#/$defs/task_id" },
+    "kind": { "enum": ["decision", "merge", "credential", "go"] },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "question": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "options": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": { "$ref": "#/$defs/option" },
+      "contains": {
+        "type": "object",
+        "required": ["recommended"],
+        "properties": { "recommended": { "const": true } }
+      },
+      "minContains": 0,
+      "maxContains": 1
+    },
+    "repo": {
+      "description": "owner/name of the repository the call is about, or null when the call genuinely has no repository.",
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$" }
+      ]
+    },
+    "pr_url": {
+      "type": "string",
+      "maxLength": 500,
+      "pattern": "^https://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?/[^\\s]*$"
+    },
+    "due": { "$ref": "#/$defs/date" },
+    "text_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "checker", "checked_at"],
+      "properties": {
+        "verdict": { "enum": ["pass", "withheld"] },
+        "checker": { "type": "string", "pattern": "^[a-z0-9-]{1,64}@[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "checked_at": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "card_hash": { "$ref": "#/$defs/sha256_hex" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "merge" } }, "required": ["kind"] },
+      "then": { "required": ["pr_url"] }
+    }
+  ],
+  "$defs": {
+    "task_id": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "option_value": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,128}$",
+      "not": { "const": "later" }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "label", "recommended"],
+      "properties": {
+        "value": { "$ref": "#/$defs/option_value" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "hint": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "recommended": { "type": "boolean" }
+      }
+    },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$" },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,6})?Z$"
+    },
+    "sha256_hex": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

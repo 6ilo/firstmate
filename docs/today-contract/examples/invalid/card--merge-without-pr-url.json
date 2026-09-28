@@ -1,0 +1,27 @@
+{
+  "schema": "fm-today-card.v1",
+  "task_id": "today-t0",
+  "kind": "merge",
+  "title": "Merge the Today contract",
+  "question": "The Today v1 shapes are ready and their checks are green. Merge?",
+  "options": [
+    {
+      "value": "merge",
+      "label": "Merge",
+      "recommended": true
+    },
+    {
+      "value": "hold",
+      "label": "Hold",
+      "hint": "Leave the pull request open",
+      "recommended": false
+    }
+  ],
+  "repo": "example-org/example-repo",
+  "text_check": {
+    "verdict": "pass",
+    "checker": "fm-today-text-check@1.0.0",
+    "checked_at": "2026-09-28T14:05:00Z"
+  },
+  "card_hash": "5c77431c50a0a5c99c26740e57b3713487f9d2139ce7e966eca86d48ea8c694a"
+}

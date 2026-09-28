@@ -1,0 +1,26 @@
+{
+  "schema": "fm-today-card.v1",
+  "task_id": "today-t1",
+  "kind": "go",
+  "title": "Go to build the bridge",
+  "question": "Start building T1, the outward bridge?",
+  "options": [
+    {
+      "value": "go",
+      "label": "Go",
+      "recommended": true
+    },
+    {
+      "value": "not-yet",
+      "label": "Not yet",
+      "recommended": false
+    }
+  ],
+  "repo": "6ilo/firstmate",
+  "text_check": {
+    "verdict": "pass",
+    "checker": "fm-today-text-check@1.0.0",
+    "checked_at": "2026-09-28T14:05:00Z"
+  },
+  "card_hash": "5b8914a3f2b4e1f202ea6c88a21d9f5009eb48f949bdc4c6a3038e751bb1b93c"
+}

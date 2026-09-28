@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/6ilo/firstmate/docs/today-contract/fm-today-answer.v1.schema.json",
+  "title": "fm-today-answer.v1",
+  "description": "One answer the portal hands back to firstmate through the bridge. It carries the card_hash of the card as the person saw it. docs/today-contract.md owns the meaning of every field and the passkey challenge derivation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "answer_id", "task_id", "kind", "value", "card_hash", "answered_at", "person", "device"],
+  "properties": {
+    "schema": { "const": "fm-today-answer.v1" },
+    "answer_id": { "$ref": "#/$defs/answer_id" },
+    "task_id": { "$ref": "fm-today-card.v1.schema.json#/$defs/task_id" },
+    "kind": { "enum": ["decision", "merge", "credential", "go"] },
+    "value": {
+      "description": "An option value from the card as shown, or the reserved value later.",
+      "oneOf": [
+        { "$ref": "fm-today-card.v1.schema.json#/$defs/option_value" },
+        { "const": "later" }
+      ]
+    },
+    "later_until": { "$ref": "fm-today-card.v1.schema.json#/$defs/timestamp" },
+    "note": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "card_hash": { "$ref": "fm-today-card.v1.schema.json#/$defs/sha256_hex" },
+    "answered_at": { "$ref": "fm-today-card.v1.schema.json#/$defs/timestamp" },
+    "person": { "type": "string", "pattern": "^[A-Za-z0-9_.:@-]{1,128}$" },
+    "device": { "type": "string", "pattern": "^[A-Za-z0-9_.:@-]{1,128}$" },
+    "passkey": { "$ref": "#/$defs/passkey_assertion" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "value": { "const": "later" } }, "required": ["value"] },
+      "then": { "required": ["later_until"] },
+      "else": { "not": { "required": ["later_until"] } }
+    },
+    {
+      "if": { "properties": { "kind": { "enum": ["merge", "go"] } }, "required": ["kind"] },
+      "then": { "required": ["passkey"] },
+      "else": { "not": { "required": ["passkey"] } }
+    }
+  ],
+  "$defs": {
+    "answer_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$" },
+    "base64url": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+    "passkey_assertion": {
+      "description": "A WebAuthn assertion over the challenge docs/today-contract.md derives from the answer. Every member is base64url without padding.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["credential_id", "authenticator_data", "client_data_json", "signature"],
+      "properties": {
+        "credential_id": { "$ref": "#/$defs/base64url" },
+        "authenticator_data": { "$ref": "#/$defs/base64url" },
+        "client_data_json": { "$ref": "#/$defs/base64url" },
+        "signature": { "$ref": "#/$defs/base64url" }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "fm-today-answer.v1",
+  "answer_id": "ans_01J9ZC3K7Q",
+  "task_id": "portal-rail-order",
+  "kind": "decision",
+  "value": "today-first",
+  "card_hash": "ABC",
+  "answered_at": "2026-09-28T14:10:12Z",
+  "person": "user_2captain",
+  "device": "iphone-15",
+  "note": "Go with the plan; revisit after the kit lands."
+}

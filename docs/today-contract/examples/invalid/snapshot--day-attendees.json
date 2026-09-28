@@ -1,0 +1,237 @@
+{
+  "schema": "fm-today-snapshot.v1",
+  "generator_version": "1.0.0",
+  "generated_at": "2026-09-28T14:05:03Z",
+  "home": "firstmate",
+  "sections": {
+    "calls": [
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "portal-rail-order",
+        "kind": "decision",
+        "title": "Rail order for the overhaul",
+        "question": "Which order should the rail use?\nThe plan recommends Today first, “one place to look”.",
+        "options": [
+          {
+            "value": "today-first",
+            "label": "Today first",
+            "hint": "Matches the plan",
+            "recommended": true
+          },
+          {
+            "value": "keep-current",
+            "label": "Keep the current order",
+            "recommended": false
+          },
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "repo": "MMEG-PIT/relay-platform",
+        "due": "2026-10-02",
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T14:05:00Z"
+        },
+        "card_hash": "9ca90b45818624bdcc46043048b4fdd0682a31812b98e1ef7db31e7b7f4ed130"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "today-t0",
+        "kind": "merge",
+        "title": "Merge the Today contract",
+        "question": "The Today v1 shapes are ready and their checks are green. Merge?",
+        "options": [
+          {
+            "value": "merge",
+            "label": "Merge",
+            "recommended": true
+          },
+          {
+            "value": "hold",
+            "label": "Hold",
+            "hint": "Leave the pull request open",
+            "recommended": false
+          }
+        ],
+        "repo": "example-org/example-repo",
+        "pr_url": "https://github.com/example-org/example-repo/pull/42",
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T14:05:00Z"
+        },
+        "card_hash": "5e4ba60acc00349cb9283d6ec4fd20fd159676169a30c62b9acd46670dd78b23"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "bridge-token",
+        "kind": "credential",
+        "title": "A credential is needed",
+        "question": "This call's text stays on the machine. Read it there.",
+        "options": [
+          {
+            "value": "seen",
+            "label": "Seen",
+            "recommended": false
+          }
+        ],
+        "repo": null,
+        "text_check": {
+          "verdict": "withheld",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T14:05:00Z"
+        },
+        "card_hash": "b5d51e405d7f850bfdeb929f5205b4762477ca1cf0051f4523bebfdc548ac933"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "today-t1",
+        "kind": "go",
+        "title": "Go to build the bridge",
+        "question": "Start building T1, the outward bridge?",
+        "options": [
+          {
+            "value": "go",
+            "label": "Go",
+            "recommended": true
+          },
+          {
+            "value": "not-yet",
+            "label": "Not yet",
+            "recommended": false
+          }
+        ],
+        "repo": "6ilo/firstmate",
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T14:05:00Z"
+        },
+        "card_hash": "5b8914a3f2b4e1f202ea6c88a21d9f5009eb48f949bdc4c6a3038e751bb1b93c"
+      }
+    ],
+    "underway": [
+      {
+        "id": "today-t0",
+        "name": "Today contract v1",
+        "kind": "ship",
+        "state": "working",
+        "doing": "Writing the schemas",
+        "repo": "6ilo/firstmate",
+        "size": "S",
+        "urgency": 1,
+        "type": "ship"
+      },
+      {
+        "id": "portal-kit",
+        "name": "The shared kit",
+        "kind": "ship",
+        "state": "validating",
+        "doing": "Checks running",
+        "repo": "MMEG-PIT/relay-platform",
+        "owner": "relay-platform"
+      }
+    ],
+    "charted_next": [
+      {
+        "id": "today-t1",
+        "title": "The bridge, outward",
+        "reason": "Waits on the go",
+        "dispatchable": false,
+        "kind": "queued",
+        "filed": "2026-09-28",
+        "blocked_by": [
+          "today-t0"
+        ],
+        "repo": "6ilo/firstmate",
+        "size": "M",
+        "urgency": 1,
+        "type": "ship",
+        "waits_on": [
+          {
+            "on": "task",
+            "task_id": "today-t0"
+          },
+          {
+            "on": "call",
+            "task_id": "today-t1"
+          },
+          {
+            "on": "event",
+            "label": "A fleet key only a person can create"
+          }
+        ]
+      },
+      {
+        "id": "backlog-drift",
+        "title": "Main backlog has an orphan row",
+        "reason": "Inventory needs a look",
+        "dispatchable": false,
+        "kind": "warning",
+        "repo": null
+      }
+    ],
+    "landed": [
+      {
+        "id": "heavy-slots",
+        "what": "Machine-wide heavy validation slots",
+        "owner": "(main)",
+        "repo": "6ilo/firstmate",
+        "pr_url": "https://github.com/6ilo/firstmate/pull/8"
+      },
+      {
+        "id": "guide-release",
+        "what": "Guide 1.4.0 published",
+        "owner": "relay-platform",
+        "repo": null,
+        "subject": {
+          "artifact": "guide",
+          "version": "1.4.0"
+        }
+      }
+    ],
+    "health": {
+      "supervision": "live",
+      "unhealthy": [
+        {
+          "id": "relay-platform/portal-kit",
+          "endpoint_exists": true,
+          "agent_alive": false
+        }
+      ]
+    },
+    "boards": [
+      {
+        "owner_task": "procedure-authoring-plan",
+        "state": "round-open",
+        "round": 7,
+        "last_changed": "2026-09-28T05:18:00Z",
+        "link": "http://captain-mac.example.ts.net:4387/session/0123456789abcdef"
+      }
+    ],
+    "day": {
+      "date": "2026-09-28",
+      "timezone": "America/Chicago",
+      "blocks": [
+        {
+          "start": "09:00",
+          "end": "10:30",
+          "title": "Planning block",
+          "attendees": [
+            "someone@example.com"
+          ]
+        },
+        {
+          "start": "13:00",
+          "end": "13:45",
+          "title": "Lunch"
+        }
+      ]
+    }
+  }
+}

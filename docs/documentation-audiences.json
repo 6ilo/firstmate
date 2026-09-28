@@ -457,6 +457,10 @@
       "audience": "operator-current"
     },
     {
+      "path": "docs/today-contract.md",
+      "audience": "maintainer-architecture"
+    },
+    {
       "path": "docs/trace-context.md",
       "audience": "maintainer-architecture"
     },

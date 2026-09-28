@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/6ilo/firstmate/docs/today-contract/fm-today-snapshot.v1.schema.json",
+  "title": "fm-today-snapshot.v1",
+  "description": "What the bridge on the captain's machine sends out: the whole fleet as Today shows it. docs/today-contract.md owns the meaning of every field and the privacy rules every string obeys.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generator_version", "generated_at", "home", "sections"],
+  "properties": {
+    "schema": { "const": "fm-today-snapshot.v1" },
+    "generator_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "generated_at": { "$ref": "fm-today-card.v1.schema.json#/$defs/timestamp" },
+    "home": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calls", "underway", "charted_next", "landed", "health", "boards", "day"],
+      "properties": {
+        "calls": { "type": "array", "items": { "$ref": "fm-today-card.v1.schema.json" } },
+        "underway": { "type": "array", "items": { "$ref": "#/$defs/underway_row" } },
+        "charted_next": { "type": "array", "items": { "$ref": "#/$defs/charted_row" } },
+        "landed": { "type": "array", "items": { "$ref": "#/$defs/landed_row" } },
+        "health": { "$ref": "#/$defs/health" },
+        "boards": { "type": "array", "items": { "$ref": "#/$defs/board_row" } },
+        "day": { "$ref": "#/$defs/day" }
+      }
+    }
+  },
+  "$defs": {
+    "task_id": { "$ref": "fm-today-card.v1.schema.json#/$defs/task_id" },
+    "repo": { "$ref": "fm-today-card.v1.schema.json#/properties/repo" },
+    "owner": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "short_text": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "size": { "enum": ["S", "M", "L", "XL"] },
+    "urgency": { "type": "integer", "minimum": 0, "maximum": 4 },
+    "work_type": { "enum": ["ship", "scout", "docs", "fix", "upkeep"] },
+    "wait": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["on"],
+      "properties": {
+        "on": { "enum": ["task", "call", "event"] },
+        "task_id": { "$ref": "#/$defs/task_id" },
+        "label": { "$ref": "#/$defs/short_text" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "on": { "enum": ["task", "call"] } }, "required": ["on"] },
+          "then": { "required": ["task_id"] },
+          "else": { "required": ["label"] }
+        }
+      ]
+    },
+    "underway_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "kind", "state", "doing", "repo"],
+      "properties": {
+        "id": { "$ref": "#/$defs/task_id" },
+        "name": { "$ref": "#/$defs/short_text" },
+        "kind": { "type": "string", "pattern": "^[a-z-]{1,32}$" },
+        "state": { "type": "string", "pattern": "^[a-z-]{1,32}$" },
+        "doing": { "$ref": "#/$defs/short_text" },
+        "repo": { "$ref": "#/$defs/repo" },
+        "owner": { "$ref": "#/$defs/owner" },
+        "size": { "$ref": "#/$defs/size" },
+        "urgency": { "$ref": "#/$defs/urgency" },
+        "type": { "$ref": "#/$defs/work_type" },
+        "waits_on": { "type": "array", "items": { "$ref": "#/$defs/wait" } }
+      }
+    },
+    "charted_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "reason", "dispatchable", "repo"],
+      "properties": {
+        "id": { "$ref": "#/$defs/task_id" },
+        "title": { "$ref": "#/$defs/short_text" },
+        "reason": { "type": "string", "maxLength": 200 },
+        "dispatchable": { "type": "boolean" },
+        "kind": { "enum": ["queued", "warning"] },
+        "filed": { "$ref": "fm-today-card.v1.schema.json#/$defs/date" },
+        "blocked_by": { "type": "array", "items": { "$ref": "#/$defs/task_id" } },
+        "repo": { "$ref": "#/$defs/repo" },
+        "owner": { "$ref": "#/$defs/owner" },
+        "size": { "$ref": "#/$defs/size" },
+        "urgency": { "$ref": "#/$defs/urgency" },
+        "type": { "$ref": "#/$defs/work_type" },
+        "waits_on": { "type": "array", "items": { "$ref": "#/$defs/wait" } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "warning" } }, "required": ["kind"] },
+          "then": { "properties": { "dispatchable": { "const": false } } }
+        }
+      ]
+    },
+    "landed_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "what", "owner", "repo"],
+      "properties": {
+        "id": { "$ref": "#/$defs/task_id" },
+        "what": { "$ref": "#/$defs/short_text" },
+        "owner": { "$ref": "#/$defs/owner" },
+        "repo": { "$ref": "#/$defs/repo" },
+        "pr_url": { "$ref": "fm-today-card.v1.schema.json#/properties/pr_url" },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["artifact", "version"],
+          "properties": {
+            "artifact": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+            "version": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})$" }
+          }
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supervision", "unhealthy"],
+      "properties": {
+        "supervision": { "enum": ["live", "lapsed", "unknown"] },
+        "unhealthy": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "endpoint_exists", "agent_alive"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[A-Za-z0-9._/-]{1,257}$" },
+              "endpoint_exists": { "type": "boolean" },
+              "agent_alive": { "type": ["boolean", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "board_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner_task", "state", "round", "last_changed", "link"],
+      "properties": {
+        "owner_task": { "$ref": "#/$defs/task_id" },
+        "state": { "enum": ["listening", "round-open", "owner-gone"] },
+        "round": { "type": "integer", "minimum": 0 },
+        "last_changed": { "$ref": "fm-today-card.v1.schema.json#/$defs/timestamp" },
+        "link": { "type": "string", "maxLength": 500, "pattern": "^https?://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?/[^\\s]*$" }
+      }
+    },
+    "clock": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+    "day": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["date", "timezone", "blocks"],
+      "properties": {
+        "date": { "$ref": "fm-today-card.v1.schema.json#/$defs/date" },
+        "timezone": { "type": "string", "pattern": "^[A-Za-z]+(?:[/_+-][A-Za-z0-9]+)*$" },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["start", "end", "title"],
+            "properties": {
+              "start": { "$ref": "#/$defs/clock" },
+              "end": { "$ref": "#/$defs/clock" },
+              "title": { "$ref": "#/$defs/short_text" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

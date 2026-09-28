@@ -1,0 +1,9 @@
+{
+  "schema": "fm-today-receipt.v1",
+  "answer_id": "ans_01J9ZC3K7Q",
+  "task_id": "portal-rail-order",
+  "outcome": "set-aside",
+  "recorded_at": "2026-09-28T14:10:40Z",
+  "reason": "The call changed after it was shown",
+  "current_card_hash": "0000000000000000000000000000000000000000000000000000000000000001"
+}
