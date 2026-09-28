@@ -65,6 +65,10 @@ SH
   chmod +x "$fakebin/gh"
   cat > "$fakebin/treehouse" <<'SH'
 #!/usr/bin/env bash
+if [ "${1:-}" = --version ]; then
+  printf 'treehouse %s\n' "${FM_FAKE_TREEHOUSE_VERSION:-3.1.0}"
+  exit 0
+fi
 if [ "${1:-}" = get ] && [ "${2:-}" = --help ]; then
   if [ "${FM_FAKE_TREEHOUSE_LEASE_HELP:-}" = 1 ]; then
     printf '%s\n' 'Usage: treehouse get [--lease] [--lease-holder <holder>]'
@@ -694,6 +698,30 @@ ROWS
   pass "bootstrap: JSON-emitting backends require jq (their genuine dep), never tmux"
 }
 
+test_treehouse_version_floor() {
+  local case_dir fakebin out version lease expect count
+  # treehouse below 3.0.0 can hand out another clone's pool slot, so it must be
+  # upgraded; a build both too old and lease-less still reports one line.
+  case_dir="$TMP_ROOT/treehouse-floor"
+  mkdir -p "$case_dir/home/config"
+  printf '%s\n' manual > "$case_dir/home/config/backlog-backend"
+  fakebin=$(make_fake_toolchain "$case_dir")
+  while IFS='^' read -r version lease expect; do
+    out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
+      FM_FAKE_TREEHOUSE_VERSION="$version" FM_FAKE_TREEHOUSE_LEASE_HELP="$lease" "$ROOT/bin/fm-bootstrap.sh")
+    count=$(printf '%s\n' "$out" | grep -c 'MISSING: treehouse' || true)
+    [ "$count" = "$expect" ] || fail "treehouse $version lease=$lease: expected $expect MISSING line(s), got: $out"
+  done <<'CASES'
+2.9.9^1^1
+2.0.0^0^1
+dev^1^1
+3.0.0^1^0
+3.1.0^1^0
+10.0.0^1^0
+CASES
+  pass "bootstrap: treehouse below 3.0.0 reports one upgrade line; at or above passes"
+}
+
 test_treehouse_lease_check_follows_resolved_backend() {
   local case_dir fakebin out
   # A treehouse that lacks durable --lease support is only a problem for a backend
@@ -1254,6 +1282,7 @@ test_cmux_bundled_cli_satisfies_dependency
 test_unknown_backend_reports_invalid_configuration
 test_json_backends_require_jq_not_tmux
 test_treehouse_lease_check_follows_resolved_backend
+test_treehouse_version_floor
 test_fleet_sync_timeout_scales_with_origin_backed_project_count
 test_fleet_sync_timeout_floor_preserves_small_fleets
 test_fleet_sync_timeout_explicit_override_wins
