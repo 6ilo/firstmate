@@ -1,0 +1,144 @@
+$ check each valid example
+answer-credential-seen.json: ok
+  exit=0
+answer-decision.json: ok
+  exit=0
+answer-go-later.json: ok
+  exit=0
+answer-later.json: ok
+  exit=0
+answer-merge.json: ok
+  exit=0
+card-credential-withheld.json: ok
+  exit=0
+card-decision.json: ok
+  exit=0
+card-go.json: ok
+  exit=0
+card-merge.json: ok
+  exit=0
+receipt-applied.json: ok
+  exit=0
+receipt-duplicate.json: ok
+  exit=0
+receipt-refused.json: ok
+  exit=0
+receipt-set-aside.json: ok
+  exit=0
+snapshot.json: ok
+  exit=0
+
+$ check each invalid example
+== answer--answer-id-trailing-line-feed.json
+error: $.answer_id: pattern: "ans_01J9ZC3K7Q\n" does not match
+  exit=1
+== answer--credential-not-seen.json
+error: $.value: enum: "rotate-now" is not one of ['seen', 'later']
+  exit=1
+== answer--later-without-time.json
+error: $: required: missing later_until
+  exit=1
+== answer--malformed-card-hash.json
+error: $.card_hash: pattern: "ABC" does not match
+  exit=1
+== answer--merge-without-passkey.json
+error: $: required: missing passkey
+  exit=1
+== answer--note-too-long.json
+error: $.note: maxLength: longer than 512
+  exit=1
+== answer--passkey-on-decision.json
+error: $: not: matches a forbidden shape
+  exit=1
+== answer--signed-for-another-value.json
+error: $.passkey.client_data_json: challenge: expected KxKl8OgrIzd6PsyKYdkCbBPpbcBBH3jBL_gWg0_XJ8s
+  exit=1
+== card--credential-with-options.json
+error: $.options: maxItems: more than 0
+  exit=1
+== card--duplicate-option-value.json
+error: $.options: value: an option value appears twice
+  exit=1
+== card--extra-field.json
+error: $: additionalProperties: body is not allowed
+  exit=1
+== card--later-as-option.json
+error: $.options[1].value: not: matches a forbidden shape
+  exit=1
+== card--merge-without-pr-url.json
+error: $: required: missing pr_url
+  exit=1
+== card--null-repo.json
+error: $.repo: type: expected string
+  exit=1
+== card--stale-hash.json
+error: $.card_hash: card_hash: expected 5b01b6d7ee0297cb4fd05c6b336927b5c794420a0312cc711affc96cc581efad
+  exit=1
+== card--two-recommended.json
+error: $.options: maxContains: 2 match(es), at most 1 allowed
+  exit=1
+== card--unknown-kind.json
+error: $.kind: enum: "approve" is not one of ['decision', 'merge', 'credential', 'go']
+  exit=1
+== card--unknown-verdict.json
+error: $.text_check.verdict: enum: "unchecked" is not one of ['pass', 'withheld']
+  exit=1
+== receipt--refused-without-reason.json
+error: $: required: missing reason
+  exit=1
+== receipt--set-aside-without-current-hash.json
+error: $: required: missing current_card_hash
+  exit=1
+== receipt--unknown-outcome.json
+error: $.outcome: enum: "accepted" is not one of ['applied', 'set-aside', 'refused', 'duplicate']
+  exit=1
+== snapshot--board-title.json
+error: $.sections.boards[0]: additionalProperties: title is not allowed
+  exit=1
+== snapshot--call-stale-hash.json
+error: $.sections.calls[0].card_hash: card_hash: expected c008af26c7745e218f200bdb7d50eb260af50adffa458d4f0ba0aac77f760788
+  exit=1
+== snapshot--day-attendees.json
+error: $.sections.day.blocks[0]: additionalProperties: attendees is not allowed
+  exit=1
+== snapshot--day-block-ends-before-start.json
+error: $.sections.day.blocks[1]: ends_at: ends before it starts
+  exit=1
+== snapshot--day-block-impossible-date.json
+error: $.sections.day.blocks[0]: instant: not a real time (day 30 must be in range 1..28 for month 2 in year 2026)
+  exit=1
+== snapshot--event-wait-without-label.json
+error: $.sections.charted_next[0].waits_on[2]: required: missing label
+  exit=1
+== snapshot--missing-day.json
+error: $.sections: required: missing day
+  exit=1
+== snapshot--underway-extra-field.json
+error: $.sections.underway[0]: additionalProperties: body is not allowed
+  exit=1
+== snapshot--urgency-out-of-range.json
+error: $.sections.charted_next[0].urgency: maximum: above 4
+  exit=1
+== snapshot--work-listed-twice.json
+error: $.sections: id: a piece of work appears twice
+  exit=1
+
+$ hash card-decision.json vs recorded card_hash
+9ca90b45818624bdcc46043048b4fdd0682a31812b98e1ef7db31e7b7f4ed130
+9ca90b45818624bdcc46043048b4fdd0682a31812b98e1ef7db31e7b7f4ed130
+
+$ challenge answer-merge.json
+TsFdLoiEz9A7ELii8RSGcvzb-ir0hrtZBzUdeQqC6Ys
+
+# adversarial: trailing LF in task_id on valid decision answer
+error: $.task_id: pattern: "portal-rail-order\n" does not match
+  exit=1
+# adversarial: Feb 29 on non-leap year in day block
+error: $.sections.day.blocks[0]: additionalProperties: start is not allowed
+  exit=1
+# adversarial: edit card title without rehash
+error: $.card_hash: card_hash: expected 66e670a7eab1c0899dc5d8abeb0931bb7df14dc7359286284effcfc3ef4765b2
+  exit=1
+# adversarial (corrected): Feb 29 on non-leap year in day block starts_at
+error: $.sections.day.blocks[0]: instant: not a real time (day 29 must be in range 1..28 for month 2 in year 2027)
+  exit=1
