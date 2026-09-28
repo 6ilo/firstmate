@@ -1,0 +1,1 @@
+not ok - wrong path /api/fleet/snapshot

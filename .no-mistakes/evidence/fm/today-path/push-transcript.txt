@@ -1,0 +1,19 @@
+== base dbb7d09 bridge: push with a valid token ==
+ok
+fm-today-bridge: the portal answered 404 (not_found)
+exit=
+
+== target f586bfa bridge: push with a valid token ==
+ok
+heard_at: 2026-09-28T22:40:00Z
+exit=
+
+== target bridge: push with a wrong token (portal answers 401 on the right path) ==
+ok
+fm-today-bridge: the portal answered 401 (unauthorized)
+exit=
+
+== portal access log ==
+portal: POST /api/fleet/snapshot -> 404
+portal: POST /api/fleet/bridge/snapshot -> 200
+portal: POST /api/fleet/bridge/snapshot -> 401
