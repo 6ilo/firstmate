@@ -170,7 +170,7 @@ The reference checker enforces these beside the schemas:
 - Every `card_hash` recomputes from its card.
 - Option values are unique within a card, and a call appears once in a snapshot.
 - A work id appears once across the three work sections, which hold at most 1000 rows together.
-- Each day block's `id` is unique, and its `ends_at` is at or after its `starts_at`.
+- Each day block's `id` is unique, its `starts_at` and `ends_at` name real instants (not, say, February 30), and its `ends_at` is at or after its `starts_at`.
 - A passkey assertion's `client_data_json` carries the challenge derived from its answer.
 
 ## Privacy
