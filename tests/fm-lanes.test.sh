@@ -146,6 +146,22 @@ test_load_ceiling_hysteresis() {
   pass "fm-lanes: two samples at 16 trip the lane; 15 minutes under 12 reopen it"
 }
 
+test_load_ceiling_follows_max_load() {
+  local t
+  new_world maxload
+  t=$(at 23 00)
+  FM_LANES_IDLE_SECS=7200 FM_HEAVY_SLOT_LOAD1=10
+  printf '{"max_load": 10}\n' >"$HOME_DIR/config/lanes.json"
+  FM_LANES_NOW=$t; expect_gate "verdict=open" "first sample at max_load 10"
+  FM_LANES_NOW=$((t + 300)); expect_gate "reason=load-ceiling" "max_load 10 without load_ceiling"
+  new_world maxload-override
+  FM_LANES_IDLE_SECS=7200 FM_HEAVY_SLOT_LOAD1=10
+  printf '{"max_load": 10, "load_ceiling": 14}\n' >"$HOME_DIR/config/lanes.json"
+  FM_LANES_NOW=$t; expect_gate "verdict=open" "first sample under load_ceiling 14"
+  FM_LANES_NOW=$((t + 300)); expect_gate "verdict=open branch=night-idle" "load_ceiling overrides max_load"
+  pass "fm-lanes: load_ceiling defaults to the ledger's max_load"
+}
+
 test_night_window_crosses_midnight() {
   new_world window
   FM_LANES_IDLE_SECS=7200 FM_HEAVY_SLOT_LOAD1=8 FM_LANES_LOAD5=8
@@ -193,6 +209,7 @@ test_branches_open
 test_calendar_cache_states
 test_closing_conditions
 test_load_ceiling_hysteresis
+test_load_ceiling_follows_max_load
 test_night_window_crosses_midnight
 test_check_is_silent_and_logs
 test_usage

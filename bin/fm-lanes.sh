@@ -97,7 +97,7 @@ load_config() {
     CONFIG_ERROR="config/lanes.json is not a readable JSON object"
     return 0
   fi
-  for key in idle_secs quiet_load load_ceiling reopen_load reopen_secs calendar_max_age_secs; do
+  for key in idle_secs quiet_load max_load load_ceiling reopen_load reopen_secs calendar_max_age_secs; do
     val=$(jq -r --arg k "$key" '.[$k] // empty' "$file")
     [ -n "$val" ] || continue
     if [ "$(number_or_unknown "$val")" = unknown ]; then
@@ -107,7 +107,7 @@ load_config() {
     case "$key" in
     idle_secs) IDLE_SECS=$val ;;
     quiet_load) QUIET_LOAD=$val ;;
-    load_ceiling) LOAD_CEILING=$val ;;
+    max_load | load_ceiling) LOAD_CEILING=$val ;;
     reopen_load) REOPEN_LOAD=$val ;;
     reopen_secs) REOPEN_SECS=$val ;;
     calendar_max_age_secs) CAL_MAX_AGE=$val ;;

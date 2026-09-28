@@ -678,7 +678,7 @@ All keys are optional, and the file is never created by the gate.
 | `night_window` | `"23:00-07:00"` | Local `HH:MM-HH:MM` window; it may cross midnight |
 | `idle_secs` | 3600 | Idle seconds that open the night branch |
 | `quiet_load` | 6 | Daytime 1- and 5-minute load averages must both be under this |
-| `load_ceiling` | 16 | 1-minute load that trips the lane on two consecutive samples |
+| `load_ceiling` | `max_load`, else 16 | 1-minute load that trips the lane on two consecutive samples; when unset it follows the ledger's `max_load` from the same file |
 | `reopen_load` | 12 | Load a tripped lane must stay under to reopen |
 | `reopen_secs` | 900 | How long load must stay under `reopen_load` |
 | `calendar_max_age_secs` | 28800 | Oldest calendar cache still trusted |
