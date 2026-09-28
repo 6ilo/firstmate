@@ -18,6 +18,7 @@ Usage:
       Print the base64url WebAuthn challenge the answer's fields produce.
 """
 import base64
+import datetime
 import hashlib
 import json
 import os
@@ -36,6 +37,7 @@ ASSERTIONS = {
 CARD_HASH_FIELDS = ("schema", "task_id", "kind", "title", "question",
                     "options", "repo", "pr_url", "due")
 PASSKEY_DOMAIN = "fm-today-passkey.v1"
+WORK_LIMIT = 1000
 
 
 def canonical(value):
@@ -47,6 +49,11 @@ def canonical(value):
 def card_hash(card):
     shown = {k: card[k] for k in CARD_HASH_FIELDS if k in card}
     return hashlib.sha256(canonical(shown).encode("utf-8")).hexdigest()
+
+
+def instant(text):
+    """An offset timestamp as an aware datetime; the schema has checked its form."""
+    return datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
 
 
 def b64url(raw):
@@ -186,7 +193,7 @@ def json_equal(a, b):
 
 
 def contract_errors(inst):
-    """The rules JSON Schema cannot state: hashes, the challenge, uniqueness."""
+    """The rules JSON Schema cannot state: hashes, the challenge, uniqueness, order."""
     out = []
     cards = []
     if inst.get("schema") == "fm-today-card.v1":
@@ -196,9 +203,17 @@ def contract_errors(inst):
         ids = [c["task_id"] for _, c in cards]
         if len(ids) != len(set(ids)):
             out.append("$.sections.calls: task_id: a call appears twice")
-        for i, block in enumerate(inst["sections"]["day"]["blocks"]):
-            if block["start"] >= block["end"]:
-                out.append("$.sections.day.blocks[%d]: start: not before end" % i)
+        work = [w["id"] for k in ("underway", "charted_next", "landed") for w in inst["sections"][k]]
+        if len(work) > WORK_LIMIT:
+            out.append("$.sections: work: more than %d rows across underway, charted_next and landed" % WORK_LIMIT)
+        if len(work) != len(set(work)):
+            out.append("$.sections: id: a piece of work appears twice")
+        blocks = inst["sections"]["day"]["blocks"]
+        if len({b["id"] for b in blocks}) != len(blocks):
+            out.append("$.sections.day.blocks: id: a block appears twice")
+        for i, block in enumerate(blocks):
+            if instant(block["ends_at"]) < instant(block["starts_at"]):
+                out.append("$.sections.day.blocks[%d]: ends_at: ends before it starts" % i)
     for where, card in cards:
         want = card_hash(card)
         if card["card_hash"] != want:

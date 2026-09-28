@@ -73,20 +73,13 @@
         "kind": "credential",
         "title": "A credential is needed",
         "question": "This call's text stays on the machine. Read it there.",
-        "options": [
-          {
-            "value": "seen",
-            "label": "Seen",
-            "recommended": false
-          }
-        ],
-        "repo": null,
+        "options": [],
         "text_check": {
           "verdict": "withheld",
           "checker": "fm-today-text-check@1.0.0",
           "checked_at": "2026-09-28T14:05:00Z"
         },
-        "card_hash": "b5d51e405d7f850bfdeb929f5205b4762477ca1cf0051f4523bebfdc548ac933"
+        "card_hash": "796492460f6f93c2a5fb18fcab83a8b029082a1bb3b487dcf64ee7943411fb1b"
       },
       {
         "schema": "fm-today-card.v1",
@@ -118,7 +111,7 @@
     "underway": [
       {
         "id": "today-t0",
-        "name": "Today contract v1",
+        "title": "Today contract v1",
         "kind": "ship",
         "state": "working",
         "doing": "Writing the schemas",
@@ -129,7 +122,7 @@
       },
       {
         "id": "portal-kit",
-        "name": "The shared kit",
+        "title": "The shared kit",
         "kind": "ship",
         "state": "validating",
         "doing": "Checks running",
@@ -154,15 +147,16 @@
         "type": "ship",
         "waits_on": [
           {
-            "on": "task",
-            "task_id": "today-t0"
+            "kind": "work",
+            "ref": "today-t0"
           },
           {
-            "on": "call",
-            "task_id": "today-t1"
+            "kind": "call",
+            "ref": "today-t1"
           },
           {
-            "on": "event",
+            "kind": "event",
+            "ref": "fleet-key",
             "label": "A fleet key only a person can create"
           }
         ]
@@ -172,23 +166,21 @@
         "title": "Main backlog has an orphan row",
         "reason": "Inventory needs a look",
         "dispatchable": false,
-        "kind": "warning",
-        "repo": null
+        "kind": "warning"
       }
     ],
     "landed": [
       {
         "id": "heavy-slots",
-        "what": "Machine-wide heavy validation slots",
+        "title": "Machine-wide heavy validation slots",
         "owner": "(main)",
         "repo": "6ilo/firstmate",
         "pr_url": "https://github.com/6ilo/firstmate/pull/8"
       },
       {
         "id": "guide-release",
-        "what": "Guide 1.4.0 published",
+        "title": "Guide 1.4.0 published",
         "owner": "relay-platform",
-        "repo": null,
         "subject": {
           "artifact": "guide",
           "version": "1.4.0"
@@ -216,20 +208,22 @@
     ],
     "day": {
       "date": "2026-09-28",
-      "timezone": "America/Chicago",
+      "ends_at": "2026-09-29T00:00:00-05:00",
       "blocks": [
         {
-          "start": "09:00",
-          "end": "10:30",
+          "id": "cal-1",
           "title": "Planning block",
+          "starts_at": "2026-09-28T09:00:00-05:00",
+          "ends_at": "2026-09-28T10:30:00-05:00",
           "attendees": [
             "someone@example.com"
           ]
         },
         {
-          "start": "13:00",
-          "end": "13:45",
-          "title": "Lunch"
+          "id": "cal-2",
+          "title": "Lunch",
+          "starts_at": "2026-09-28T13:00:00-05:00",
+          "ends_at": "2026-09-28T13:45:00-05:00"
         }
       ]
     }

@@ -127,12 +127,13 @@
         "state": "validating",
         "doing": "Checks running",
         "repo": "MMEG-PIT/relay-platform",
-        "owner": "relay-platform"
+        "owner": "relay-platform",
+        "pr_url": "https://github.com/MMEG-PIT/relay-platform/pull/240"
       }
     ],
     "charted_next": [
       {
-        "id": "today-t1",
+        "id": "today-t0",
         "title": "The bridge, outward",
         "reason": "Waits on the go",
         "dispatchable": false,
@@ -159,7 +160,8 @@
             "ref": "fleet-key",
             "label": "A fleet key only a person can create"
           }
-        ]
+        ],
+        "order": 0
       },
       {
         "id": "backlog-drift",
@@ -175,7 +177,8 @@
         "title": "Machine-wide heavy validation slots",
         "owner": "(main)",
         "repo": "6ilo/firstmate",
-        "pr_url": "https://github.com/6ilo/firstmate/pull/8"
+        "pr_url": "https://github.com/6ilo/firstmate/pull/8",
+        "landed_at": "2026-09-28T05:02:11Z"
       },
       {
         "id": "guide-release",
@@ -184,7 +187,8 @@
         "subject": {
           "artifact": "guide",
           "version": "1.4.0"
-        }
+        },
+        "landed_at": "2026-09-27T22:40:00Z"
       }
     ],
     "health": {
@@ -220,7 +224,7 @@
           "id": "cal-2",
           "title": "Lunch",
           "starts_at": "2026-09-28T13:00:00-05:00",
-          "ends_at": "2026-09-28T12:00:00-05:00"
+          "ends_at": "2026-09-28T13:45:00-05:00"
         }
       ]
     }

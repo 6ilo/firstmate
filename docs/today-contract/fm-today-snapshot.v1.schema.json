@@ -16,10 +16,22 @@
       "additionalProperties": false,
       "required": ["calls", "underway", "charted_next", "landed", "health", "boards", "day"],
       "properties": {
-        "calls": { "type": "array", "items": { "$ref": "fm-today-card.v1.schema.json" } },
-        "underway": { "type": "array", "items": { "$ref": "#/$defs/underway_row" } },
-        "charted_next": { "type": "array", "items": { "$ref": "#/$defs/charted_row" } },
-        "landed": { "type": "array", "items": { "$ref": "#/$defs/landed_row" } },
+        "calls": {
+          "type": "array",
+          "items": { "$ref": "fm-today-card.v1.schema.json" },
+          "maxItems": 200
+        },
+        "underway": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/underway_row" },
+          "maxItems": 1000
+        },
+        "charted_next": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/charted_row" },
+          "maxItems": 1000
+        },
+        "landed": { "type": "array", "items": { "$ref": "#/$defs/landed_row" }, "maxItems": 1000 },
         "health": { "$ref": "#/$defs/health" },
         "boards": { "type": "array", "items": { "$ref": "#/$defs/board_row" } },
         "day": { "$ref": "#/$defs/day" }
@@ -37,27 +49,26 @@
     "wait": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["on"],
+      "required": ["kind", "ref"],
       "properties": {
-        "on": { "enum": ["task", "call", "event"] },
-        "task_id": { "$ref": "#/$defs/task_id" },
+        "kind": { "enum": ["work", "call", "event"] },
+        "ref": { "$ref": "#/$defs/ref" },
         "label": { "$ref": "#/$defs/short_text" }
       },
       "allOf": [
         {
-          "if": { "properties": { "on": { "enum": ["task", "call"] } }, "required": ["on"] },
-          "then": { "required": ["task_id"] },
-          "else": { "required": ["label"] }
+          "if": { "properties": { "kind": { "const": "event" } }, "required": ["kind"] },
+          "then": { "required": ["label"] }
         }
       ]
     },
     "underway_row": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "kind", "state", "doing", "repo"],
+      "required": ["id", "title", "kind", "state", "doing"],
       "properties": {
         "id": { "$ref": "#/$defs/task_id" },
-        "name": { "$ref": "#/$defs/short_text" },
+        "title": { "$ref": "#/$defs/short_text" },
         "kind": { "type": "string", "pattern": "^[a-z-]{1,32}$" },
         "state": { "type": "string", "pattern": "^[a-z-]{1,32}$" },
         "doing": { "$ref": "#/$defs/short_text" },
@@ -66,13 +77,14 @@
         "size": { "$ref": "#/$defs/size" },
         "urgency": { "$ref": "#/$defs/urgency" },
         "type": { "$ref": "#/$defs/work_type" },
-        "waits_on": { "type": "array", "items": { "$ref": "#/$defs/wait" } }
+        "waits_on": { "$ref": "#/$defs/waits_on" },
+        "pr_url": { "$ref": "fm-today-card.v1.schema.json#/properties/pr_url" }
       }
     },
     "charted_row": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "title", "reason", "dispatchable", "repo"],
+      "required": ["id", "title", "reason", "dispatchable"],
       "properties": {
         "id": { "$ref": "#/$defs/task_id" },
         "title": { "$ref": "#/$defs/short_text" },
@@ -86,7 +98,8 @@
         "size": { "$ref": "#/$defs/size" },
         "urgency": { "$ref": "#/$defs/urgency" },
         "type": { "$ref": "#/$defs/work_type" },
-        "waits_on": { "type": "array", "items": { "$ref": "#/$defs/wait" } }
+        "waits_on": { "$ref": "#/$defs/waits_on" },
+        "order": { "$ref": "#/$defs/order" }
       },
       "allOf": [
         {
@@ -98,10 +111,10 @@
     "landed_row": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "what", "owner", "repo"],
+      "required": ["id", "title", "owner"],
       "properties": {
         "id": { "$ref": "#/$defs/task_id" },
-        "what": { "$ref": "#/$defs/short_text" },
+        "title": { "$ref": "#/$defs/short_text" },
         "owner": { "$ref": "#/$defs/owner" },
         "repo": { "$ref": "#/$defs/repo" },
         "pr_url": { "$ref": "fm-today-card.v1.schema.json#/properties/pr_url" },
@@ -111,9 +124,13 @@
           "required": ["artifact", "version"],
           "properties": {
             "artifact": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
-            "version": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})$" }
+            "version": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})$"
+            }
           }
-        }
+        },
+        "landed_at": { "$ref": "fm-today-card.v1.schema.json#/$defs/timestamp" }
       }
     },
     "health": {
@@ -146,31 +163,44 @@
         "state": { "enum": ["listening", "round-open", "owner-gone"] },
         "round": { "type": "integer", "minimum": 0 },
         "last_changed": { "$ref": "fm-today-card.v1.schema.json#/$defs/timestamp" },
-        "link": { "type": "string", "maxLength": 500, "pattern": "^https?://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?/[^\\s]*$" }
+        "link": {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^https?://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?/[^\\s]*$"
+        }
       }
     },
-    "clock": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
     "day": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["date", "timezone", "blocks"],
+      "required": ["date", "ends_at", "blocks"],
       "properties": {
         "date": { "$ref": "fm-today-card.v1.schema.json#/$defs/date" },
-        "timezone": { "type": "string", "pattern": "^[A-Za-z]+(?:[/_+-][A-Za-z0-9]+)*$" },
+        "ends_at": { "$ref": "#/$defs/instant" },
         "blocks": {
           "type": "array",
+          "maxItems": 200,
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["start", "end", "title"],
+            "required": ["id", "title", "starts_at", "ends_at"],
             "properties": {
-              "start": { "$ref": "#/$defs/clock" },
-              "end": { "$ref": "#/$defs/clock" },
-              "title": { "$ref": "#/$defs/short_text" }
+              "id": { "$ref": "#/$defs/ref" },
+              "title": { "$ref": "#/$defs/short_text" },
+              "starts_at": { "$ref": "#/$defs/instant" },
+              "ends_at": { "$ref": "#/$defs/instant" }
             }
           }
         }
       }
-    }
+    },
+    "ref": { "type": "string", "pattern": "^[A-Za-z0-9._:/-]{1,200}$" },
+    "instant": {
+      "description": "An instant with an explicit UTC offset, such as 2026-09-28T09:00:00-05:00.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,6})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
+    },
+    "waits_on": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/wait" } },
+    "order": { "type": "integer", "minimum": 0, "maximum": 100000 }
   }
 }

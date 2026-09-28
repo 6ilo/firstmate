@@ -33,14 +33,15 @@ The bridge calls exactly two endpoints on the portal.
 
 | Method and path | Request body | Success response |
 | --- | --- | --- |
-| `POST /api/fleet/bridge/snapshot` | one `fm-today-snapshot.v1` document | `204 No Content` |
-| `POST /api/fleet/bridge/answers` | `{"receipts": [<fm-today-receipt.v1>...], "wait_seconds": <0-25>}` | `200` with `{"answers": [<fm-today-answer.v1>...]}` |
+| `POST /api/fleet/snapshot` | one `fm-today-snapshot.v1` document, at most 512 KiB | `200` with the portal's `heard_at` stamp |
+| `POST /api/fleet/answers` | `{"receipts": [<fm-today-receipt.v1>...], "wait_seconds": <0-25>}` | `200` with `{"answers": [<fm-today-answer.v1>...]}` |
 
 **Snapshot.**
-The portal validates the body against the snapshot schema and refuses an invalid one with `400`.
-It keeps the newest snapshot by `generated_at` and answers `409` to one that is not newer than the snapshot it holds.
+The portal refuses a body over 512 KiB with `413` before reading further, and a body that fails the snapshot schema with `400`.
+It keeps the newest snapshot by `generated_at` and answers `409` to one older than the snapshot it holds, such as a delayed retry.
 Each snapshot replaces the previous one whole; there are no partial updates.
-The time the portal last accepted a snapshot is the portal's own "heard at" stamp.
+The time the portal last accepted a snapshot is the portal's own `heard_at` stamp, returned in the `200` body; the bridge reads nothing else from that body.
+An error body is `{"code", "message", "request_id"}`, and a `400` lists at most the paths of the failing fields, never their values, which may be call text.
 
 **Answers and receipts.**
 One call does both jobs.
@@ -55,7 +56,7 @@ The portal validates every answer against the answer schema before it becomes de
 Both calls send `Authorization: Bearer <token>`.
 The token lives only in the main firstmate home's gitignored `.env`, as `FM_TODAY_BRIDGE_TOKEN`.
 The portal stores only the token's SHA-256 digest, as lowercase hex, in `FLEET_BRIDGE_TOKEN_SHA256`.
-The portal hashes the presented token and compares the two digests in constant time, answering `401` on any mismatch, a missing header, or another scheme.
+The portal hashes the presented token and compares the two digests in constant time, answering `401` on any mismatch, a missing header, another scheme, or a missing or malformed configured digest.
 One token serves both endpoints, and rotating it means writing a new token into `.env` and its digest into the portal together.
 
 ## The snapshot
@@ -66,18 +67,20 @@ Where a fact already exists in the bearings snapshot (`bin/fm-bearings-snapshot.
 
 | Section | Rows | Meaning |
 | --- | --- | --- |
-| `calls` | `fm-today-card.v1` | Every open captain call, each once. |
-| `underway` | `id`, `name`, `kind`, `state`, `doing`, `repo`, optional `owner` | Work being done now, as the board's Underway: `name` is the task title or its id. |
-| `charted_next` | `id`, `title`, `reason`, `dispatchable`, `repo`, optional `kind`, `filed`, `blocked_by`, `owner` | Work filed but not started, as the board's Charted Next; `kind` is `queued` or `warning`, and a `warning` row is never dispatchable. |
-| `landed` | `id`, `what`, `owner`, `repo`, optional `pr_url`, `subject` | Recently finished work, as the board's landed rows; `owner` is `(main)` or the secondmate home that recorded it. |
+| `calls` | `fm-today-card.v1` | Every open captain call, each once; at most 200. |
+| `underway` | `id`, `title`, `kind`, `state`, `doing`, optional `repo`, `owner`, `pr_url` | Work being done now, as the board's Underway: `title` is the task title or its id, and `pr_url` its open pull request. |
+| `charted_next` | `id`, `title`, `reason`, `dispatchable`, optional `repo`, `kind`, `filed`, `blocked_by`, `owner` | Work filed but not started, as the board's Charted Next; `kind` is `queued` or `warning`, and a `warning` row is never dispatchable. |
+| `landed` | `id`, `title`, `owner`, optional `repo`, `pr_url`, `landed_at`, `subject` | Recently finished work, as the board's landed rows; `owner` is `(main)` or the secondmate home that recorded it. |
 | `health` | `supervision`, `unhealthy[]` | `supervision` is `live`, `lapsed`, or `unknown`; each unhealthy row is a worker id with `endpoint_exists` and `agent_alive` (`null` when unknown), as bearings' unhealthy endpoints without their machine detail. |
 | `boards` | `owner_task`, `state`, `round`, `last_changed`, `link` | Open review boards: the owning task, `listening`, `round-open`, or `owner-gone`, the count of captured rounds, when the board last changed, and its local address on the captain's machine. |
-| `day` | `date`, `timezone`, `blocks[]` of `start`, `end`, `title` | The captain's calendar for one day, as the board's Today lane: local 24-hour `HH:MM` clock times in the IANA `timezone`, each block's `start` before its `end`. |
+| `day` | `date`, `ends_at`, `blocks[]` of `id`, `title`, `starts_at`, `ends_at` | The captain's calendar for one day, as the board's Today lane: `ends_at` is the instant the day is over in the captain's own time zone, each block's `id` is stable across snapshots, and its times are instants with an explicit UTC offset, ending at or after they start; at most 200 blocks. |
 
-`repo` is always present, as `owner/name`, or `null` when the work genuinely has no repository.
+`repo` is `owner/name`, and absent when the work has no repository.
+Every work `id` appears once across `underway`, `charted_next`, and `landed`, and the three hold at most 1000 rows together.
+Every other timestamp in the contract is UTC with a `Z` suffix.
 A board's `link` opens only where the captain's private network reaches the captain's machine.
 
-Underway and Charted Next rows may also carry four optional fields that the backlog will record when work is filed.
+Underway and Charted Next rows may also carry optional fields that the backlog will record when work is filed.
 Their absence means firstmate has not recorded the fact, never that the answer is none.
 
 | Field | Values |
@@ -85,7 +88,8 @@ Their absence means firstmate has not recorded the fact, never that the answer i
 | `size` | `S`, `M`, `L`, `XL` |
 | `urgency` | integer 0 to 4, 0 the most urgent, as the backlog's priority |
 | `type` | `ship`, `scout`, `docs`, `fix`, `upkeep` |
-| `waits_on` | array of `{"on": "task" or "call", "task_id"}` or `{"on": "event", "label"}` |
+| `waits_on` | up to 20 of `{"kind": "work" or "call", "ref"}` or `{"kind": "event", "ref", "label"}`: `ref` is the work or call id, or the outside event's own id, and `label` names the event |
+| `order` | Charted Next only: integer 0 to 100000, the dispatch order, 0 first |
 
 ## The card
 
@@ -97,15 +101,15 @@ Firstmate composes every card; the portal renders it and never edits it.
 | `task_id` | The held task's id; the key of the call. |
 | `kind` | `decision`, `merge`, `credential`, or `go`. |
 | `title`, `question` | The call's heading and its full question; `question` may span lines. |
-| `options` | One or more `{value, label, hint?, recommended}`, in the order shown; at most one is recommended, values are unique, and none is `later`. |
-| `repo` | `owner/name`, or `null`. |
+| `options` | Up to 12 `{value, label, hint?, recommended}`, in the order shown; at most one is recommended, values are unique, and none is `later`. |
+| `repo` | `owner/name`, absent when the call has no repository. |
 | `pr_url` | The pull request a call is about; required on a `merge` card. |
 | `due` | The date the call must be settled by, `YYYY-MM-DD`. |
 | `text_check` | `verdict` (`pass` or `withheld`), `checker` (`name@x.y.z`), and `checked_at`. |
 | `card_hash` | The hash of the card as shown, defined below. |
 
 A `withheld` verdict means the check refused the call's own words, and firstmate replaced the title, question, and every option label and hint with neutral text of its own; the portal should tell the captain to read the call on the machine.
-A `credential` card's options only acknowledge it, such as `seen`: the portal never holds, asks for, or creates a key.
+Every card carries at least one option except a `credential` card, which carries none and is answered only `seen` or `later`: the portal never holds, asks for, or creates a key.
 A decision card may carry a `reconcile` option, meaning "already settled, re-check", with the meaning [`captain-hold-lifecycle.md`](captain-hold-lifecycle.md) gives it.
 
 **`card_hash`.**
@@ -123,7 +127,7 @@ An answer is what the portal sends back for one card.
 | --- | --- |
 | `answer_id` | The portal's id for this answer, 8 to 64 of `A-Z a-z 0-9 _ -`; the key for receipts and duplicates. |
 | `task_id`, `kind` | Copied from the card answered. |
-| `value` | One option value from the card, or `later`. |
+| `value` | One option value from the card, or `later`; on a `credential` card, `seen` or `later`. |
 | `later_until` | Required with `later` and allowed only with it: when to ask again, UTC. |
 | `note` | Optional words, up to 512 characters; firstmate also refuses more than 512 UTF-8 bytes. |
 | `card_hash` | The `card_hash` of the card as the person saw it. |
@@ -165,7 +169,8 @@ The reference checker enforces these beside the schemas:
 
 - Every `card_hash` recomputes from its card.
 - Option values are unique within a card, and a call appears once in a snapshot.
-- Each day block's `start` is before its `end`.
+- A work id appears once across the three work sections, which hold at most 1000 rows together.
+- Each day block's `id` is unique, and its `ends_at` is at or after its `starts_at`.
 - A passkey assertion's `client_data_json` carries the challenge derived from its answer.
 
 ## Privacy
@@ -175,8 +180,31 @@ The reference checker enforces these beside the schemas:
 - Every other free-text field in a snapshot passes the same check before the bridge sends it.
 - No document ever carries learner, family, fee, or legal detail.
 - A board row carries no board title or body, only the fields listed above.
-- Calendar titles appear only in the `day` section, and a day block carries only its times and title.
+- Calendar titles appear only in the `day` section, and a day block carries only its id, times, and title.
+- The portal deletes block titles once the day's `ends_at` has passed, and stores none from a day already over.
 - Every shape is closed: a field this page does not define fails validation, so a task body, path, host, or attendee list cannot ride along.
+
+## Alignment with the portal's draft
+
+relay-platform built its first slice against internal draft shapes before v1 was published, and the draft expects to change to match v1.
+Where the draft already named or shaped a fact, v1 takes its shape: work titles, `waits_on`, `order`, `landed_at`, `pr_url` on work, an absent rather than null `repo`, a credential card with no options, the day's `ends_at` and blocks as instants with ids, the limits, the snapshot path, and its status codes.
+These differences are deliberate:
+
+| v1 | Draft | Reason |
+| --- | --- | --- |
+| `schema` naming the shape | `contract` and `version` | Every shape names itself in one field, and the version is part of that name. |
+| `generated_at` | `sent_at` | The bearings snapshot's name for when the snapshot was built. |
+| `home` | - | The home the bridge runs in; the fleet spans the main home and every secondmate home. |
+| `sections` with `underway`, `charted_next`, `landed` | one `work` array with `state` | Each state carries facts the others lack, such as `doing`, `reason` and `dispatchable`, or `subject`, and each section is closed to the others' fields; the section name gives the draft's `state`. |
+| `health`, `boards` | - | Today shows supervision health and open review boards. |
+| Card `task_id` | Call `id` | The key is the held task's id, under the same name in the answer and the receipt. |
+| Option `value` | Option `id` | The answer carries it back as `value`, beside the reserved `later`. |
+| Card `schema`, `question`, `hint`, `repo`, `pr_url`, `due`, `text_check` | - | The full call as shown, and the proof that its text was checked before it left. |
+| Kind `go` | - | The go to build is signed with the captain's passkey, like the merge word. |
+| `size`, and Underway and Charted Next's bearings fields | - | Recorded by firstmate when it files the work, or already on the bearings board. |
+| Tighter limits | Wider limits | Task ids are at most 128 characters without `:` or `/`, titles at most 200, and timestamps outside the day are UTC; each still fits the draft's limit. |
+| An `event` wait requires `label` | Optional | An unnamed outside event tells the captain nothing. |
+| Answers, receipts, and `POST /api/fleet/answers` | - | The draft covers the snapshot only. |
 
 ## Versioning
 

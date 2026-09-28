@@ -5,7 +5,17 @@
   "description": "One answer the portal hands back to firstmate through the bridge. It carries the card_hash of the card as the person saw it. docs/today-contract.md owns the meaning of every field and the passkey challenge derivation.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "answer_id", "task_id", "kind", "value", "card_hash", "answered_at", "person", "device"],
+  "required": [
+    "schema",
+    "answer_id",
+    "task_id",
+    "kind",
+    "value",
+    "card_hash",
+    "answered_at",
+    "person",
+    "device"
+  ],
   "properties": {
     "schema": { "const": "fm-today-answer.v1" },
     "answer_id": { "$ref": "#/$defs/answer_id" },
@@ -36,6 +46,10 @@
       "if": { "properties": { "kind": { "enum": ["merge", "go"] } }, "required": ["kind"] },
       "then": { "required": ["passkey"] },
       "else": { "not": { "required": ["passkey"] } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "credential" } }, "required": ["kind"] },
+      "then": { "properties": { "value": { "enum": ["seen", "later"] } } }
     }
   ],
   "$defs": {

@@ -37,16 +37,19 @@ test_valid_examples_pass() {
 test_invalid_examples_fail_for_their_reason() {
   local expected f name reason out n=0
   expected=$(cat <<'EOF'
+answer--credential-not-seen $.value: enum
 answer--later-without-time required: missing later_until
 answer--malformed-card-hash $.card_hash: pattern
 answer--merge-without-passkey required: missing passkey
 answer--note-too-long $.note: maxLength
 answer--passkey-on-decision $: not:
 answer--signed-for-another-value $.passkey.client_data_json: challenge
+card--credential-with-options $.options: maxItems
 card--duplicate-option-value $.options: value: an option value appears twice
 card--extra-field additionalProperties: body
 card--later-as-option $.options[1].value: not:
 card--merge-without-pr-url required: missing pr_url
+card--null-repo $.repo: type
 card--stale-hash $.card_hash: card_hash
 card--two-recommended $.options: maxContains
 card--unknown-kind $.kind: enum
@@ -57,11 +60,12 @@ receipt--unknown-outcome $.outcome: enum
 snapshot--board-title $.sections.boards[0]: additionalProperties: title
 snapshot--call-stale-hash $.sections.calls[0].card_hash: card_hash
 snapshot--day-attendees $.sections.day.blocks[0]: additionalProperties: attendees
-snapshot--day-block-ends-before-start $.sections.day.blocks[1]: start: not before end
+snapshot--day-block-ends-before-start $.sections.day.blocks[1]: ends_at: ends before it starts
 snapshot--event-wait-without-label $.sections.charted_next[0].waits_on[2]: required: missing label
 snapshot--missing-day $.sections: required: missing day
 snapshot--underway-extra-field $.sections.underway[0]: additionalProperties: body
 snapshot--urgency-out-of-range $.sections.charted_next[0].urgency: maximum
+snapshot--work-listed-twice $.sections: id: a piece of work appears twice
 EOF
 )
   for f in "$CONTRACT"/examples/invalid/*.json; do
@@ -103,12 +107,11 @@ test_card_hash_matches_published_definition() {
   ],
   "kind": "decision",
   "title": "Ship",
-  "repo": null,
   "due": "2026-10-01",
   "card_hash": "unused"
 }
 EOF
-  canonical='{"due":"2026-10-01","kind":"decision","options":[{"label":"Yes","recommended":true,"value":"yes"},{"hint":"Hold","label":"No","recommended":false,"value":"no"}],"question":"Ship it?\nSay “yes”.","repo":null,"schema":"fm-today-card.v1","task_id":"t-1","title":"Ship"}'
+  canonical='{"due":"2026-10-01","kind":"decision","options":[{"label":"Yes","recommended":true,"value":"yes"},{"hint":"Hold","label":"No","recommended":false,"value":"no"}],"question":"Ship it?\nSay “yes”.","schema":"fm-today-card.v1","task_id":"t-1","title":"Ship"}'
   want=$(printf '%s' "$canonical" | sha256_hex)
   got=$("${CHECK[@]}" hash "$card") || fail "hash refused the fixture card"
   [ "$got" = "$want" ] || fail "card_hash $got does not match the published definition $want"

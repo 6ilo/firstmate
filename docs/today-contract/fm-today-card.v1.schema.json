@@ -5,7 +5,16 @@
   "description": "One captain call as the portal shows it. Firstmate composes every card; the portal renders it and never edits it. docs/today-contract.md owns the meaning of every field and the card_hash definition.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "task_id", "kind", "title", "question", "options", "repo", "text_check", "card_hash"],
+  "required": [
+    "schema",
+    "task_id",
+    "kind",
+    "title",
+    "question",
+    "options",
+    "text_check",
+    "card_hash"
+  ],
   "properties": {
     "schema": { "const": "fm-today-card.v1" },
     "task_id": { "$ref": "#/$defs/task_id" },
@@ -14,7 +23,6 @@
     "question": { "type": "string", "minLength": 1, "maxLength": 4000 },
     "options": {
       "type": "array",
-      "minItems": 1,
       "maxItems": 12,
       "items": { "$ref": "#/$defs/option" },
       "contains": {
@@ -23,14 +31,13 @@
         "properties": { "recommended": { "const": true } }
       },
       "minContains": 0,
-      "maxContains": 1
+      "maxContains": 1,
+      "description": "The options in the order shown: one or more, except a credential card, which carries none and is answered seen or later."
     },
     "repo": {
-      "description": "owner/name of the repository the call is about, or null when the call genuinely has no repository.",
-      "oneOf": [
-        { "type": "null" },
-        { "type": "string", "pattern": "^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$" }
-      ]
+      "description": "owner/name of the repository the call is about; absent when the call has no repository.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$"
     },
     "pr_url": {
       "type": "string",
@@ -54,6 +61,11 @@
     {
       "if": { "properties": { "kind": { "const": "merge" } }, "required": ["kind"] },
       "then": { "required": ["pr_url"] }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "credential" } }, "required": ["kind"] },
+      "then": { "properties": { "options": { "maxItems": 0 } } },
+      "else": { "properties": { "options": { "minItems": 1 } } }
     }
   ],
   "$defs": {
