@@ -1,0 +1,166 @@
+## S1 add with planning fields (flags before id)
+$ fm-tasks-axi.sh add --kind ship lab-a Portal overhaul A --size m --type feature --order 1 --target 2026-10-05 --waits-on vendor API key --urgency 1
+ok: added lab-a (ship) -> Queued
+task:
+  id: lab-a
+  title: Portal overhaul A
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: ship
+  repo: "-"
+  priority: 1
+  created: 2026-09-28
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start lab-a` to move it to in flight
+  - Run `tasks-axi block lab-a --by <other>` to record a dependency
+[rc=0]
+$ fm-tasks-axi.sh add --kind scout lab-b Scout B --blocked-by lab-a
+ok: added lab-b (scout) -> Queued
+task:
+  id: lab-b
+  title: Scout B
+  state: queued
+  blocked: yes
+  blocked_by: lab-a
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: scout
+  repo: "-"
+  priority: "-"
+  created: 2026-09-28
+  closed: "-"
+  deps: "blocked-by:lab-a"
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start lab-b` to move it to in flight
+  - Run `tasks-axi block lab-b --by <other>` to record a dependency
+[rc=0]
+$ fm-backlog-plan.sh get lab-a
+{
+  "order": 1,
+  "size": "M",
+  "target": "2026-10-05",
+  "type": "feature",
+  "waits_on": [
+    "vendor API key"
+  ]
+}
+[rc=0]
+## S2 update merge/clear
+$ fm-tasks-axi.sh update lab-a --size L --waits-on legal sign-off --order -
+[rc=0]
+$ fm-backlog-plan.sh get lab-a
+{
+  "size": "L",
+  "target": "2026-10-05",
+  "type": "feature",
+  "waits_on": [
+    "vendor API key",
+    "legal sign-off"
+  ]
+}
+[rc=0]
+## S3 refusals: nothing written
+$ fm-tasks-axi.sh add lab-c bad size --size XL
+fm-backlog-plan: --size must be S, M, or L (got: XL)
+[rc=2]
+$ fm-tasks-axi.sh add lab-c bad date --target 2026-02-30
+fm-backlog-plan: --target must be a real date as YYYY-MM-DD (got: 2026-02-30)
+[rc=2]
+$ fm-tasks-axi.sh add lab-c bad urgency --urgency 7
+fm-tasks-axi: urgency (--priority/--urgency) must be 0 to 4 (got: 7)
+[rc=2]
+$ fm-tasks-axi.sh add lab-c bad type --type chore
+fm-backlog-plan: --type must be feature, fix, or upkeep (got: chore)
+[rc=2]
+$ fm-tasks-axi.sh add --mint minted --size S
+fm-tasks-axi: planning fields cannot ride on add --mint; add the item, then run update <id> with them
+[rc=2]
+$ fm-tasks-axi.sh add --kind ship --size S
+fm-tasks-axi: planning fields need the task id: add <id> ...
+[rc=2]
+$ fm-tasks-axi.sh list --size S
+fm-tasks-axi: --size is a planning field; it goes on add or update
+[rc=2]
+$ fm-tasks-axi.sh update lab-zzz --size S
+fm-backlog-plan: no backlog item lab-zzz in this home; add it with bin/fm-tasks-axi.sh add first
+[rc=2]
+$ fm-tasks-axi.sh show lab-c
+error: "Task \"lab-c\" not found in this backlog"
+code: NOT_FOUND
+help[1]: Run `tasks-axi list` to see existing tasks
+[rc=1]
+sidecar unchanged
+## S4 rows stay tasks-axi format
+--- backlog rows:
+backlog-plan.json
+backlog.md
+rows: no matches found: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.MvrY9w/data/*.toml
+## S5 delete alias drops record
+$ fm-tasks-axi.sh add lab-d to delete --size S
+ok: added lab-d -> Queued
+task:
+  id: lab-d
+  title: to delete
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: task
+  repo: "-"
+  priority: "-"
+  created: 2026-09-28
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start lab-d` to move it to in flight
+  - Run `tasks-axi block lab-d --by <other>` to record a dependency
+[rc=0]
+$ fm-backlog-plan.sh get lab-d
+{
+  "size": "S"
+}
+[rc=0]
+$ fm-tasks-axi.sh delete lab-d
+ok: removed lab-d
+help[1]:
+  - Run `tasks-axi list` to see remaining tasks
+[rc=0]
+$ fm-backlog-plan.sh get lab-d
+{}
+[rc=0]
+$ fm-tasks-axi.sh rm lab-b
+ok: removed lab-b
+help[1]:
+  - Run `tasks-axi list` to see remaining tasks
+[rc=0]
+$ fm-backlog-plan.sh list
+{
+  "lab-a": {
+    "size": "L",
+    "target": "2026-10-05",
+    "type": "feature",
+    "waits_on": [
+      "vendor API key",
+      "legal sign-off"
+    ]
+  }
+}
+[rc=0]

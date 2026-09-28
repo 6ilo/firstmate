@@ -1,0 +1,18 @@
+== fm-backlog-plan
+ok - add and update record, merge, and clear planning fields beside the tasks-axi row
+ok - the plan is keyed by the first positional id wherever the flags sit, and a missing id is refused
+ok - bad planning values, --mint, stray commands, and unknown items are refused with nothing written
+ok - list reads every record, cleared items drop out, rm follows the row, and a corrupt sidecar is named
+rc=
+== fm-tasks-axi
+ok - fm-tasks-axi.sh pins the home's backlog over an ambient TASKS_AXI_FILE and serves the dashboard
+ok - fm-tasks-axi.sh refuses caller --file, a symlinked home backlog, and an unresolvable home
+ok - fm-tasks-axi.sh refuses add --start while plain add and start <id> pass through
+ok - fm-tasks-axi.sh keeps the single-home layout addressing its own code-root backlog
+rc=
+== fm-bearings-snapshot
+ok - live PR enrichment caps repositories with counted expansion
+ok - per-repository open-PR caps are disclosed with an expansion knob
+ok - projection and TOON rendering failures exit nonzero with diagnostics
+ok - planning fields ride main in_flight and gates rows in --json only, absent when unrecorded
+rc=

@@ -1,0 +1,4 @@
+TOON diff base vs change (with plan records present):
+identical
+JSON diff after removing plan objects:
+identical

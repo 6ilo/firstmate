@@ -1,0 +1,123 @@
+--- data/backlog.md (tasks-axi rows, no planning fields):
+# Backlog
+
+## In flight
+## Queued
+- [ ] lab-a - Portal overhaul A (kind: ship) (priority: 1) (since 2026-09-28)
+## Done
+add lab-e rc=0
+add lab-f rc=0
+$ fm-bearings-snapshot.sh --json | jq .gates
+{
+  "in_flight": [],
+  "gates": [
+    {
+      "id": "lab-a",
+      "title": "Portal overhaul A",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-09-28",
+      "plan": {
+        "size": "L",
+        "target": "2026-10-05",
+        "type": "feature",
+        "waits_on": [
+          "vendor API key",
+          "legal sign-off"
+        ],
+        "urgency": 1
+      }
+    },
+    {
+      "id": "lab-e",
+      "title": "Captain-freed work",
+      "blocked_by": "lab-a",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-09-28",
+      "plan": {
+        "size": "S",
+        "type": "fix",
+        "urgency": 0
+      }
+    },
+    {
+      "id": "lab-f",
+      "title": "No plan gate",
+      "blocked_by": "lab-a",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": "2026-09-28"
+    }
+  ],
+  "omitted": [
+    {
+      "surface": "backlog item bodies",
+      "reveal": "--fields bodies"
+    },
+    {
+      "surface": "task paths",
+      "reveal": "--fields paths"
+    },
+    {
+      "surface": "watch/steer actions",
+      "reveal": "--fields actions"
+    },
+    {
+      "surface": "healthy endpoint detail",
+      "reveal": "--fields endpoints"
+    },
+    {
+      "surface": "full scout-report inventory",
+      "reveal": "--all-reports"
+    },
+    {
+      "surface": "live PR discovery + checks",
+      "reveal": "--include-prs"
+    }
+  ]
+}
+rc=
+$ fm-bearings-snapshot.sh   (TOON)
+schema: fm-bearings.v1
+home: /fm-lab.MvrY9w
+generated: "2026-09-28T12:37:31Z"
+prs: "not_requested (run: /bearings include PRs)"
+contributions: 
+  scope: owned contributions per home
+  known: 0
+  checked: 0
+  counts: 
+    captain: 0
+    fleet: 0
+    maintainer: 0
+    nobody: 0
+  complete: true
+  proven_clear: true
+  unmeasured_homes: 0
+  unreadable_records: 0
+  unmeasured: 0
+  stale_verdicts: 0
+  missing_verdicts: 0
+  captain_omitted: 0
+  captain: []
+in_flight: []
+secondmates: []
+secondmate_reconcile: []
+decisions_open: []
+landed: []
+gates[3]{id,title,blocked_by,reason,owner,filed}:
+  lab-a,Portal overhaul A,"-","-",(main),2026-09-28
+  lab-e,Captain-freed work,lab-a,"-",(main),2026-09-28
+  lab-f,No plan gate,lab-a,"-",(main),2026-09-28
+reports: []
+recorded_prs: []
+omitted[6]{surface,reveal}:
+  backlog item bodies,"--fields bodies"
+  task paths,"--fields paths"
+  watch/steer actions,"--fields actions"
+  healthy endpoint detail,"--fields endpoints"
+  full scout-report inventory,"--all-reports"
+  live PR discovery + checks,"--include-prs"
+rc=0

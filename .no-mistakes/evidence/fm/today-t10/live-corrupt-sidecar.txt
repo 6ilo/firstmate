@@ -1,0 +1,6 @@
+sidecar corrupted to '[1,2'
+{"gates":[{"id":"lab-a","plan":{"urgency":1}},{"id":"lab-e","plan":{"urgency":0}},{"id":"lab-f","plan":null}],"omitted":[{"surface":"backlog planning fields (sidecar unreadable)","reveal":"bin/fm-backlog-plan.sh list"}]}
+snapshot rc=
+fm-backlog-plan: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.MvrY9w/data/backlog-plan.json is not a JSON object; fix or remove it
+fm-tasks-axi: planning fields for lab-a were not recorded; rerun update lab-a with them
+update rc=1
