@@ -13,6 +13,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), and [startup memory budget](#startup-memory-budget-configstartup-memory-budget) |
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
+| The admin portal's Today page | [Today bridge](#today-bridge-env) |
 | Work lanes and machine-wide heavy runs | [Heavy validation slots](#heavy-validation-slots-configlanesjson) and [work lanes](#work-lanes-configlanesjson) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
 
@@ -1518,6 +1519,60 @@ A fail-closed poll that already queued a wake, and a timeout, always print so th
 `FM_MAIL_CHECK_BUDGET` (default 15, valid 5..25) bounds one standing poll and is cut down to fit `FM_CHECK_TIMEOUT`.
 `bin/fm-mail-check.sh disarm` removes the standing check.
 
+## Today bridge (.env)
+
+`bin/fm-today-bridge.sh` sends the fleet's snapshot from the captain's machine to the admin portal's Today page.
+[`docs/today-contract.md`](today-contract.md) owns the document it sends, the portal endpoint, and the privacy rules; this section covers setup and the text check.
+The bridge only ever opens connections outward, to the portal; nothing calls in to the machine.
+This half of the bridge sends the snapshot only; it does not fetch answers, and nothing runs it on a schedule yet.
+
+### Settings
+
+Run the bridge in the main firstmate home, whose gitignored `.env` holds its two values.
+A value set in the environment wins over the `.env` line.
+
+| Name | Meaning |
+| --- | --- |
+| `FM_TODAY_PORTAL_URL` | The portal's origin, such as `https://portal.example`; the bridge posts to `/api/fleet/snapshot` under it |
+| `FM_TODAY_BRIDGE_TOKEN` | The bridge's bearer token; the portal keeps only its SHA-256 digest |
+| `FM_TODAY_DAY_FILE` | Optional path of the calendar day file, default `~/.local/state/firstmate/calendar-day.json` |
+
+### Run it
+
+- `bin/fm-today-bridge.sh snapshot` prints the snapshot without sending it.
+- `bin/fm-today-bridge.sh push --dry-run <file>` builds and checks the snapshot, writes it to `<file>`, and sends nothing; it needs neither setting.
+- `bin/fm-today-bridge.sh push` builds the snapshot, checks it against the contract with `tests/fm-today-contract-check.py`, and sends it, printing the portal's `heard_at` stamp.
+
+A snapshot that fails the check or is over 512 KiB is never sent.
+A missing URL or token exits 2 with one line naming what is missing, and sends nothing.
+A portal that cannot be reached or answers anything but 200 exits 3 with its status.
+The token never appears on a command line or in the bridge's output.
+
+### Calendar day file
+
+The day comes from a JSON file written by a job outside the repository: `{"date", "ends_at", "fetched_at", "blocks": [{"id", "title", "starts_at", "ends_at"}]}`, with times carrying an explicit UTC offset.
+A missing or malformed file, or one whose `date` is not today's local date, gives an empty day for today rather than an error.
+A block with an unusable id or times is left out, and each left-out row is named on the bridge's stderr.
+Block titles go out as written, on one line and cut to 200 characters; the text check does not apply to them.
+
+### Text check
+
+Before the snapshot leaves, the check (`fm-today-text-check@1.0.0`) scans each call's title, question, and every option label and hint.
+It trips on any of these, and is deterministic, so the same text always gets the same verdict:
+
+| Family | Trips on |
+| --- | --- |
+| Email | An email address |
+| Phone | A phone number written with separators, brackets, or a leading `+` |
+| Money | A currency symbol before a number, or a number followed by `USD`, `EUR`, `GBP`, dollars, euros, or pounds |
+| Address | A house number, capitalised street words, and a street suffix such as Street, St, Avenue, Road, or Lane, or a PO Box |
+| Date of birth | date of birth, DOB, birthdate, birthday, or born on |
+| Words | guardian, parent, minor, learner, student, family, tuition, fee, invoice, counsel, attorney, lawyer, lawsuit, custody, as whole words in any case |
+
+A call that trips goes out with the `withheld` verdict and firstmate's own neutral title and question in place of the call's words, never partly redacted.
+Every other free-text field in the snapshot passes the same check: a work title that trips is replaced by the work's id, and any other tripped text by neutral text.
+The check leans toward withholding, so ordinary words such as "parent" or "minor" in a technical call also keep that call's text on the machine.
+
 ## Relay (.env)
 
 Relay lets a firstmate instance answer public mentions and act on normal reversible mention requests through firstmate's normal lifecycle.
@@ -2393,6 +2448,9 @@ FM_IMAP_HOST=      # mail-plane IMAP server hostname
 FM_IMAP_PORT=993   # mail-plane IMAP server port
 FM_SMTP_HOST=      # mail-plane SMTP server hostname
 FM_SMTP_PORT=465   # mail-plane SMTP server port
+FM_TODAY_PORTAL_URL=     # admin portal origin the Today bridge posts to, from .env or environment (docs/configuration.md "Today bridge")
+FM_TODAY_BRIDGE_TOKEN=   # Today bridge bearer token, from the main home's .env or environment
+FM_TODAY_DAY_FILE=~/.local/state/firstmate/calendar-day.json   # calendar day file the Today bridge reads
 FMX_PAIRING_TOKEN=      # Relay pairing token; .env opt-in authorizes replies and eligible lifecycle actions
 FMX_RELAY_URL=https://myfirstmate.io   # optional Relay endpoint override, mainly for local relay development
 FMX_ENV_FILE=           # optional alternate .env file for direct Relay client invocations; bootstrap still checks $FM_HOME/.env
