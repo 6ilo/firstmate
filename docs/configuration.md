@@ -13,7 +13,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), and [startup memory budget](#startup-memory-budget-configstartup-memory-budget) |
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
-| Work lanes and machine-wide heavy runs | [Heavy validation slots](#heavy-validation-slots-configlanesjson) |
+| Work lanes and machine-wide heavy runs | [Heavy validation slots](#heavy-validation-slots-configlanesjson) and [work lanes](#work-lanes-configlanesjson) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
 
 ## FM_HOME
@@ -92,6 +92,7 @@ Each effective `FM_HOME` contains private operational directories.
 - Private secondmate config-reread generations with their retry and quarantine state.
 - Per-task steering-inbox records under `state/<id>.inbox/` (`bin/fm-task-inbox-lib.sh`).
 - Parent-owned secondmate pending-reply records under `state/pending-replies/` (`bin/fm-pending-reply-lib.sh`).
+- Backlog-lane gate load samples and its dry-run verdict log (`bin/fm-lanes.sh`).
 
 `config/` holds local gitignored operating choices, including explicit extension bindings under `config/extensions.d/`.
 
@@ -635,6 +636,61 @@ Not heavy: single affected test files, lint, one-package typecheck, git, CI wait
 The optional local, gitignored `config/lanes.json` is a JSON object whose keys all default when absent: `heavy_total` (3), `ask_reserve` (2), and the gate keys above.
 The ledger reads the file from the home that runs the acquire and never creates it.
 The script's header owns the subcommands, exit codes, ledger record fields, and reap evidence.
+The backlog-lane gate reads the same file for its own keys; see [Work lanes](#work-lanes-configlanesjson).
+
+## Work lanes (config/lanes.json)
+
+`bin/fm-lanes.sh gate` decides, with no model call, whether scheduled backlog work may run on this machine right now.
+It currently runs in dry-run only: nothing dispatches backlog work from its verdict yet.
+
+### The gate rule
+
+The backlog lane is open only when all of these hold:
+
+- The load ceiling is not tripped.
+- No memory gate of the [heavy-slot ledger](#gates-on-every-new-heavy-start) refuses: memory pressure, swap used, or browser page processes, with the same readings and limits.
+- No ask is waiting for a heavy slot in the ledger.
+- One branch holds, checked in this order:
+  - `night-idle`: local time is inside the night window and the keyboard and mouse have been idle for at least `idle_secs`.
+  - `calendar`: the calendar cache is fresh and now falls inside one of its busy intervals.
+  - `daytime-quiet`: local time is outside the night window and the 1- and 5-minute load averages are both under `quiet_load`.
+
+The load ceiling trips the lane closed when the 1-minute load average is at or above `load_ceiling` on two consecutive gate samples.
+After a trip, the lane reopens only once every sample has stayed under `reopen_load` for `reopen_secs`.
+The samples and trip state live in the home's `state/lanes-load.state`.
+Idle time comes from macOS `ioreg -c IOHIDSystem` `HIDIdleTime`, which `bin/fm-lanes.sh idle-seconds` prints; on other platforms idle is unknown and the `night-idle` branch stays closed.
+The verdict line names the branch that opened the lane or the reason it is closed, followed by every input the gate read.
+
+### Calendar cache
+
+The gate reads busy intervals from `~/.local/state/firstmate/calendar-busy.json`, or from `calendar_cache` in `config/lanes.json`, or from `FM_LANES_CALENDAR_CACHE` when set.
+The file is a JSON object: `{ "fetched_at": <epoch seconds>, "busy": [ { "start": <epoch seconds>, "end": <epoch seconds> } ] }`.
+A missing or malformed cache, or one older than `calendar_max_age_secs`, counts as not busy, so a broken fetch never opens the lane.
+Firstmate does not write this file.
+A home-local job outside the repository writes it, and that job decides which calendars count and drops all-day and free events before writing.
+
+### Keys
+
+All keys are optional, and the file is never created by the gate.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `night_window` | `"23:00-07:00"` | Local `HH:MM-HH:MM` window; it may cross midnight |
+| `idle_secs` | 3600 | Idle seconds that open the night branch |
+| `quiet_load` | 6 | Daytime 1- and 5-minute load averages must both be under this |
+| `load_ceiling` | 16 | 1-minute load that trips the lane on two consecutive samples |
+| `reopen_load` | 12 | Load a tripped lane must stay under to reopen |
+| `reopen_secs` | 900 | How long load must stay under `reopen_load` |
+| `calendar_max_age_secs` | 28800 | Oldest calendar cache still trusted |
+| `calendar_cache` | `~/.local/state/firstmate/calendar-busy.json` | Calendar cache path |
+
+An invalid value closes the lane with reason `config-invalid`.
+
+### Dry-run log
+
+`bin/fm-lanes.sh check` runs the gate, appends one timestamped verdict line to the home's `state/lanes-dryrun.log`, and prints nothing, so it can be registered as a watcher check without waking firstmate.
+The log keeps its newest 2000 lines.
+The script's header owns the verdict tokens, reasons, and test inputs.
 
 ## Gate defaults (.no-mistakes.yaml)
 

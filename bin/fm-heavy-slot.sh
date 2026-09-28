@@ -6,6 +6,7 @@
 # Usage: fm-heavy-slot.sh acquire --task <id> --home <path> [--lane <ask|backlog>] [--run <id>] [--pid <pid>] [--worktree <path>] [--wait <secs>]
 #        fm-heavy-slot.sh release --task <id> --home <path>
 #        fm-heavy-slot.sh list [--home <path>]
+#        fm-heavy-slot.sh gates [--home <path>]
 #        fm-heavy-slot.sh reap [--home <path>]
 #
 # Ledger: $FM_HEAVY_SLOT_DIR, default ~/.local/state/firstmate/heavy-slots/.
@@ -44,6 +45,10 @@
 # release: frees the task's slot and waiter entry; idempotent (exit 0 when
 #   nothing was held). bin/fm-teardown.sh calls it for every task it cleans up.
 # list: compact agent-readable ledger, capacity, gate readings, and waiters.
+# gates: read-only; prints three lines for bin/fm-lanes.sh and other readers,
+#   "gates: <readings/limits as in list>", "memory_refusal: none|<reason>"
+#   (pressure, swap, and browser pages, never load), and "ask_waiters: <n>".
+#   It never creates the ledger.
 # reap: frees a slot only on positive evidence - the holder pid is gone and
 #   <home>/state/<task>.meta no longer exists, or the recorded no-mistakes run
 #   has reached its ci step or a terminal outcome (`no-mistakes axi status
@@ -234,7 +239,15 @@ gate_refusal() {
   read_gates
   if [ "$GATE_LOAD" != unknown ] && num_ge "$GATE_LOAD" "$MAX_LOAD"; then
     echo "load average $GATE_LOAD is at or above $MAX_LOAD"
-  elif [ "$GATE_PRESSURE" != unknown ] && num_ge "$GATE_PRESSURE" "$MAX_PRESSURE"; then
+  else
+    memory_refusal
+  fi
+}
+
+# Prints the first refusing memory gate's reason (pressure, swap, browser
+# pages) from readings already taken by read_gates, or nothing.
+memory_refusal() {
+  if [ "$GATE_PRESSURE" != unknown ] && num_ge "$GATE_PRESSURE" "$MAX_PRESSURE"; then
     echo "memory pressure level $GATE_PRESSURE is at or above $MAX_PRESSURE"
   elif [ "$GATE_SWAP_MB" != unknown ] && num_ge "$GATE_SWAP_MB" "$MAX_SWAP_MB"; then
     echo "swap used ${GATE_SWAP_MB}MB is at or above ${MAX_SWAP_MB}MB"
@@ -420,14 +433,32 @@ cmd_list() {
       "$(record_get "$f" lane)" "$(record_get "$f" pid)" "$(record_get "$f" run)" \
       "$(record_get "$f" worktree)" "$(record_get "$f" started)"
   done
-  w=0
-  for f in "$LEDGER"/waiters/*.wait; do [ -f "$f" ] && w=$((w + 1)); done
+  w=$(count_waiters)
   echo "ask_waiters[$w]{home,task,pid,since}:"
   for f in "$LEDGER"/waiters/*.wait; do
     [ -f "$f" ] || continue
     printf '  %s,%s,%s,%s\n' "$(record_get "$f" home)" "$(record_get "$f" task)" \
       "$(record_get "$f" pid)" "$(record_get "$f" since)"
   done
+}
+
+count_waiters() {
+  local f w=0
+  for f in "$LEDGER"/waiters/*.wait; do [ -f "$f" ] && w=$((w + 1)); done
+  echo "$w"
+}
+
+cmd_gates() {
+  local mem
+  parse_args gates "$@"
+  [ -z "$HOME_ARG" ] || HOME_ARG=$(canonical_home "$HOME_ARG")
+  [ -n "$HOME_ARG" ] || HOME_ARG=$CALLER_FM_HOME
+  load_config "$HOME_ARG"
+  read_gates
+  mem=$(memory_refusal)
+  echo "gates: $(gates_line)"
+  echo "memory_refusal: ${mem:-none}"
+  echo "ask_waiters: $(count_waiters)"
 }
 
 # 0 when the record's pid is gone AND its task meta no longer exists.
@@ -506,7 +537,7 @@ case "${1:-}" in
   usage
   exit 0
   ;;
-acquire | release | list | reap)
+acquire | release | list | gates | reap)
   sub=$1
   shift
   "cmd_$sub" "$@"
