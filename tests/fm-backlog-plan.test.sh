@@ -51,6 +51,14 @@ test_add_and_update_record_planning_fields() {
   printf '%s' "$rec" | jq -e '. == {type:"fix",order:5,target:"2026-10-01",waits_on:["vendor release","TFC calendar share"]}' \
     >/dev/null || fail "update did not merge, clear, and append as asked: $rec"
 
+  in_home "$home" "$WRAPPER" update --json fm-a --order 4 >/dev/null \
+    || fail "update carrying only planning fields and --json was refused"
+  rec=$(in_home "$home" "$PLAN" get fm-a)
+  printf '%s' "$rec" | jq -e '.order == 4' >/dev/null \
+    || fail "planning-only update with --json did not record the plan: $rec"
+  in_home "$home" "$WRAPPER" update fm-a --json --order=5 >/dev/null \
+    || fail "update with --json after the id and only planning fields was refused"
+
   in_home "$home" "$WRAPPER" update fm-a --title "alpha two" --waits-on - --type upkeep >/dev/null \
     || fail "update mixing tasks-axi and planning fields was refused"
   assert_grep "fm-a - alpha two" "$home/data/backlog.md" "the tasks-axi half of a mixed update was lost"

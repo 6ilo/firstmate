@@ -227,7 +227,11 @@ fi
 # An update carrying only planning fields has nothing for tasks-axi to change;
 # the plan script itself refuses an id this backlog does not hold.
 TASKS_RAN=0
-case "$SUBCMD:${#ARGS[@]}" in
+AXI_FIELDS=0
+for arg in "${ARGS[@]}"; do
+  [ "$arg" = --json ] || AXI_FIELDS=$((AXI_FIELDS + 1))
+done
+case "$SUBCMD:$AXI_FIELDS" in
   update:2|edit:2) ;;
   *) (cd "$FM_BACKLOG_AXI_ROOT" && exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}) || exit $?; TASKS_RAN=1 ;;
 esac
