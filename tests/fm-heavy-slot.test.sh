@@ -15,7 +15,7 @@ TMP_ROOT=$(fm_test_tmproot fm-heavy-slot)
 
 # Calm readings by default; each gate test overrides one.
 export FM_HEAVY_SLOT_LOAD1=1.5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 \
-  FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_SWAP_TOTAL_MB=1000 \
+  FM_HEAVY_SLOT_SWAP_USED_MB=100 \
   FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_POLL=1
 
 new_world() {  # <name>: sets LEDGER_DIR, HOME_A, HOME_B
@@ -126,12 +126,12 @@ test_each_gate_refuses() {
   done <<'ROWS'
 load at the cap|FM_HEAVY_SLOT_LOAD1|16.0|load average 16.0 is at or above 16
 critical memory pressure|FM_HEAVY_SLOT_PRESSURE_LEVEL|4|memory pressure level 4 is at or above 4
-swap nearly full|FM_HEAVY_SLOT_SWAP_USED_MB|900|swap is 90% full
+swap nearly full|FM_HEAVY_SLOT_SWAP_USED_MB|7168|swap used 7168MB is at or above 7168MB
 too many browser pages|FM_HEAVY_SLOT_BROWSER_PAGES|31|31 browser page processes exceed 30
 ROWS
   # Just under each threshold passes.
   new_world gate-under
-  out=$(env FM_HEAVY_SLOT_LOAD1=15.9 FM_HEAVY_SLOT_PRESSURE_LEVEL=2 FM_HEAVY_SLOT_SWAP_USED_MB=899 \
+  out=$(env FM_HEAVY_SLOT_LOAD1=15.9 FM_HEAVY_SLOT_PRESSURE_LEVEL=2 FM_HEAVY_SLOT_SWAP_USED_MB=7167 \
     FM_HEAVY_SLOT_BROWSER_PAGES=30 FM_HEAVY_SLOT_DIR="$LEDGER_DIR" \
     "$SLOT" acquire --home "$HOME_A" --task t1 --lane ask --pid "$$" 2>&1) \
     || fail "readings just under every threshold were refused: $out"
@@ -143,7 +143,32 @@ ROWS
   status=$?
   expect_code 3 "$status" "a configured max_load was not applied"
   assert_contains "$out" "at or above 8" "refusal did not use the configured load cap"
+  new_world gate-swap-config
+  printf '%s\n' '{"max_swap_used_mb": 2048}' > "$HOME_A/config/lanes.json"
+  out=$(env FM_HEAVY_SLOT_SWAP_USED_MB=2800 FM_HEAVY_SLOT_DIR="$LEDGER_DIR" \
+    "$SLOT" acquire --home "$HOME_A" --task t1 --lane ask --pid "$$" 2>&1)
+  status=$?
+  expect_code 3 "$status" "a configured max_swap_used_mb was not applied"
+  assert_contains "$out" "at or above 2048MB" "refusal did not use the configured swap cap"
   pass "fm-heavy-slot: load, memory pressure, swap, and browser pages each refuse a heavy start"
+}
+
+test_macos_swap_reading_is_absolute() {
+  local bin out status
+  new_world macos-swap
+  bin="$TMP_ROOT/macos-swap/bin"
+  mkdir -p "$bin"
+  printf '#!/bin/sh\necho Darwin\n' > "$bin/uname"
+  printf '#!/bin/sh\n[ "$2" = vm.swapusage ] && echo "%s"\n' \
+    'total = 3072.00M  used = 2800.00M  free = 272.00M  (encrypted)' > "$bin/sysctl"
+  chmod +x "$bin/uname" "$bin/sysctl"
+  out=$(env -u FM_HEAVY_SLOT_SWAP_USED_MB PATH="$bin:$PATH" FM_HEAVY_SLOT_DIR="$LEDGER_DIR" \
+    "$SLOT" acquire --home "$HOME_A" --task t1 --lane ask --pid "$$" 2>&1)
+  status=$?
+  expect_code 0 "$status" "a small, 91%-full macOS swap refused a heavy start: $out"
+  out=$(env -u FM_HEAVY_SLOT_SWAP_USED_MB PATH="$bin:$PATH" FM_HEAVY_SLOT_DIR="$LEDGER_DIR" "$SLOT" list)
+  assert_contains "$out" "swap_used_mb=2800.00/7168" "list did not report the parsed swap used"
+  pass "fm-heavy-slot: the swap gate reads absolute used swap, not a percent of a growing total"
 }
 
 test_unknown_readings_never_refuse() {
@@ -156,7 +181,7 @@ test_unknown_readings_never_refuse() {
   expect_code 0 "$status" "unknown readings refused a heavy start: $out"
   out=$(env FM_HEAVY_SLOT_PRESSURE_LEVEL=unknown FM_HEAVY_SLOT_SWAP_USED_MB=unknown \
     FM_HEAVY_SLOT_BROWSER_PAGES=unknown FM_HEAVY_SLOT_DIR="$LEDGER_DIR" "$SLOT" list)
-  assert_contains "$out" "pressure=unknown/4 swap=unknown/90% browser_pages=unknown/30" \
+  assert_contains "$out" "pressure=unknown/4 swap_used_mb=unknown/7168 browser_pages=unknown/30" \
     "list did not report the unknown readings"
   # Load and the slot count still apply when the other readings are unknown.
   out=$(env FM_HEAVY_SLOT_LOAD1=20 FM_HEAVY_SLOT_PRESSURE_LEVEL=unknown FM_HEAVY_SLOT_DIR="$LEDGER_DIR" \
@@ -286,6 +311,7 @@ test_reservation_math
 test_capacity_from_home_config
 test_contention_between_two_homes
 test_each_gate_refuses
+test_macos_swap_reading_is_absolute
 test_unknown_readings_never_refuse
 test_ask_waiters
 test_release

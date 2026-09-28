@@ -19,13 +19,12 @@
 # Gates, checked on every new acquire (defaults overridable in config/lanes.json):
 #   max_load 16            refuse while the 1-minute load average is >= this
 #   max_pressure_level 4   refuse while kern.memorystatus_vm_pressure_level >= this
-#   max_swap_percent 90    refuse while swap used is >= this percent of swap total
+#   max_swap_used_mb 7168  refuse while swap used (MB) is >= this
 #   max_browser_pages 30   refuse while WebKit WebContent processes are > this
 #   A reading this platform cannot take is reported as unknown and never
 #   refuses. Tests inject readings with FM_HEAVY_SLOT_LOAD1,
-#   FM_HEAVY_SLOT_PRESSURE_LEVEL, FM_HEAVY_SLOT_SWAP_USED_MB,
-#   FM_HEAVY_SLOT_SWAP_TOTAL_MB, and FM_HEAVY_SLOT_BROWSER_PAGES; the value
-#   "unknown" forces an unknown reading.
+#   FM_HEAVY_SLOT_PRESSURE_LEVEL, FM_HEAVY_SLOT_SWAP_USED_MB, and
+#   FM_HEAVY_SLOT_BROWSER_PAGES; the value "unknown" forces an unknown reading.
 # acquire:
 #   --lane defaults to the lane= recorded in <home>/state/<task>.meta, else ask.
 #   A task that already holds a slot refreshes its record (e.g. to add --run)
@@ -132,7 +131,7 @@ HEAVY_TOTAL=3
 ASK_RESERVE=2
 MAX_LOAD=16
 MAX_PRESSURE=4
-MAX_SWAP_PCT=90
+MAX_SWAP_MB=7168
 MAX_PAGES=30
 
 load_config() {  # <home or empty>
@@ -142,7 +141,7 @@ load_config() {  # <home or empty>
   [ -f "$file" ] || return 0
   command -v jq >/dev/null 2>&1 || die "jq is required to read $file"
   jq -e 'type == "object"' "$file" >/dev/null 2>&1 || die "$file is not a JSON object"
-  for key in heavy_total ask_reserve max_load max_pressure_level max_swap_percent max_browser_pages; do
+  for key in heavy_total ask_reserve max_load max_pressure_level max_swap_used_mb max_browser_pages; do
     val=$(jq -r --arg k "$key" '.[$k] // empty' "$file")
     [ -n "$val" ] || continue
     case "$val" in
@@ -153,7 +152,7 @@ load_config() {  # <home or empty>
     ask_reserve) ASK_RESERVE=$val ;;
     max_load) MAX_LOAD=$val ;;
     max_pressure_level) MAX_PRESSURE=$val ;;
-    max_swap_percent) MAX_SWAP_PCT=$val ;;
+    max_swap_used_mb) MAX_SWAP_MB=$val ;;
     max_browser_pages) MAX_PAGES=$val ;;
     esac
   done
@@ -190,19 +189,11 @@ read_pressure() {
   number_or_unknown "${v:-}"
 }
 
-# Prints "<used_mb> <total_mb>", either possibly "unknown".
-read_swap() {
-  local used total raw
-  used=$(read_injected FM_HEAVY_SLOT_SWAP_USED_MB) || used=
-  total=$(read_injected FM_HEAVY_SLOT_SWAP_TOTAL_MB) || total=
-  if [ -z "$used" ] || [ -z "$total" ]; then
-    if is_darwin; then
-      raw=$(sysctl -n vm.swapusage 2>/dev/null || true)
-      [ -n "$used" ] || used=$(printf '%s\n' "$raw" | sed -n 's/.*used = \([0-9.]*\)M.*/\1/p')
-      [ -n "$total" ] || total=$(printf '%s\n' "$raw" | sed -n 's/.*total = \([0-9.]*\)M.*/\1/p')
-    fi
-  fi
-  printf '%s %s\n' "$(number_or_unknown "${used:-}")" "$(number_or_unknown "${total:-}")"
+read_swap_used_mb() {
+  local v
+  read_injected FM_HEAVY_SLOT_SWAP_USED_MB && return 0
+  is_darwin && v=$(sysctl -n vm.swapusage 2>/dev/null | sed -n 's/.*used = \([0-9.]*\)M.*/\1/p')
+  number_or_unknown "${v:-}"
 }
 
 read_browser_pages() {
@@ -224,28 +215,18 @@ number_or_unknown() {
 num_ge() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a + 0 >= b + 0) }'; }
 num_gt() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a + 0 > b + 0) }'; }
 
-GATE_LOAD= GATE_PRESSURE= GATE_SWAP_PCT= GATE_PAGES=
+GATE_LOAD= GATE_PRESSURE= GATE_SWAP_MB= GATE_PAGES=
 read_gates() {
-  local swap used total
   GATE_LOAD=$(read_load1)
   GATE_PRESSURE=$(read_pressure)
-  swap=$(read_swap)
-  used=${swap% *}
-  total=${swap#* }
-  if [ "$used" = unknown ] || [ "$total" = unknown ]; then
-    GATE_SWAP_PCT=unknown
-  elif num_gt "$total" 0; then
-    GATE_SWAP_PCT=$(awk -v u="$used" -v t="$total" 'BEGIN { printf "%d", (u * 100) / t }')
-  else
-    GATE_SWAP_PCT=0
-  fi
+  GATE_SWAP_MB=$(read_swap_used_mb)
   GATE_PAGES=$(read_browser_pages)
 }
 
 gates_line() {
-  printf 'load1=%s/%s pressure=%s/%s swap=%s/%s%% browser_pages=%s/%s' \
+  printf 'load1=%s/%s pressure=%s/%s swap_used_mb=%s/%s browser_pages=%s/%s' \
     "$GATE_LOAD" "$MAX_LOAD" "$GATE_PRESSURE" "$MAX_PRESSURE" \
-    "$GATE_SWAP_PCT" "$MAX_SWAP_PCT" "$GATE_PAGES" "$MAX_PAGES"
+    "$GATE_SWAP_MB" "$MAX_SWAP_MB" "$GATE_PAGES" "$MAX_PAGES"
 }
 
 # Prints the first refusing gate's reason, or nothing when every gate passes.
@@ -255,8 +236,8 @@ gate_refusal() {
     echo "load average $GATE_LOAD is at or above $MAX_LOAD"
   elif [ "$GATE_PRESSURE" != unknown ] && num_ge "$GATE_PRESSURE" "$MAX_PRESSURE"; then
     echo "memory pressure level $GATE_PRESSURE is at or above $MAX_PRESSURE"
-  elif [ "$GATE_SWAP_PCT" != unknown ] && num_ge "$GATE_SWAP_PCT" "$MAX_SWAP_PCT"; then
-    echo "swap is ${GATE_SWAP_PCT}% full, at or above ${MAX_SWAP_PCT}%"
+  elif [ "$GATE_SWAP_MB" != unknown ] && num_ge "$GATE_SWAP_MB" "$MAX_SWAP_MB"; then
+    echo "swap used ${GATE_SWAP_MB}MB is at or above ${MAX_SWAP_MB}MB"
   elif [ "$GATE_PAGES" != unknown ] && num_gt "$GATE_PAGES" "$MAX_PAGES"; then
     echo "$GATE_PAGES browser page processes exceed $MAX_PAGES; close finished Playwright browsers and preview or Lavish tabs"
   fi

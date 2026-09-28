@@ -619,7 +619,7 @@ A new heavy run is refused while any reading is at its limit:
 | --- | --- | --- |
 | 1-minute load average | refuse at 16 or above | `max_load` |
 | `kern.memorystatus_vm_pressure_level` | refuse at 4 (critical) or above | `max_pressure_level` |
-| Swap used, from `sysctl vm.swapusage` | refuse at 90 percent of swap total or above | `max_swap_percent` |
+| Swap used, from `sysctl vm.swapusage` | refuse at 7168 MB used or above | `max_swap_used_mb` |
 | WebKit WebContent page processes | refuse above 30 | `max_browser_pages` |
 
 A reading the platform cannot take is reported as unknown and never refuses; load and the slot count still apply.
