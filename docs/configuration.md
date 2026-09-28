@@ -391,6 +391,7 @@ Firstmate records those five in a sidecar, `data/backlog-plan.json`, keyed by ta
 Pass them to [`bin/fm-tasks-axi.sh`](../bin/fm-tasks-axi.sh) `add` or `update`, where a value of `-` clears a sidecar field.
 The record is keyed by the command's task id wherever the flags sit.
 The wrapper refuses a bad value, or planning fields with no task id, before tasks-axi runs, so nothing is written, and a successful `rm` (or `delete`) drops the item's sidecar record.
+If tasks-axi writes the row but the sidecar record cannot be written, the wrapper says so and exits nonzero rather than dropping the fields silently.
 [`bin/fm-backlog-plan.sh`](../bin/fm-backlog-plan.sh) is the sidecar's only writer and reader, and its header owns the exact values and commands.
 `bin/fm-bearings-snapshot.sh --json` adds an optional `plan` object to each main-home `in_flight` and `gates` row that has any of these recorded, leaving other rows and TOON output unchanged.
 

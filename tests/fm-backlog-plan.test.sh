@@ -83,6 +83,18 @@ test_flags_before_the_id_key_the_plan_by_the_id() {
   pass "the plan is keyed by the first positional id wherever the flags sit, and a missing id is refused"
 }
 
+test_a_row_written_without_its_plan_fails_loudly() {
+  local home out rc
+  home=$(make_home plan-write-fails)
+  printf 'not json\n' > "$home/data/backlog-plan.json"
+  out=$(in_home "$home" "$WRAPPER" add --kind ship fm-q "queued" --size S 2>&1)
+  rc=$?
+  assert_equals 1 "$rc" "an add whose plan could not be recorded must exit nonzero"
+  assert_grep "fm-q - queued" "$home/data/backlog.md" "the tasks-axi row should still be written"
+  assert_contains "$out" "planning fields for fm-q were not recorded" "the dropped plan was not reported: $out"
+  pass "a row written without its planning fields exits 1 and names the fields to re-record"
+}
+
 test_bad_values_are_refused_with_nothing_written() {
   local home args out rc
   home=$(make_home refusals)
@@ -140,5 +152,6 @@ test_list_rm_and_empty_records() {
 
 test_add_and_update_record_planning_fields
 test_flags_before_the_id_key_the_plan_by_the_id
+test_a_row_written_without_its_plan_fails_loudly
 test_bad_values_are_refused_with_nothing_written
 test_list_rm_and_empty_records

@@ -22,7 +22,9 @@
 # --urgency <0-4> is an alias for tasks-axi's own --priority, which firstmate
 # reads as urgency. The plan record is keyed by the command's first positional
 # argument (the task id), wherever the flags sit. A successful `rm <id>` (or its
-# `delete` alias) also drops that item's plan record.
+# `delete` alias) also drops that item's plan record. When tasks-axi wrote the
+# row but the plan record could not be written, the wrapper says so and exits 1
+# rather than dropping the fields silently.
 #
 # Why it exists: a bare `tasks-axi` resolves the tracked `.tasks.toml` paths
 # against its working directory, so from the code root it forks the queue
@@ -224,9 +226,10 @@ fi
 # directory for the relative paths the plan script may resolve.
 # An update carrying only planning fields has nothing for tasks-axi to change;
 # the plan script itself refuses an id this backlog does not hold.
+TASKS_RAN=0
 case "$SUBCMD:${#ARGS[@]}" in
   update:2|edit:2) ;;
-  *) (cd "$FM_BACKLOG_AXI_ROOT" && exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}) || exit $? ;;
+  *) (cd "$FM_BACKLOG_AXI_ROOT" && exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}) || exit $?; TASKS_RAN=1 ;;
 esac
 case "$SUBCMD" in
   rm|delete)
@@ -237,6 +240,11 @@ case "$SUBCMD" in
 esac
 "$SCRIPT_DIR/fm-backlog-plan.sh" set "$PLAN_ID" "${PLAN_ARGS[@]}" >/dev/null
 rc=$?
-[ "$rc" -eq 0 ] || [ "$rc" -eq 2 ] \
-  || printf 'fm-tasks-axi: planning fields for %s were not recorded; rerun update %s with them\n' "$PLAN_ID" "$PLAN_ID" >&2
-exit "$rc"
+[ "$rc" -ne 0 ] || exit 0
+# A refusal with no tasks-axi change is the plan script's own clear message.
+# Once tasks-axi has written the row, any plan failure is loud and nonzero so
+# the fields are never dropped silently.
+[ "$TASKS_RAN" = 1 ] || exit "$rc"
+printf 'fm-tasks-axi: %s wrote the backlog row, but planning fields for %s were not recorded; rerun update %s with them\n' \
+  "$SUBCMD" "$PLAN_ID" "$PLAN_ID" >&2
+exit 1
