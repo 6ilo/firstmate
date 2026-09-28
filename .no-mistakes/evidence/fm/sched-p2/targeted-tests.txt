@@ -1,0 +1,15 @@
+ok - fm-heavy-slot: asks may use all 3 slots and backlog work at most 1
+ok - fm-heavy-slot: capacity comes from the home's config/lanes.json
+ok - fm-heavy-slot: two homes racing one ledger fill exactly the cap
+ok - fm-heavy-slot: load, memory pressure, swap, and browser pages each refuse a heavy start
+ok - fm-heavy-slot: the swap gate reads absolute used swap, not a percent of a growing total
+ok - fm-heavy-slot: an unknown reading is reported and never refuses
+ok - fm-heavy-slot: a refused or waiting ask is visible as a waiter until it acquires or gives up
+ok - fm-heavy-slot: gates reports readings, memory refusal without load, and ask waiters
+ok - fm-heavy-slot: the ledger lock waits for a live owner and recovers a dead or interrupted one
+ok - fm-heavy-slot: release frees only this home's task and is idempotent
+ok - fm-heavy-slot: reap frees a dead holder and keeps unknown evidence
+ok - fm-heavy-slot: reap frees a slot whose validation run reached ci or finished
+ok - fm-heavy-slot: reap keeps a slot whose record changed while its evidence was checked
+ok - fm-heavy-slot: usage errors are distinct and the lane defaults to the task record
+exit=0

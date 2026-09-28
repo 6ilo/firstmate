@@ -1,0 +1,106 @@
+== S1 overnight window: 23:30 idle 3700s, load 3 -> open night-idle; 22:59 idle -> not night
+$ FM_LANES_NOW=1790656200 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=8 FM_LANES_LOAD5=8
+verdict=open branch=night-idle reason=- load5=8 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790596740 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=8 FM_LANES_LOAD5=8
+verdict=open branch=night-idle reason=- load5=8 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790596800 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=8 FM_LANES_LOAD5=8
+verdict=closed branch=- reason=no-window load5=8 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790654340 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=8 FM_LANES_LOAD5=8
+verdict=closed branch=- reason=no-window load5=8 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+== S2 overnight but idle under an hour -> closed no-window
+$ FM_LANES_NOW=1790656200 FM_LANES_IDLE_SECS=3599 FM_HEAVY_SLOT_LOAD1=8 FM_LANES_LOAD5=8
+verdict=closed branch=- reason=no-window load5=8 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+== S3 daytime quiet needs both 1m and 5m < 6
+$ FM_LANES_NOW=1790622000 FM_LANES_IDLE_SECS=0 FM_HEAVY_SLOT_LOAD1=5.9 FM_LANES_LOAD5=5.9
+verdict=open branch=daytime-quiet reason=- load5=5.9 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790622000 FM_LANES_IDLE_SECS=0 FM_HEAVY_SLOT_LOAD1=5.9 FM_LANES_LOAD5=6
+verdict=closed branch=- reason=no-window load5=6 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790622000 FM_LANES_IDLE_SECS=0 FM_HEAVY_SLOT_LOAD1=6 FM_LANES_LOAD5=2
+verdict=closed branch=- reason=no-window load5=2 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+== S4 calendar busy (fresh cache) during busy daytime -> open calendar; stale cache -> closed
+$ FM_LANES_NOW=1790622000 FM_LANES_IDLE_SECS=0 FM_HEAVY_SLOT_LOAD1=9 FM_LANES_LOAD5=9
+verdict=open branch=calendar reason=- load5=9 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790622000 FM_LANES_IDLE_SECS=0 FM_HEAVY_SLOT_LOAD1=9 FM_LANES_LOAD5=9
+verdict=closed branch=- reason=no-window load5=9 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790622000 FM_LANES_IDLE_SECS=0 FM_HEAVY_SLOT_LOAD1=9 FM_LANES_LOAD5=9
+verdict=closed branch=- reason=no-window load5=9 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+== S5 load ceiling 16 trips (two samples), stays closed until <12 for 15 min
+$ FM_LANES_NOW=1790656200 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=17 FM_LANES_LOAD5=10
+verdict=open branch=night-idle reason=- load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=1 below_since=-
+$ FM_LANES_NOW=1790656260 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=17 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=1 high_streak=2 below_since=-
+$ FM_LANES_NOW=1790656320 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=13 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=1 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790656380 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=11 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=1 high_streak=0 below_since=1790656380
+$ FM_LANES_NOW=1790657279 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=11 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=1 high_streak=0 below_since=1790656380
+$ FM_LANES_NOW=1790657280 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=11 FM_LANES_LOAD5=10
+verdict=open branch=night-idle reason=- load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+== S5b adversarial: a single 12.5 sample during the reopen wait restarts the 15-min timer
+$ FM_LANES_NOW=1790656200 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=16 FM_LANES_LOAD5=10
+verdict=open branch=night-idle reason=- load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=1 below_since=-
+$ FM_LANES_NOW=1790656260 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=16 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=1 high_streak=2 below_since=-
+$ FM_LANES_NOW=1790656320 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=5 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=1 high_streak=0 below_since=1790656320
+$ FM_LANES_NOW=1790656800 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=12.5 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=1 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790657220 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=5 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=1 high_streak=0 below_since=1790657220
+$ FM_LANES_NOW=1790658120 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=5 FM_LANES_LOAD5=10
+verdict=open branch=night-idle reason=- load5=10 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+== S6 max_load=10 governs ceiling with no load_ceiling; steady load 11 stays closed past 15 min
+$ FM_LANES_NOW=1790656200 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=11 FM_LANES_LOAD5=10
+verdict=open branch=night-idle reason=- load5=10 quiet_load=6 load_ceiling=10 reopen=12/900s tripped=0 high_streak=1 below_since=-
+$ FM_LANES_NOW=1790656260 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=11 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=10 reopen=12/900s tripped=1 high_streak=2 below_since=-
+$ FM_LANES_NOW=1790656320 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=11 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=10 reopen=12/900s tripped=1 high_streak=3 below_since=-
+$ FM_LANES_NOW=1790657300 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=11 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=10 reopen=12/900s tripped=1 high_streak=4 below_since=-
+$ FM_LANES_NOW=1790658300 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=11 FM_LANES_LOAD5=10
+verdict=closed branch=- reason=load-ceiling load5=10 quiet_load=6 load_ceiling=10 reopen=12/900s tripped=1 high_streak=5 below_since=-
+   then load 9 for 15 min reopens
+$ FM_LANES_NOW=1790658400 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=9 FM_LANES_LOAD5=9
+verdict=closed branch=- reason=load-ceiling load5=9 quiet_load=6 load_ceiling=10 reopen=12/900s tripped=1 high_streak=0 below_since=1790658400
+$ FM_LANES_NOW=1790659300 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=9 FM_LANES_LOAD5=9
+verdict=open branch=night-idle reason=- load5=9 quiet_load=6 load_ceiling=10 reopen=12/900s tripped=0 high_streak=0 below_since=-
+   explicit load_ceiling overrides max_load
+$ FM_LANES_NOW=1790656200 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=15 FM_LANES_LOAD5=9
+verdict=open branch=night-idle reason=- load5=9 quiet_load=6 load_ceiling=20 reopen=12/900s tripped=0 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790656260 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=15 FM_LANES_LOAD5=9
+verdict=open branch=night-idle reason=- load5=9 quiet_load=6 load_ceiling=20 reopen=12/900s tripped=0 high_streak=0 below_since=-
+== S7 memory gate closes the lane (pressure 4)
+$ FM_LANES_NOW=1790656200 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=3 FM_LANES_LOAD5=3 FM_HEAVY_SLOT_PRESSURE_LEVEL=4
+verdict=closed branch=- reason=memory load5=3 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790656200 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=3 FM_LANES_LOAD5=3 FM_HEAVY_SLOT_SWAP_USED_MB=8000
+verdict=closed branch=- reason=memory load5=3 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+== S8 live ask waiting for a heavy slot closes the lane
+ask_waiters[1]{home,task,pid,since}:
+  /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab.A4oDfS,ask4,45525,1790603338
+$ FM_LANES_NOW=1790656200 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=3 FM_LANES_LOAD5=3
+verdict=closed branch=- reason=ask-waiting load5=3 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+$ FM_LANES_NOW=1790656200 FM_LANES_IDLE_SECS=3700 FM_HEAVY_SLOT_LOAD1=3 FM_LANES_LOAD5=3
+verdict=open branch=night-idle reason=- load5=3 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=-
+== S9 invalid config fails closed
+verdict=closed
+reason=config-invalid
+config_error=config/lanes.json_night_window_must_be_HH:MM-HH:MM
+== S10 dry-run check logs and prints nothing, exit 0 (real machine readings, no injection)
+exit=0 stdout_bytes=0
+1790603342 verdict=open branch=daytime-quiet reason=- now=1790603342 local=08:49 night_window=23:00-07:00 in_night=0 idle_secs=2802/3600 calendar=missing load1=5.67 load5=5.93 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=- ask_waiters=0 memory=none ledger_gates=[load1=5.67/16 pressure=1/4 swap_used_mb=4232.62/7168 browser_pages=16/30]
+1790603342 verdict=open branch=daytime-quiet reason=- now=1790603342 local=08:49 night_window=23:00-07:00 in_night=0 idle_secs=2802/3600 calendar=missing load1=5.67 load5=5.93 quiet_load=6 load_ceiling=16 reopen=12/900s tripped=0 high_streak=0 below_since=- ask_waiters=0 memory=none ledger_gates=[load1=5.67/16 pressure=1/4 swap_used_mb=4232.62/7168 browser_pages=16/30]
+idle-seconds (real): 2802
+== S11 dry-run only: no ledger slot taken, nothing dispatched
+ledger: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.A4oDfS/ledger
+slots: held=0/3 ask=0 backlog=0/1
+gates: load1=5.67/16 pressure=1/4 swap_used_mb=4232.62/7168 browser_pages=16/30
+holders[0]{home,task,lane,pid,run,worktree,started}:
+ask_waiters[0]{home,task,pid,since}:
+lanes-dryrun.log
+lanes-load.state
+/Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3M2JAFJ276VHAR32JDYV2K0/drive-lanes-gate.sh: line 88: 50456 Terminated: 15          sleep 300
+/Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3M2JAFJ276VHAR32JDYV2K0/drive-lanes-gate.sh: line 88: 50673 Terminated: 15          sleep 300
+/Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3M2JAFJ276VHAR32JDYV2K0/drive-lanes-gate.sh: line 88: 50837 Terminated: 15          sleep 300
+lab removed: yes

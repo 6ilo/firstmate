@@ -1,0 +1,8 @@
+ok - fm-lanes: each branch opens the lane only on its own condition
+ok - fm-lanes: a stale, missing, or malformed calendar never opens the lane
+ok - fm-lanes: memory, an ask waiter, and invalid config each close the lane
+ok - fm-lanes: two samples at 16 trip the lane; 15 minutes under 12 reopen it
+ok - fm-lanes: load_ceiling defaults to the ledger's max_load
+ok - fm-lanes: the night window spans midnight and follows config/lanes.json
+ok - fm-lanes: check prints nothing, exits 0, and appends one capped log line
+ok - fm-lanes: usage errors and idle-seconds
