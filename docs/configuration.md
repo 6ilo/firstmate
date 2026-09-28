@@ -656,7 +656,7 @@ The backlog lane is open only when all of these hold:
   - `daytime-quiet`: local time is outside the night window and the 1- and 5-minute load averages are both under `quiet_load`.
 
 The load ceiling trips the lane closed when the 1-minute load average is at or above `load_ceiling` on two consecutive gate samples.
-After a trip, the lane reopens only once every sample has stayed under `reopen_load` for `reopen_secs`.
+After a trip, the lane reopens only once every sample has stayed under both `reopen_load` and `load_ceiling` for `reopen_secs`.
 The samples and trip state live in the home's `state/lanes-load.state`.
 Idle time comes from macOS `ioreg -c IOHIDSystem` `HIDIdleTime`, which `bin/fm-lanes.sh idle-seconds` prints; on other platforms idle is unknown and the `night-idle` branch stays closed.
 The verdict line names the branch that opened the lane or the reason it is closed, followed by every input the gate read.

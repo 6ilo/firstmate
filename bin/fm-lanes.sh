@@ -24,7 +24,8 @@
 #   owns those readings, limits, and the ledger location.
 # Load ceiling: a sample with the 1-minute load >= load_ceiling counts toward a
 #   trip; two consecutive such samples trip the lane closed. A tripped lane
-#   reopens once every sample has stayed under reopen_load for reopen_secs.
+#   reopens once every sample has stayed under both reopen_load and
+#   load_ceiling for reopen_secs.
 #   Samples and trip state persist in <home>/state/lanes-load.state (replaced
 #   atomically; concurrent gate calls may drop a sample, never corrupt it). An
 #   unknown load reading records no sample.
@@ -224,7 +225,7 @@ update_load_state() {  # <now> <load1>
     TRIPPED=1
   fi
   if [ "$TRIPPED" = 1 ]; then
-    if num_lt "$load" "$REOPEN_LOAD"; then
+    if num_lt "$load" "$REOPEN_LOAD" && num_lt "$load" "$LOAD_CEILING"; then
       [ -n "$BELOW_SINCE" ] || BELOW_SINCE=$now
       if [ $((now - BELOW_SINCE)) -ge "${REOPEN_SECS%%.*}" ]; then
         TRIPPED=0

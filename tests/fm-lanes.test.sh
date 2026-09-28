@@ -154,6 +154,10 @@ test_load_ceiling_follows_max_load() {
   printf '{"max_load": 10}\n' >"$HOME_DIR/config/lanes.json"
   FM_LANES_NOW=$t; expect_gate "verdict=open" "first sample at max_load 10"
   FM_LANES_NOW=$((t + 300)); expect_gate "reason=load-ceiling" "max_load 10 without load_ceiling"
+  FM_HEAVY_SLOT_LOAD1=11
+  FM_LANES_NOW=$((t + 600)); expect_gate "reason=load-ceiling" "load 11 over max_load 10"
+  FM_LANES_NOW=$((t + 1500)); expect_gate "reason=load-ceiling" "steady load 11 for 15 minutes over max_load 10"
+  FM_LANES_NOW=$((t + 1800)); expect_gate "reason=load-ceiling" "steady load 11 for 20 minutes over max_load 10"
   new_world maxload-override
   FM_LANES_IDLE_SECS=7200 FM_HEAVY_SLOT_LOAD1=10
   printf '{"max_load": 10, "load_ceiling": 14}\n' >"$HOME_DIR/config/lanes.json"
