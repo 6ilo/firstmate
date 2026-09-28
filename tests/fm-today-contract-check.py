@@ -52,8 +52,17 @@ def card_hash(card):
 
 
 def instant(text):
-    """An offset timestamp as an aware datetime; the schema has checked its form."""
+    """An offset timestamp as an aware datetime; the schema has checked its form.
+
+    Raises ValueError when the form names no real instant, such as February 30.
+    """
+    text = re.sub(r"\.([0-9]+)", lambda m: "." + m.group(1).ljust(6, "0"), text)
     return datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def ecma_pattern(pattern):
+    """The pattern with ECMA-262 anchors: without the m flag, $ matches only at the end."""
+    return re.sub(r"(?<!\\)\$", r"\\Z", pattern)
 
 
 def b64url(raw):
@@ -120,7 +129,7 @@ class Validator:
                 out.append("%s: minLength: shorter than %d" % (where, schema["minLength"]))
             if "maxLength" in schema and len(inst) > schema["maxLength"]:
                 out.append("%s: maxLength: longer than %d" % (where, schema["maxLength"]))
-            if "pattern" in schema and not re.search(schema["pattern"], inst):
+            if "pattern" in schema and not re.search(ecma_pattern(schema["pattern"]), inst):
                 out.append("%s: pattern: %s does not match" % (where, json.dumps(inst)))
         if is_number(inst):
             if "minimum" in schema and inst < schema["minimum"]:
@@ -212,7 +221,12 @@ def contract_errors(inst):
         if len({b["id"] for b in blocks}) != len(blocks):
             out.append("$.sections.day.blocks: id: a block appears twice")
         for i, block in enumerate(blocks):
-            if instant(block["ends_at"]) < instant(block["starts_at"]):
+            try:
+                starts, ends = instant(block["starts_at"]), instant(block["ends_at"])
+            except ValueError as err:
+                out.append("$.sections.day.blocks[%d]: instant: not a real time (%s)" % (i, err))
+                continue
+            if ends < starts:
                 out.append("$.sections.day.blocks[%d]: ends_at: ends before it starts" % i)
     for where, card in cards:
         want = card_hash(card)

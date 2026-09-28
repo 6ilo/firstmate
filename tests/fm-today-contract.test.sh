@@ -37,6 +37,7 @@ test_valid_examples_pass() {
 test_invalid_examples_fail_for_their_reason() {
   local expected f name reason out n=0
   expected=$(cat <<'EOF'
+answer--answer-id-trailing-line-feed $.answer_id: pattern
 answer--credential-not-seen $.value: enum
 answer--later-without-time required: missing later_until
 answer--malformed-card-hash $.card_hash: pattern
@@ -61,6 +62,7 @@ snapshot--board-title $.sections.boards[0]: additionalProperties: title
 snapshot--call-stale-hash $.sections.calls[0].card_hash: card_hash
 snapshot--day-attendees $.sections.day.blocks[0]: additionalProperties: attendees
 snapshot--day-block-ends-before-start $.sections.day.blocks[1]: ends_at: ends before it starts
+snapshot--day-block-impossible-date $.sections.day.blocks[0]: instant: not a real time
 snapshot--event-wait-without-label $.sections.charted_next[0].waits_on[2]: required: missing label
 snapshot--missing-day $.sections: required: missing day
 snapshot--underway-extra-field $.sections.underway[0]: additionalProperties: body
