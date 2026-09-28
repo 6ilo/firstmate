@@ -1,0 +1,36 @@
+=== real-installed: treehouse --version -> v3.1.0
+exit=0
+treehouse lines:
+  (none - treehouse accepted)
+full output:
+  | 
+=== old-2.9.9: treehouse --version -> v2.9.9
+exit=0
+treehouse lines:
+MISSING: treehouse (install: curl -fsSL https://kunchenguid.github.io/treehouse/install.sh | sh)
+full output:
+  | MISSING: treehouse (install: curl -fsSL https://kunchenguid.github.io/treehouse/install.sh | sh)
+=== old-2.12.0: treehouse --version -> treehouse 2.12.0
+exit=0
+treehouse lines:
+MISSING: treehouse (install: curl -fsSL https://kunchenguid.github.io/treehouse/install.sh | sh)
+full output:
+  | MISSING: treehouse (install: curl -fsSL https://kunchenguid.github.io/treehouse/install.sh | sh)
+=== exact-3.0.0: treehouse --version -> v3.0.0
+exit=0
+treehouse lines:
+  (none - treehouse accepted)
+full output:
+  | 
+=== multi-digit-13.0.0: treehouse --version -> v13.0.0
+exit=0
+treehouse lines:
+  (none - treehouse accepted)
+full output:
+  | 
+=== unparseable-dev: treehouse --version -> treehouse dev
+exit=0
+treehouse lines:
+MISSING: treehouse (install: curl -fsSL https://kunchenguid.github.io/treehouse/install.sh | sh)
+full output:
+  | MISSING: treehouse (install: curl -fsSL https://kunchenguid.github.io/treehouse/install.sh | sh)
