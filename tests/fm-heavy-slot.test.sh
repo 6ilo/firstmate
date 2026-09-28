@@ -238,7 +238,7 @@ test_ledger_lock() {
   out=$(acquire "$HOME_A" t2 ask); status=$?
   wait
   expect_code 0 "$status" "acquire did not proceed once the lock holder exited: $out"
-    assert_contains "$(slot list)" "held=2/3" "acquire under a contested lock did not take exactly one slot"
+  assert_contains "$(slot list)" "held=2/3" "acquire under a contested lock did not take exactly one slot"
   pass "fm-heavy-slot: the ledger lock waits for a live owner and breaks a dead owner's lock"
 }
 
@@ -314,6 +314,29 @@ SH
   pass "fm-heavy-slot: reap frees a slot whose validation run reached ci or finished"
 }
 
+test_reap_keeps_a_slot_reacquired_during_its_check() {
+  local out fakebin wt
+  new_world reap-race
+  fakebin="$TMP_ROOT/reap-race/bin"
+  wt="$TMP_ROOT/reap-race/wt"
+  mkdir -p "$fakebin" "$wt"
+  cat > "$fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+"$SLOT" release --home "$RACE_HOME" --task t1 >/dev/null
+"$SLOT" acquire --home "$RACE_HOME" --task t1 --lane ask --pid "$RACE_PID" --run next-run \
+  --worktree "$RACE_WT" >/dev/null
+printf 'id: "%s"\nstatus: completed\noutcome: passed\n' "$4"
+SH
+  chmod +x "$fakebin/no-mistakes"
+  slot acquire --home "$HOME_A" --task t1 --lane ask --pid "$$" --run first-run --worktree "$wt" >/dev/null
+  printf 'kind=ship\n' > "$HOME_A/state/t1.meta"
+  out=$(PATH="$fakebin:$PATH" SLOT="$SLOT" RACE_HOME="$HOME_A" RACE_PID="$$" RACE_WT="$wt" \
+    FM_HEAVY_SLOT_DIR="$LEDGER_DIR" "$SLOT" reap)
+  assert_contains "$out" "freed=0 kept=1" "reap deleted a slot re-acquired while its evidence was checked"
+  assert_contains "$(slot list)" "held=1/3" "the re-acquired slot is missing from the ledger"
+  pass "fm-heavy-slot: reap keeps a slot whose record changed while its evidence was checked"
+}
+
 test_usage_errors() {
   local out status
   new_world usage
@@ -339,4 +362,5 @@ test_ledger_lock
 test_release
 test_reap_frees_only_on_positive_evidence
 test_reap_by_validation_run
+test_reap_keeps_a_slot_reacquired_during_its_check
 test_usage_errors

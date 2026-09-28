@@ -465,19 +465,28 @@ run_past_heavy() {  # <record>
   return 1
 }
 
+remove_if_unchanged() {  # <record> <content read before its evidence was checked>
+  local removed=1
+  lock_acquire
+  if [ "$(cat "$1" 2>/dev/null || true)" = "$2" ]; then
+    rm -f "$1"
+    removed=0
+  fi
+  lock_release
+  return "$removed"
+}
+
 cmd_reap() {
-  local f who freed=0 kept=0
+  local f who snap freed=0 kept=0
   parse_args reap "$@"
   mkdir -p "$LEDGER/holders" "$LEDGER/waiters" || die "cannot create ledger $LEDGER"
   for f in "$LEDGER"/holders/*.slot; do
-    [ -f "$f" ] || continue
+    snap=$(cat "$f" 2>/dev/null) || continue
     who="task=$(record_get "$f" task) home=$(record_get "$f" home)"
-    if holder_gone "$f"; then
-      lock_acquire; rm -f "$f"; lock_release
+    if holder_gone "$f" && remove_if_unchanged "$f" "$snap"; then
       echo "reaped $who: holder and task record are gone"
       freed=$((freed + 1))
-    elif run_past_heavy "$f"; then
-      lock_acquire; rm -f "$f"; lock_release
+    elif run_past_heavy "$f" && remove_if_unchanged "$f" "$snap"; then
       echo "reaped $who: its validation run reached ci or finished"
       freed=$((freed + 1))
     else
@@ -485,9 +494,9 @@ cmd_reap() {
     fi
   done
   for f in "$LEDGER"/waiters/*.wait; do
-    [ -f "$f" ] || continue
+    snap=$(cat "$f" 2>/dev/null) || continue
     if holder_gone "$f"; then
-      lock_acquire; rm -f "$f"; lock_release
+      remove_if_unchanged "$f" "$snap" || true
     fi
   done
   echo "reap: freed=$freed kept=$kept"
