@@ -1,0 +1,18 @@
+{
+  "schema": "fm-today-answer.v1",
+  "answer_id": "ans_01J9ZC3K7Q",
+  "task_id": "portal-rail-order",
+  "kind": "decision",
+  "value": "today-first",
+  "card_hash": "9ca90b45818624bdcc46043048b4fdd0682a31812b98e1ef7db31e7b7f4ed130",
+  "answered_at": "2026-09-28T14:10:12Z",
+  "person": "user_2captain",
+  "device": "iphone-15",
+  "note": "Go with the plan; revisit after the kit lands.",
+  "passkey": {
+    "credential_id": "ZXhhbXBsZS1jcmVkZW50aWFsLWlkLTAwMDE",
+    "authenticator_data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFAAAABw",
+    "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiVHNGZExvaUV6OUE3RUxpaThSU0djdnpiLWlyMGhydFpCelVkZVFxQzZZcyIsIm9yaWdpbiI6Imh0dHBzOi8vYWRtaW4uZXhhbXBsZS5jb20iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+    "signature": "cGxhY2Vob2xkZXI6IGEgcmVhbCBhc3NlcnRpb24gY2FycmllcyBhIERFUiBFQ0RTQSBvciBFZERTQSBzaWduYXR1cmUgaGVyZQ"
+  }
+}
