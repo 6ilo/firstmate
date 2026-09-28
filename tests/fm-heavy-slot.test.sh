@@ -221,6 +221,27 @@ test_ask_waiters() {
   pass "fm-heavy-slot: a refused or waiting ask is visible as a waiter until it acquires or gives up"
 }
 
+test_ledger_lock() {
+  local out status holder
+  new_world lock
+  mkdir -p "$LEDGER_DIR"
+  ln -s "$(dead_pid)" "$LEDGER_DIR/.lock-owner"
+  out=$(acquire "$HOME_A" t1 ask); status=$?
+  expect_code 0 "$status" "a lock left by a dead process was not broken: $out"
+  [ ! -e "$LEDGER_DIR/.lock-owner" ] && [ ! -L "$LEDGER_DIR/.lock-owner" ] \
+    || fail "the ledger lock was not released after acquire"
+
+  sleep 30 &
+  holder=$!
+  ln -s "$holder" "$LEDGER_DIR/.lock-owner"
+  ( sleep 2; kill "$holder" 2>/dev/null ) &
+  out=$(acquire "$HOME_A" t2 ask); status=$?
+  wait
+  expect_code 0 "$status" "acquire did not proceed once the lock holder exited: $out"
+    assert_contains "$(slot list)" "held=2/3" "acquire under a contested lock did not take exactly one slot"
+  pass "fm-heavy-slot: the ledger lock waits for a live owner and breaks a dead owner's lock"
+}
+
 test_release() {
   local out
   new_world release
@@ -314,6 +335,7 @@ test_each_gate_refuses
 test_macos_swap_reading_is_absolute
 test_unknown_readings_never_refuse
 test_ask_waiters
+test_ledger_lock
 test_release
 test_reap_frees_only_on_positive_evidence
 test_reap_by_validation_run

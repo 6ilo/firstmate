@@ -10,8 +10,10 @@
 #
 # Ledger: $FM_HEAVY_SLOT_DIR, default ~/.local/state/firstmate/heavy-slots/.
 #   holders/<key>.slot and waiters/<key>.wait are key=value records, keyed by
-#   the canonical home path plus task id. Every mutation runs under one mkdir
-#   lock at <ledger>/.lock; a lock whose recorded pid is gone is broken.
+#   the canonical home path plus task id. Every mutation runs under one lock,
+#   the symlink <ledger>/.lock-owner whose target is the owner pid, created in
+#   one step. A lock whose owner pid is gone is broken by the one contender
+#   that claims <ledger>/.break.<pid>, and only while it still names that pid.
 # Capacity: heavy_total (default 3) and ask_reserve (default 2) from the active
 #   home's config/lanes.json when present (read with jq; the file is never
 #   created here). An ask may take any free slot. A backlog holder may take one
@@ -99,28 +101,27 @@ pid_alive() {
 
 LOCK_HELD=0
 lock_acquire() {
-  local lock="$LEDGER/.lock" tries=0 owner stale
+  local lock="$LEDGER/.lock-owner" tries=0 owner
   mkdir -p "$LEDGER/holders" "$LEDGER/waiters" || die "cannot create ledger $LEDGER"
-  while ! mkdir "$lock" 2>/dev/null; do
-    owner=$(cat "$lock/pid" 2>/dev/null || true)
-    if [ -n "$owner" ] && ! pid_alive "$owner"; then
-      stale="$LEDGER/.lock.stale.$$"
-      if mv "$lock" "$stale" 2>/dev/null; then
-        rm -rf "$stale"
-        continue
+  while ! ln -s "$$" "$lock" 2>/dev/null; do
+    owner=$(readlink "$lock" 2>/dev/null || true)
+    if [ -n "$owner" ] && ! pid_alive "$owner" && mkdir "$LEDGER/.break.$owner" 2>/dev/null; then
+      if [ "$(readlink "$lock" 2>/dev/null || true)" = "$owner" ] && ! pid_alive "$owner"; then
+        rm -f "$lock"
       fi
+      rmdir "$LEDGER/.break.$owner"
+      continue
     fi
     tries=$((tries + 1))
     [ "$tries" -lt 300 ] || die "heavy-slot ledger lock $lock is held by pid ${owner:-unknown}"
     sleep 0.1
   done
-  printf '%s\n' "$$" >"$lock/pid"
   LOCK_HELD=1
 }
 
 lock_release() {
   [ "$LOCK_HELD" = 1 ] || return 0
-  rm -rf "$LEDGER/.lock"
+  [ "$(readlink "$LEDGER/.lock-owner" 2>/dev/null || true)" != "$$" ] || rm -f "$LEDGER/.lock-owner"
   LOCK_HELD=0
 }
 trap lock_release EXIT
