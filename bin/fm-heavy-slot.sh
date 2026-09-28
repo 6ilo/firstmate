@@ -11,8 +11,10 @@
 # Ledger: $FM_HEAVY_SLOT_DIR, default ~/.local/state/firstmate/heavy-slots/.
 #   holders/<key>.slot and waiters/<key>.wait are key=value records, keyed by
 #   the canonical home path plus task id. Every mutation runs under one lock
-#   at <ledger>/.lock, taken with bin/fm-wake-lib.sh's fm_lock_acquire_wait,
-#   which owns stale-owner recovery.
+#   at <ledger>/.lock, taken with bin/fm-wake-lib.sh's
+#   fm_lock_acquire_wait_bounded, which owns stale-owner recovery; a live
+#   holder that keeps it past FM_HEAVY_SLOT_LOCK_WAIT seconds (default 30)
+#   fails the command with exit 1.
 # Capacity: heavy_total (default 3) and ask_reserve (default 2) from the active
 #   home's config/lanes.json when present (read with jq; the file is never
 #   created here). An ask may take any free slot. A backlog holder may take one
@@ -104,7 +106,8 @@ pid_alive() {
 LOCK_HELD=0
 lock_acquire() {
   mkdir -p "$LEDGER/holders" "$LEDGER/waiters" || die "cannot create ledger $LEDGER"
-  fm_lock_acquire_wait "$LEDGER/.lock" || die "cannot lock heavy-slot ledger $LEDGER"
+  fm_lock_acquire_wait_bounded "$LEDGER/.lock" "${FM_HEAVY_SLOT_LOCK_WAIT:-30}" \
+    || die "cannot lock heavy-slot ledger $LEDGER (held by pid ${FM_LOCK_HELD_PID:-unknown})"
   LOCK_HELD=1
 }
 

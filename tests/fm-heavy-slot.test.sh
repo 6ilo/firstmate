@@ -258,6 +258,15 @@ test_ledger_lock() {
   out=$(slot release --home "$HOME_A" --task t3); status=$?
   expect_code 0 "$status" "a steal marker left by a killed contender wedged the lock: $out"
   assert_contains "$(slot list)" "held=2/3" "release under a recovered lock did not free exactly one slot"
+  sleep 30 &
+  holder=$!
+  lock_owned_by "$LEDGER_DIR/.lock" "$holder"
+  out=$(FM_HEAVY_SLOT_LOCK_WAIT=1 acquire "$HOME_A" t4 ask); status=$?
+  kill "$holder" 2>/dev/null
+  wait "$holder" 2>/dev/null
+  expect_code 1 "$status" "acquire under a lock held past the deadline did not fail: $out"
+  assert_contains "$out" "cannot lock heavy-slot ledger" "the lock deadline failure was not reported"
+  assert_contains "$(slot list)" "held=2/3" "acquire that could not lock still took a slot"
   pass "fm-heavy-slot: the ledger lock waits for a live owner and recovers a dead or interrupted one"
 }
 
