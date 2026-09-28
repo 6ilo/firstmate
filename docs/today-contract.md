@@ -33,7 +33,7 @@ The bridge calls exactly two endpoints on the portal.
 
 | Method and path | Request body | Success response |
 | --- | --- | --- |
-| `POST /api/fleet/snapshot` | one `fm-today-snapshot.v1` document, at most 512 KiB | `200` with the portal's `heard_at` stamp |
+| `POST /api/fleet/bridge/snapshot` | one `fm-today-snapshot.v1` document, at most 512 KiB | `200` with the portal's `heard_at` stamp |
 | `POST /api/fleet/answers` | `{"receipts": [<fm-today-receipt.v1>...], "wait_seconds": <0-25>}` | `200` with `{"answers": [<fm-today-answer.v1>...]}` |
 
 **Snapshot.**

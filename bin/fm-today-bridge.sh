@@ -4,7 +4,7 @@
 #
 # docs/today-contract.md owns the contract this implements: every field's
 # meaning, the card_hash definition, the privacy rules, and the portal's
-# POST /api/fleet/snapshot endpoint. Every connection is opened from this
+# POST /api/fleet/bridge/snapshot endpoint. Every connection is opened from this
 # machine, outward; nothing here listens.
 #
 # Usage:
@@ -42,7 +42,7 @@
 # push      Build the snapshot, check it with the
 #           contract's reference checker (tests/fm-today-contract-check.py), and
 #           refuse to send it when the check fails or it is over 512 KiB. Then
-#           POST it to ${FM_TODAY_PORTAL_URL}/api/fleet/snapshot with
+#           POST it to ${FM_TODAY_PORTAL_URL}/api/fleet/bridge/snapshot with
 #           `Authorization: Bearer $FM_TODAY_BRIDGE_TOKEN`, and print
 #           `heard_at: <stamp>` from the portal's 200 answer. The token is
 #           passed to curl through a private header file, never on a command
@@ -636,7 +636,7 @@ cmd_push() {
   body="$TMP_DIR/body"
   (umask 077; printf 'Authorization: Bearer %s\nContent-Type: application/json\n' "$token" > "$hdr")
   code=$(curl -sS --max-time 30 -o "$body" -w '%{http_code}' -H @"$hdr" \
-    --data-binary @"$snap" "${url%/}/api/fleet/snapshot" 2>"$TMP_DIR/curl.err") || code=000
+    --data-binary @"$snap" "${url%/}/api/fleet/bridge/snapshot" 2>"$TMP_DIR/curl.err") || code=000
   rm -f -- "$hdr"
   if [ "$code" = 000 ]; then
     die "could not reach the portal at ${url%/}: $(head -n1 "$TMP_DIR/curl.err")" 3
