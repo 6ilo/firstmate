@@ -13,7 +13,8 @@
 #   the canonical home path plus task id. Every mutation runs under one lock,
 #   the symlink <ledger>/.lock-owner whose target is the owner pid, created in
 #   one step. A lock whose owner pid is gone is broken by the one contender
-#   that claims <ledger>/.break.<pid>, and only while it still names that pid.
+#   that claims the symlink <ledger>/.breaker.<pid> (target: its own pid), and
+#   only while it still names that pid; a breaker whose pid is gone is removed.
 # Capacity: heavy_total (default 3) and ask_reserve (default 2) from the active
 #   home's config/lanes.json when present (read with jq; the file is never
 #   created here). An ask may take any free slot. A backlog holder may take one
@@ -101,16 +102,23 @@ pid_alive() {
 
 LOCK_HELD=0
 lock_acquire() {
-  local lock="$LEDGER/.lock-owner" tries=0 owner
+  local lock="$LEDGER/.lock-owner" tries=0 owner breaker
   mkdir -p "$LEDGER/holders" "$LEDGER/waiters" || die "cannot create ledger $LEDGER"
   while ! ln -s "$$" "$lock" 2>/dev/null; do
     owner=$(readlink "$lock" 2>/dev/null || true)
-    if [ -n "$owner" ] && ! pid_alive "$owner" && mkdir "$LEDGER/.break.$owner" 2>/dev/null; then
-      if [ "$(readlink "$lock" 2>/dev/null || true)" = "$owner" ] && ! pid_alive "$owner"; then
-        rm -f "$lock"
+    if [ -n "$owner" ] && ! pid_alive "$owner"; then
+      breaker="$LEDGER/.breaker.$owner"
+      if ln -s "$$" "$breaker" 2>/dev/null; then
+        if [ "$(readlink "$lock" 2>/dev/null || true)" = "$owner" ] && ! pid_alive "$owner"; then
+          rm -f "$lock"
+        fi
+        rm -f "$breaker"
+        continue
       fi
-      rmdir "$LEDGER/.break.$owner"
-      continue
+      if ! pid_alive "$(readlink "$breaker" 2>/dev/null || true)"; then
+        rm -f "$breaker"
+        continue
+      fi
     fi
     tries=$((tries + 1))
     [ "$tries" -lt 300 ] || die "heavy-slot ledger lock $lock is held by pid ${owner:-unknown}"

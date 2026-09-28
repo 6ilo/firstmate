@@ -239,6 +239,14 @@ test_ledger_lock() {
   wait
   expect_code 0 "$status" "acquire did not proceed once the lock holder exited: $out"
   assert_contains "$(slot list)" "held=2/3" "acquire under a contested lock did not take exactly one slot"
+  new_world lock-breaker
+  mkdir -p "$LEDGER_DIR"
+  holder=$(dead_pid)
+  ln -s "$holder" "$LEDGER_DIR/.lock-owner"
+  ln -s "$(dead_pid)" "$LEDGER_DIR/.breaker.$holder"
+  out=$(acquire "$HOME_A" t1 ask); status=$?
+  expect_code 0 "$status" "a breaker left by a killed contender wedged the lock: $out"
+  [ ! -L "$LEDGER_DIR/.breaker.$holder" ] || fail "the abandoned breaker was not removed"
   pass "fm-heavy-slot: the ledger lock waits for a live owner and breaks a dead owner's lock"
 }
 
