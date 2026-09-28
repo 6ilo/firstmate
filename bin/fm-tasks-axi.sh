@@ -14,6 +14,18 @@
 # stores it verbatim as a link, which lifecycle transitions record relative to
 # that same root.
 #
+# Planning fields: on `add`/`create` and `update`/`edit` the wrapper also takes
+# --size, --type, --order, --target, and --waits-on, which tasks-axi's row format
+# does not carry. It validates them before tasks-axi runs, strips them from the
+# tasks-axi arguments, and after tasks-axi succeeds records them through
+# bin/fm-backlog-plan.sh (that script's header owns the fields and values).
+# --urgency <0-4> is an alias for tasks-axi's own --priority, which firstmate
+# reads as urgency. The plan record is keyed by the command's first positional
+# argument (the task id), wherever the flags sit. A successful `rm <id>` (or its
+# `delete` alias) also drops that item's plan record. When tasks-axi wrote the
+# row but the plan record could not be written, the wrapper says so and exits 1
+# rather than dropping the fields silently.
+#
 # Why it exists: a bare `tasks-axi` resolves the tracked `.tasks.toml` paths
 # against its working directory, so from the code root it forks the queue
 # whenever the home lives elsewhere; docs/configuration.md ("Backlog backend")
@@ -34,6 +46,10 @@
 #
 # Refusals (exit 2, nothing run):
 #   - tasks-axi missing from PATH;
+#   - a planning field with a bad value, a planning field on any command other
+#     than add/create/update/edit, or planning fields with `add --mint` (the id
+#     is not known until tasks-axi mints it; add, then `update <id>`), or
+#     planning fields with no task id;
 #   - a caller-supplied --file, because this command owns the addressing and
 #     tasks-axi would silently let the last --file win;
 #   - `add` (or its `create` alias) with --start, so neither spelling places a
@@ -87,9 +103,29 @@ absolute_from_caller() {  # <path-value>
   esac
 }
 
+SUBCMD=${1:-}
 ARGS=()
+PLAN_ARGS=()
+MINT=0
+POS_ID=
 path_value_next=0
+plan_value_next=
+value_next=0
 for arg in "$@"; do
+  if [ "$value_next" = 1 ]; then
+    ARGS+=("$arg")
+    value_next=0
+    continue
+  fi
+  if [ -n "$plan_value_next" ]; then
+    if [ "$plan_value_next" = --urgency ]; then
+      ARGS+=("$arg")
+    else
+      PLAN_ARGS+=("$plan_value_next" "$arg")
+    fi
+    plan_value_next=
+    continue
+  fi
   if [ "$path_value_next" = 1 ]; then
     ARGS+=("$(absolute_from_caller "$arg")")
     path_value_next=0
@@ -107,6 +143,22 @@ for arg in "$@"; do
       esac
       ARGS+=("$arg")
       ;;
+    --size|--type|--order|--target|--waits-on|--urgency|--size=*|--type=*|--order=*|--target=*|--waits-on=*|--urgency=*)
+      case "$SUBCMD" in
+        add|create|update|edit) ;;
+        *) fail "${arg%%=*} is a planning field; it goes on add or update" ;;
+      esac
+      case "$arg" in
+        --urgency=*) ARGS+=(--priority "${arg#*=}") ;;
+        --urgency) ARGS+=(--priority); plan_value_next=--urgency ;;
+        *=*) PLAN_ARGS+=("${arg%%=*}" "${arg#*=}") ;;
+        *) plan_value_next=$arg ;;
+      esac
+      ;;
+    --mint)
+      MINT=1
+      ARGS+=("$arg")
+      ;;
     --to|--*-file)
       ARGS+=("$arg")
       path_value_next=1
@@ -114,11 +166,36 @@ for arg in "$@"; do
     --to=*|--*-file=*)
       ARGS+=("${arg%%=*}=$(absolute_from_caller "${arg#*=}")")
       ;;
+    --kind|--repo|--body|--blocked-by|--pr|--report|--priority|--prefix|--title)
+      ARGS+=("$arg")
+      value_next=1
+      ;;
+    -*)
+      ARGS+=("$arg")
+      ;;
     *)
+      [ ${#ARGS[@]} -eq 0 ] || [ -n "$POS_ID" ] || POS_ID=$arg
       ARGS+=("$arg")
       ;;
   esac
 done
+
+[ -z "$plan_value_next" ] || fail "$plan_value_next needs a value"
+for ((i = 0; i < ${#ARGS[@]}; i++)); do
+  if [ "${ARGS[$i]}" = --priority ]; then
+    case "${ARGS[$((i + 1))]:-}" in
+      [0-4]) ;;
+      *) fail "urgency (--priority/--urgency) must be 0 to 4 (got: ${ARGS[$((i + 1))]:-nothing})" ;;
+    esac
+  fi
+done
+PLAN_ID=
+if [ ${#PLAN_ARGS[@]} -gt 0 ]; then
+  [ "$MINT" = 0 ] || fail "planning fields cannot ride on add --mint; add the item, then run update <id> with them"
+  [ -n "$POS_ID" ] || fail "planning fields need the task id: $SUBCMD <id> ..."
+  PLAN_ID=$POS_ID
+  "$SCRIPT_DIR/fm-backlog-plan.sh" check "${PLAN_ARGS[@]}" || exit 2
+fi
 
 command -v tasks-axi >/dev/null 2>&1 || fail "tasks-axi is not on PATH; run bin/fm-bootstrap.sh for the install command"
 
@@ -136,5 +213,48 @@ else
   unset TASKS_AXI_FILE
 fi
 
-cd "$FM_BACKLOG_AXI_ROOT" || fail "cannot enter the backlog root $FM_BACKLOG_AXI_ROOT"
-exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}
+case "$SUBCMD" in
+  rm|delete) PLAN_ID=$POS_ID ;;
+esac
+if [ -z "$PLAN_ID" ]; then
+  cd "$FM_BACKLOG_AXI_ROOT" || fail "cannot enter the backlog root $FM_BACKLOG_AXI_ROOT"
+  exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}
+fi
+
+# The planning record is written only after tasks-axi succeeded, so a refused
+# row never leaves a plan behind; the subshell keeps this process's working
+# directory for the relative paths the plan script may resolve.
+# An update carrying only planning fields has nothing for tasks-axi to change;
+# the plan script itself refuses an id this backlog does not hold.
+TASKS_RAN=0
+AXI_FIELDS=0
+for arg in "${ARGS[@]}"; do
+  [ "$arg" = --json ] || AXI_FIELDS=$((AXI_FIELDS + 1))
+done
+case "$SUBCMD:$AXI_FIELDS" in
+  update:2|edit:2) ;;
+  *) (cd "$FM_BACKLOG_AXI_ROOT" && exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}) || exit $?; TASKS_RAN=1 ;;
+esac
+case "$SUBCMD" in
+  rm|delete)
+    "$SCRIPT_DIR/fm-backlog-plan.sh" rm "$PLAN_ID" \
+      || { printf 'fm-tasks-axi: removed %s but could not drop its planning record\n' "$PLAN_ID" >&2; exit 1; }
+    exit 0
+    ;;
+esac
+"$SCRIPT_DIR/fm-backlog-plan.sh" set "$PLAN_ID" "${PLAN_ARGS[@]}" >/dev/null
+rc=$?
+[ "$rc" -ne 0 ] || exit 0
+# A refusal with no tasks-axi change is the plan script's own clear message.
+# Once tasks-axi has written the row, any plan failure is loud and nonzero so
+# the fields are never dropped silently.
+[ "$TASKS_RAN" = 1 ] || exit "$rc"
+DROPPED=
+i=0
+while [ "$i" -lt ${#PLAN_ARGS[@]} ]; do
+  DROPPED="$DROPPED ${PLAN_ARGS[$i]} '${PLAN_ARGS[$((i + 1))]}'"
+  i=$((i + 2))
+done
+printf 'fm-tasks-axi: %s wrote the backlog row, but planning fields for %s were not recorded:%s; rerun update %s with them\n' \
+  "$SUBCMD" "$PLAN_ID" "$DROPPED" "$PLAN_ID" >&2
+exit 1

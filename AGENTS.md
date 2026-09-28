@@ -563,6 +563,7 @@ Re-evaluate queued work after every teardown and heartbeat, dispatching items on
 
 `.tasks.toml`, `docs/configuration.md`, and current `tasks-axi --help` own the backlog schema, compatibility, retention, and routine command syntax.
 Use compatible `tasks-axi` when the configured backend selects it, always through `bin/fm-tasks-axi.sh` so the call reaches this home's backlog from any directory, and the documented manual path otherwise; keep only the configured recent Done entries.
+When filing work, record whatever is known of its urgency, size, type, order, target date, and waits through that wrapper's planning fields (`docs/configuration.md` "Planning fields").
 `secondmate-provisioning` and `bin/fm-backlog-handoff.sh` own cross-home handoff safety.
 
 Keep free-form notes free of temporary paths, moving versions, ephemeral identifiers, and copied state that will rot.
