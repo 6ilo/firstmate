@@ -1,0 +1,68 @@
+
+$ fm-today-bridge.sh snapshot  (lab home)
+exit=0
+--- stderr:
+fm-today-bridge: left out day block "": unusable id or times
+--- reference checker:
+ok
+--- calls (task_id, verdict, title, summary):
+jq: error (at /Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3MP6QKMSY69462EJD6BVHJJ/snapshot.json:194): Cannot iterate over null (null)
+--- underway / charted_next / landed:
+jq: error (at /Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3MP6QKMSY69462EJD6BVHJJ/snapshot.json:194): Cannot iterate over null (null)
+--- day:
+null
+--- leak scan of snapshot for private text:
+absent: jo.smith
+absent: example.org
+absent: 450
+absent: guardian
+absent: 555
+absent: 4567
+
+$ push via home .env (URL + token in $FM_HOME/.env)
+fm-today-bridge: left out day block "": unusable id or times
+ok
+heard_at: 2026-09-28T19:00:00Z
+exit=0 requests=1
+path=/api/fleet/snapshot type=application/json auth_is_bearer_token=true
+ok
+pushed body passes reference checker
+
+$ push with portal answering 400
+fm-today-bridge: left out day block "": unusable id or times
+ok
+fm-today-bridge: the portal answered 400 (bad_snapshot)
+exit=3
+
+$ push with missing token
+fm-today-bridge: missing FM_TODAY_BRIDGE_TOKEN; nothing was sent
+exit=2 new_requests=0
+
+$ push to plain http off loopback (http://example.com)
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+exit=2
+
+$ push to http://127.0.0.1.evil.example (loopback lookalike)
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+exit=2
+
+$ push to http://localhost@evil.example (userinfo trick)
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+exit=2
+
+$ push --from (removed option)
+fm-today-bridge: unknown push argument: --from
+exit=2 new_requests=0
+
+$ push --dry-run out.json (no URL/token)
+fm-today-bridge: left out day block "": unusable id or times
+ok
+dry-run: wrote /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.RTVu2v/dry.json; nothing was sent
+exit=0 new_requests=0 wrote=yes
+
+$ stale day file (yesterday) -> empty day for today
+null
+
+$ token leak scan across all outputs and pushed body
+token absent from every evidence file
+lab removed: yes

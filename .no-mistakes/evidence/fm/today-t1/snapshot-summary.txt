@@ -1,0 +1,12 @@
+--- calls (task_id | verdict | title | summary):
+call-clean | pass | Choose the rail order: pick one of two orders | 
+call-fee | withheld | A call is waiting on the machine | 
+call-family | withheld | A call is waiting on the machine | 
+call-email | withheld | A call is waiting on the machine | 
+call-cut-phone | withheld | A call is waiting on the machine | 
+call-noted | withheld | A call is waiting on the machine | 
+--- underway/charted_next/landed/health:
+{"underway":[{"task_id":null,"title":"Ship the Today bridge","doing":"backend target gone: firstmate:fm-ship-task"}],"charted_next":[null],"landed":[null],"health":{"supervision":"unknown","unhealthy":[{"id":"ship-task","endpoint_exists":false,"agent_alive":null}]}}
+--- day:
+{"date":"2026-09-28","ends_at":"2026-09-28T23:59:59-05:00","blocks":[{"id":"b1","title":"Portal review with team","starts_at":"2026-09-28T09:00:00-05:00","ends_at":"2026-09-28T10:00:00-05:00"},{"id":"b2","title":"Focus block","starts_at":"2026-09-28T13:00:00-05:00","ends_at":"2026-09-28T15:00:00-05:00"}]}
+{"underway":[{"id":"ship-task","title":"Ship the Today bridge","kind":"ship","state":"unknown","doing":"backend target gone: firstmate:fm-ship-task","type":"ship"}],"charted_next":[{"id":"next-up","title":"Wire the portal answers back","reason":"","dispatchable":true,"kind":"queued","owner":"(main)"}],"landed":[{"id":"done-a","title":"Landed contract docs","owner":"(main)","repo":"acme/widget","pr_url":"https://github.com/acme/widget/pull/9"}],"boards":[]}

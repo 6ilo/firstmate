@@ -1,0 +1,195 @@
+{
+  "schema": "fm-today-snapshot.v1",
+  "generator_version": "1.0.0",
+  "generated_at": "2026-09-28T19:27:03Z",
+  "home": "/fm-lab.RTVu2v",
+  "sections": {
+    "calls": [
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "call-clean",
+        "kind": "decision",
+        "title": "Choose the rail order: pick one of two orders",
+        "question": "Choose the rail order: pick one of two orders",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T19:27:03Z"
+        },
+        "card_hash": "4ad79dd5f788dcf00d6c6f358065630e43e9c15754b790b76ae760840d3736e2"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "call-fee",
+        "kind": "decision",
+        "title": "A call is waiting on the machine",
+        "question": "This call's text stays on the machine. Read it there.",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "text_check": {
+          "verdict": "withheld",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T19:27:03Z"
+        },
+        "card_hash": "e19b751fec2127ee8bf706c48fe3e0489b2179602b6acbdeaee017290d42992a"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "call-family",
+        "kind": "decision",
+        "title": "A call is waiting on the machine",
+        "question": "This call's text stays on the machine. Read it there.",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "text_check": {
+          "verdict": "withheld",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T19:27:03Z"
+        },
+        "card_hash": "1fcb7919635587c077ba036c51770fae172818101ebd0a54814888d6ff09b43a"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "call-email",
+        "kind": "decision",
+        "title": "A call is waiting on the machine",
+        "question": "This call's text stays on the machine. Read it there.",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "text_check": {
+          "verdict": "withheld",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T19:27:03Z"
+        },
+        "card_hash": "9f75942725d577b8921a465949e5f494c002959f833f3e7742169bcdab6be5ce"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "call-cut-phone",
+        "kind": "decision",
+        "title": "A call is waiting on the machine",
+        "question": "This call's text stays on the machine. Read it there.",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "text_check": {
+          "verdict": "withheld",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T19:27:03Z"
+        },
+        "card_hash": "f4307d7cce2bb1948de4f71d3438cec3f4e721ba6d4b4d99f1469a290aeed52b"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "call-noted",
+        "kind": "decision",
+        "title": "A call is waiting on the machine",
+        "question": "This call's text stays on the machine. Read it there.",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "text_check": {
+          "verdict": "withheld",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T19:27:03Z"
+        },
+        "card_hash": "a220d37e5b2f5aad9f34cc470ca510cbe2a505fdbd1e957fd52dd0d2f546fdd9"
+      }
+    ],
+    "underway": [
+      {
+        "id": "ship-task",
+        "title": "Ship the Today bridge",
+        "kind": "ship",
+        "state": "unknown",
+        "doing": "backend target gone: firstmate:fm-ship-task",
+        "type": "ship"
+      }
+    ],
+    "charted_next": [
+      {
+        "id": "next-up",
+        "title": "Wire the portal answers back",
+        "reason": "",
+        "dispatchable": true,
+        "kind": "queued",
+        "owner": "(main)"
+      }
+    ],
+    "landed": [
+      {
+        "id": "done-a",
+        "title": "Landed contract docs",
+        "owner": "(main)",
+        "repo": "acme/widget",
+        "pr_url": "https://github.com/acme/widget/pull/9"
+      }
+    ],
+    "health": {
+      "supervision": "unknown",
+      "unhealthy": [
+        {
+          "id": "ship-task",
+          "endpoint_exists": false,
+          "agent_alive": null
+        }
+      ]
+    },
+    "boards": [],
+    "day": {
+      "date": "2026-09-28",
+      "ends_at": "2026-09-28T23:59:59-05:00",
+      "blocks": [
+        {
+          "id": "b1",
+          "title": "Portal review with team",
+          "starts_at": "2026-09-28T09:00:00-05:00",
+          "ends_at": "2026-09-28T10:00:00-05:00"
+        },
+        {
+          "id": "b2",
+          "title": "Focus block",
+          "starts_at": "2026-09-28T13:00:00-05:00",
+          "ends_at": "2026-09-28T15:00:00-05:00"
+        }
+      ]
+    }
+  }
+}
+
