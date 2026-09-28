@@ -1,68 +1,127 @@
-
-$ fm-today-bridge.sh snapshot  (lab home)
-exit=0
---- stderr:
-fm-today-bridge: left out day block "": unusable id or times
---- reference checker:
+=== S1 snapshot ===
+[exit 0]
+stderr:
 ok
---- calls (task_id, verdict, title, summary):
-jq: error (at /Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3MP6QKMSY69462EJD6BVHJJ/snapshot.json:194): Cannot iterate over null (null)
---- underway / charted_next / landed:
-jq: error (at /Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3MP6QKMSY69462EJD6BVHJJ/snapshot.json:194): Cannot iterate over null (null)
---- day:
-null
---- leak scan of snapshot for private text:
-absent: jo.smith
-absent: example.org
-absent: 450
-absent: guardian
-absent: 555
-absent: 4567
+[checker exit 0]
+{
+  "calls": [
+    {
+      "task_id": "call-rail",
+      "title": "Choose the rail order for the dock: pick one of two orders",
+      "verdict": "pass"
+    },
+    {
+      "task_id": "call-fee",
+      "title": "A call is waiting on the machine",
+      "verdict": "withheld"
+    },
+    {
+      "task_id": "call-mail",
+      "title": "A call is waiting on the machine",
+      "verdict": "withheld"
+    },
+    {
+      "task_id": "call-cutaddr",
+      "title": "A call is waiting on the machine",
+      "verdict": "withheld"
+    }
+  ],
+  "underway": [
+    {
+      "task_id": "ship-today",
+      "title": "Build the Today bridge"
+    }
+  ],
+  "charted_next": [
+    "next-up"
+  ],
+  "landed": [
+    "landed-one"
+  ],
+  "supervision": "unknown",
+  "day": {
+    "date": "2026-09-28",
+    "ends_at": "2026-09-28T23:59:59-05:00",
+    "blocks": [
+      {
+        "id": "b1",
+        "title": "Standup with crew",
+        "starts_at": "2026-09-28T09:00:00-05:00",
+        "ends_at": "2026-09-28T09:30:00-05:00"
+      },
+      {
+        "id": "b2",
+        "title": "Deep work",
+        "starts_at": "2026-09-28T10:00:00-05:00",
+        "ends_at": "2026-09-28T12:00:00-05:00"
+      }
+    ]
+  }
+}
+leak grep (Smith|tuition|jo.smith|Juniper|42 ):
+none
 
-$ push via home .env (URL + token in $FM_HOME/.env)
-fm-today-bridge: left out day block "": unusable id or times
+=== S2 push --dry-run ===
+
+$ bin/fm-today-bridge.sh push --dry-run /Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3MR066HP8V4VDTWDVAY8PVG/dryrun.json
 ok
-heard_at: 2026-09-28T19:00:00Z
-exit=0 requests=1
+dry-run: wrote /Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3MR066HP8V4VDTWDVAY8PVG/dryrun.json; nothing was sent
+[exit 0]
+dry-run file bytes:     4653
+
+=== S3 push to loopback stub (200) ===
+[exit 0]
+stdout: heard_at: 2026-09-28T19:00:00Z
+stderr: ok
 path=/api/fleet/snapshot type=application/json auth_is_bearer_token=true
 ok
-pushed body passes reference checker
+[checker on received body exit 0]
+token in any output? /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.YJVvZO/o:0 /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.YJVvZO/e:0
 
-$ push with portal answering 400
-fm-today-bridge: left out day block "": unusable id or times
+=== S4 push from home .env ===
+
+$ bin/fm-today-bridge.sh push
+ok
+heard_at: 2026-09-28T19:00:00Z
+[exit 0]
+requests received: 2
+
+=== S5 portal answers 400 ===
 ok
 fm-today-bridge: the portal answered 400 (bad_snapshot)
-exit=3
+[exit 3]
 
-$ push with missing token
+=== S6 adversarial: non-loopback http and other schemes send nothing ===
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+[exit 2 for http://127.0.0.1@evil.example]
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+[exit 2 for http://localhost:80@evil.example/x]
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+[exit 2 for http://127.0.0.1#@evil.example]
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+[exit 2 for http://portal.example]
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+[exit 2 for http://127.0.0.1.evil.example:1]
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+[exit 2 for ftp://127.0.0.1]
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+[exit 2 for http://localhost.evil.example]
+fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+[exit 2 for http://user@evil.example]
+requests received by stub: 0
+
+=== S7 missing token / URL ===
 fm-today-bridge: missing FM_TODAY_BRIDGE_TOKEN; nothing was sent
-exit=2 new_requests=0
+[exit 2]
+fm-today-bridge: missing FM_TODAY_PORTAL_URL; nothing was sent
+[exit 2]
 
-$ push to plain http off loopback (http://example.com)
-fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
-exit=2
+=== S8 stale day file -> empty day for today ===
+{"date":"2026-09-28","ends_at":"2026-09-29T00:00:00-05:00","blocks":[]}
+{"date":"2026-09-28","ends_at":"2026-09-29T00:00:00-05:00","blocks":[]}
 
-$ push to http://127.0.0.1.evil.example (loopback lookalike)
-fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
-exit=2
+=== S9 nothing listens ===
+listening sockets owned by bridge during snapshot: none expected
+       0
 
-$ push to http://localhost@evil.example (userinfo trick)
-fm-today-bridge: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
-exit=2
-
-$ push --from (removed option)
-fm-today-bridge: unknown push argument: --from
-exit=2 new_requests=0
-
-$ push --dry-run out.json (no URL/token)
-fm-today-bridge: left out day block "": unusable id or times
-ok
-dry-run: wrote /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.RTVu2v/dry.json; nothing was sent
-exit=0 new_requests=0 wrote=yes
-
-$ stale day file (yesterday) -> empty day for today
-null
-
-$ token leak scan across all outputs and pushed body
-token absent from every evidence file
 lab removed: yes
