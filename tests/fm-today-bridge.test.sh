@@ -57,6 +57,7 @@ make_home() {  # <name>
 - [ ] call-address - Ship the kit to 42 Juniper Hill Rd (kind: captain) (hold: send it or not) (hold-kind: captain)
 - [ ] call-dob - Confirm the date of birth on file (kind: captain) (hold: confirm or not) (hold-kind: captain)
 - [ ] call-word - Tell the guardian about the change (kind: captain) (hold: tell or not) (hold-kind: captain)
+- [ ] call-cut - Choose the order (kind: captain) (hold: check the vendor timeline first and after that write back to jo.smith@example.org) (hold-kind: captain)
 
 ## Done
 - [x] done-a - Landed thing https://github.com/acme/widget/pull/7 (repo: firstmate) (kind: ship) (merged 2026-09-27)
@@ -241,11 +242,23 @@ test_push_reads_the_home_env() {
   pass "push reads the URL and token from the home .env"
 }
 
+# A copy of the bridge whose contract demands a generator version it never
+# writes, so every snapshot it builds fails the check.
 test_push_refuses_invalid_snapshot() {
-  local stub=$TMP_ROOT/stub-invalid
+  local stub=$TMP_ROOT/stub-invalid tree=$TMP_ROOT/strict-tree schema
+  mkdir -p "$tree/tests" "$tree/docs"
+  cp -R "$ROOT/bin" "$tree/bin"
+  cp "$ROOT/tests/fm-today-contract-check.py" "$tree/tests/"
+  cp -R "$ROOT/docs/today-contract" "$tree/docs/today-contract"
+  schema="$tree/docs/today-contract/fm-today-snapshot.v1.schema.json"
+  jq '.properties.generator_version = {"const": "0.0.0"}' "$schema" > "$schema.new" && mv "$schema.new" "$schema"
   start_stub "$stub" 200
-  FM_TODAY_PORTAL_URL=$STUB_URL FM_TODAY_BRIDGE_TOKEN=$TOKEN bridge "$HOME_A" push \
-    --from "$ROOT/docs/today-contract/examples/invalid/snapshot--missing-day.json"
+  run_n=$((run_n + 1))
+  OUT="$OUTPUTS/$run_n.out"
+  ERR="$OUTPUTS/$run_n.err"
+  CODE=0
+  FM_HOME="$HOME_A" FM_TODAY_PORTAL_URL=$STUB_URL FM_TODAY_BRIDGE_TOKEN=$TOKEN \
+    "$tree/bin/fm-today-bridge.sh" push > "$OUT" 2> "$ERR" || CODE=$?
   stop_stub
   [ "$CODE" -eq 1 ] || fail "invalid snapshot push exited $CODE, want 1"
   grep -q 'refusing to send' "$ERR" || fail "no refusal message: $(cat "$ERR")"
@@ -281,6 +294,28 @@ test_push_missing_config_sends_nothing() {
   pass "a missing URL or token exits 2 naming it"
 }
 
+test_push_refuses_plain_http_off_loopback() {
+  local url
+  for url in http://portal.example http://127.0.0.1.example.org http://localhost@portal.example \
+    http://localhost:80@portal.example ftp://portal.example; do
+    FM_TODAY_PORTAL_URL=$url FM_TODAY_BRIDGE_TOKEN=$TOKEN bridge "$HOME_A" push
+    [ "$CODE" -eq 2 ] || fail "portal URL $url exited $CODE, want 2"
+    grep -q 'nothing was sent' "$ERR" || fail "portal URL $url not refused: $(cat "$ERR")"
+  done
+  pass "push refuses a portal URL that is neither https nor loopback http"
+}
+
+test_cut_text_loses_its_partial_word() {
+  local snap=$TMP_ROOT/snap.json card
+  card=$(jq -c '.sections.calls[] | select(.task_id == "call-cut")' "$snap")
+  [ -n "$card" ] || fail "the cut call is missing"
+  [ "$(jq -r .text_check.verdict <<< "$card")" = pass ] || fail "the cut call was withheld: $card"
+  jq -e '.title | endswith("write back to…")' <<< "$card" >/dev/null \
+    || fail "the cut call kept its partial word: $card"
+  ! grep -q -- 'jo\.smith' "$snap" || fail "part of a cut email address left in the snapshot"
+  pass "text bearings cut short loses its trailing partial word before the check"
+}
+
 test_dry_run_writes_and_sends_nothing() {
   local stub=$TMP_ROOT/stub-dry out=$TMP_ROOT/dry.json
   start_stub "$stub" 200
@@ -301,12 +336,14 @@ test_token_never_in_output() {
 test_snapshot_is_valid_and_withholds_each_rule_family
 test_snapshot_carries_the_fleet
 test_card_hash_recomputes
+test_cut_text_loses_its_partial_word
 test_day_from_file_and_empty_when_missing
 test_board_row_carries_no_board_text
 test_push_sends_with_the_bearer_header
 test_push_reads_the_home_env
 test_push_refuses_invalid_snapshot
 test_push_reports_portal_refusal
+test_push_refuses_plain_http_off_loopback
 test_push_missing_config_sends_nothing
 test_dry_run_writes_and_sends_nothing
 test_token_never_in_output

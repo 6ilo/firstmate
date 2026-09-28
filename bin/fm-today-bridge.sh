@@ -9,7 +9,7 @@
 #
 # Usage:
 #   fm-today-bridge.sh snapshot
-#   fm-today-bridge.sh push [--from <snapshot.json>] [--dry-run <out.json>]
+#   fm-today-bridge.sh push [--dry-run <out.json>]
 #   fm-today-bridge.sh --help
 #
 # snapshot  Print one fm-today-snapshot.v1 document for the whole fleet. It
@@ -39,14 +39,15 @@
 #           card is a `decision` card offering the standard `reconcile` option;
 #           the portal adds `later` itself.
 #
-# push      Build the snapshot (or read --from <file>), check it with the
+# push      Build the snapshot, check it with the
 #           contract's reference checker (tests/fm-today-contract-check.py), and
 #           refuse to send it when the check fails or it is over 512 KiB. Then
 #           POST it to ${FM_TODAY_PORTAL_URL}/api/fleet/snapshot with
 #           `Authorization: Bearer $FM_TODAY_BRIDGE_TOKEN`, and print
 #           `heard_at: <stamp>` from the portal's 200 answer. The token is
 #           passed to curl through a private header file, never on a command
-#           line, and is never printed.
+#           line, and is never printed. The URL must be https://, or http://
+#           only to 127.0.0.1 or localhost; any other URL sends nothing.
 #           --dry-run <out.json> writes the checked document to that file and
 #           sends nothing; it needs neither the URL nor the token.
 #
@@ -74,6 +75,8 @@
 # checked field, never partly redacted. Every other free-text field passes the
 # same check: a tripped work title becomes the work id and a tripped `doing`,
 # `reason`, or wait label becomes neutral text. Day block titles are exempt.
+# Text bearings cut short (ending in …) loses its trailing partial word before
+# the check, so a pattern split at the cut cannot slip past it.
 # Bump the checker version whenever RULES changes.
 #
 # Exit status: 0 on success; 1 when the snapshot cannot be built or fails the
@@ -225,8 +228,17 @@ def fit(text, limit):
     return cut.rstrip() + "…"
 
 
-def line(value, limit, fallback=""):
+def whole(value):
+    """Collapsed to one line, without the partial word a cut left before its …."""
     text = " ".join(str(value if value is not None else "").split())
+    if text.endswith("…"):
+        head = text[:-1].rpartition(" ")[0].rstrip()
+        text = head + "…" if head else ""
+    return text
+
+
+def line(value, limit, fallback=""):
+    text = whole(value)
     if text in ("", "-"):
         text = fallback
     return fit(text, limit) if text else ""
@@ -368,8 +380,8 @@ for dec in bearings.get("decisions_open") or []:
         skipped.append("call %s: already listed or over the 200-call limit" % tid)
         continue
     seen_calls.add(tid)
-    summary = " ".join(str(dec.get("summary") or "").split())
-    title = line(summary, 200, tid)
+    summary = whole(dec.get("summary"))
+    title = line(dec.get("summary"), 200, tid)
     question = fit(summary or tid, 4000)
     options = [dict(RECONCILE)]
     shown = [title, question] + [o["label"] for o in options] + [o.get("hint", "") for o in options]
@@ -560,12 +572,11 @@ if isinstance(raw_day, dict) and raw_day.get("date") == today.isoformat():
         day["blocks"].append({"id": bid, "title": line(block.get("title"), 200, "Busy"),
                               "starts_at": block["starts_at"], "ends_at": block["ends_at"]})
 
-home = line(bearings.get("home"), 200, "firstmate")
 snapshot = {
     "schema": "fm-today-snapshot.v1",
     "generator_version": GENERATOR_VERSION,
     "generated_at": now,
-    "home": checked(home, 200, "firstmate"),
+    "home": checked(bearings.get("home"), 200, "firstmate"),
     "sections": {"calls": calls, "underway": underway, "charted_next": charted,
                  "landed": landed, "health": health, "boards": boards, "day": day},
 }
@@ -593,10 +604,9 @@ cmd_snapshot() {
 }
 
 cmd_push() {
-  local from='' dry='' url token missing='' snap hdr body code heard
+  local dry='' url token missing='' snap hdr body code heard
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --from) [ "$#" -ge 2 ] || die "--from needs a file" 2; from=$2; shift 2 ;;
       --dry-run) [ "$#" -ge 2 ] || die "--dry-run needs an output file" 2; dry=$2; shift 2 ;;
       *) die "unknown push argument: $1" 2 ;;
     esac
@@ -607,22 +617,15 @@ cmd_push() {
     [ -n "$url" ] || missing="FM_TODAY_PORTAL_URL"
     [ -n "$token" ] || missing="${missing:+$missing and }FM_TODAY_BRIDGE_TOKEN"
     [ -z "$missing" ] || die "missing $missing; nothing was sent" 2
-    case "$url" in
-      http://*|https://*) ;;
-      *) die "FM_TODAY_PORTAL_URL must start with https:// or http://; nothing was sent" 2 ;;
-    esac
+    [[ "$url" =~ ^https://|^http://(127\.0\.0\.1|localhost)(:[0-9]{1,5})?(/.*)?$ ]] \
+      || die "FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent" 2
     case "$token" in
       *[[:space:]]*) die "FM_TODAY_BRIDGE_TOKEN must not contain whitespace; nothing was sent" 2 ;;
     esac
   fi
   make_tmp
   snap="$TMP_DIR/snapshot.json"
-  if [ -n "$from" ]; then
-    [ -f "$from" ] || die "no such snapshot file: $from" 2
-    cp -- "$from" "$snap"
-  else
-    build_snapshot "$snap"
-  fi
+  build_snapshot "$snap"
   check_snapshot "$snap"
   if [ -n "$dry" ]; then
     cp -- "$snap" "$dry" || die "cannot write $dry"

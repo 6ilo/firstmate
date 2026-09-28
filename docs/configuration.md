@@ -1533,7 +1533,7 @@ A value set in the environment wins over the `.env` line.
 
 | Name | Meaning |
 | --- | --- |
-| `FM_TODAY_PORTAL_URL` | The portal's origin, such as `https://portal.example`; the bridge posts to `/api/fleet/snapshot` under it |
+| `FM_TODAY_PORTAL_URL` | The portal's origin, such as `https://portal.example`; the bridge posts to `/api/fleet/snapshot` under it. It must be `https://`, or `http://` only to `127.0.0.1` or `localhost`; any other URL exits 2 and sends nothing |
 | `FM_TODAY_BRIDGE_TOKEN` | The bridge's bearer token; the portal keeps only its SHA-256 digest |
 | `FM_TODAY_DAY_FILE` | Optional path of the calendar day file, default `~/.local/state/firstmate/calendar-day.json` |
 
@@ -1547,6 +1547,9 @@ A snapshot that fails the check or is over 512 KiB is never sent.
 A missing URL or token exits 2 with one line naming what is missing, and sends nothing.
 A portal that cannot be reached or answers anything but 200 exits 3 with its status.
 The token never appears on a command line or in the bridge's output.
+
+v1 sends the main home's captain calls only.
+A secondmate's call carries a `<mate>/<task>` id, which a card's `task_id` cannot hold, so it is left out and named on stderr.
 
 ### Calendar day file
 
@@ -1571,6 +1574,7 @@ It trips on any of these, and is deterministic, so the same text always gets the
 
 A call that trips goes out with the `withheld` verdict and firstmate's own neutral title and question in place of the call's words, never partly redacted.
 Every other free-text field in the snapshot passes the same check: a work title that trips is replaced by the work's id, and any other tripped text by neutral text.
+Text that bearings cut short, ending in `…`, loses its trailing partial word before the check and before it is sent, so a pattern split at the cut cannot leave in part.
 The check leans toward withholding, so ordinary words such as "parent" or "minor" in a technical call also keep that call's text on the machine.
 
 ## Relay (.env)
