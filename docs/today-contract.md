@@ -177,7 +177,8 @@ The reference checker enforces these beside the schemas:
 
 - Everything the portal receives through this contract lives in captain-only tables, enforced on the server, never shown to staff.
 - The text of a call leaves the captain's machine only as a card, after firstmate's text check.
-- Every other free-text field in a snapshot passes the same check before the bridge sends it.
+- Every other free-text field in a snapshot passes the same check before the bridge sends it, except day block titles.
+- Day block titles are exempt from the text check by the captain's D33, which shows each calendar block with its title; they are sent only in `day`, and the portal deletes them when the day ends.
 - No document ever carries learner, family, fee, or legal detail.
 - A board row carries no board title or body, only the fields listed above.
 - Calendar titles appear only in the `day` section, and a day block carries only its id, times, and title.
