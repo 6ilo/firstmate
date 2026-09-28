@@ -1,0 +1,7 @@
+# captain-style launch (no firstmate --settings)
+{"claude_mem_plugin_loaded":true,"claude_mem_mcp":["plugin:claude-mem:mcp-search"],"other_plugins":["playground","vercel","github","neon","claude-code-setup","stripe","linear","agents-md"]}
+# crewmate/scout launch, --settings from fm-spawn launch_template claude crewmate: {"feedbackDrafts":"off","attribution":{"commit":"","pr":"","sessionUrl":false},"enabledPlugins":{"claude-mem@thedotmack":false}}
+{"claude_mem_plugin_loaded":false,"claude_mem_mcp":[],"other_plugins":["playground","vercel","github","neon","claude-code-setup","stripe","linear","agents-md"]}
+# secondmate launch, --settings: {"feedbackDrafts":"off","attribution":{"commit":"","pr":"","sessionUrl":false}}
+{"claude_mem_plugin_loaded":true,"claude_mem_mcp":["plugin:claude-mem:mcp-search"],"other_plugins":["playground","vercel","github","neon","claude-code-setup","stripe","linear","agents-md"]}
+{"claude-mem@thedotmack":true,"legal@inline":true,"brand-voice@inline":false,"marketing@inline":false,"operations@inline":false,"product-management@inline":false,"design@inline":false,"productivity@inline":false,"cowork-plugin-management@inline":false,"mmeg-files-admin@inline":false,"playground@claude-plugins-official":true,"vercel@claude-plugins-official":true,"github@claude-plugins-official":true,"neon@claude-plugins-official":true,"claude-code-setup@claude-plugins-official":true,"stripe@claude-plugins-official":true,"linear@claude-plugins-official":true}
