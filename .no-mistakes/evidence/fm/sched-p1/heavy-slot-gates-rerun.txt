@@ -1,0 +1,34 @@
+=== S5 (re-run, array-split injection): each gate refuses on its own ===
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_LOAD1=16 bin/fm-heavy-slot.sh acquire --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 41231
+refused: load average 16 is at or above 16
+[exit 3]
+
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_PRESSURE_LEVEL=4 bin/fm-heavy-slot.sh acquire --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 41231
+refused: memory pressure level 4 is at or above 4
+[exit 3]
+
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_SWAP_USED_MB=7200 bin/fm-heavy-slot.sh acquire --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 41231
+refused: swap used 7200MB is at or above 7168MB
+[exit 3]
+
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_BROWSER_PAGES=31 bin/fm-heavy-slot.sh acquire --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 41231
+refused: 31 browser page processes exceed 30; close finished Playwright browsers and preview or Lavish tabs
+[exit 3]
+
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_PRESSURE_LEVEL=3 FM_HEAVY_SLOT_BROWSER_PAGES=30 bin/fm-heavy-slot.sh acquire --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 41231
+acquired heavy slot task=g1 lane=ask held=1/3
+[exit 0]
+
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 bin/fm-heavy-slot.sh list --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg
+ledger: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-heavy-ledger.3Jdvyt
+slots: held=1/3 ask=1 backlog=0/1
+gates: load1=5/16 pressure=1/4 swap_used_mb=100/7168 browser_pages=4/30
+holders[1]{home,task,lane,pid,run,worktree,started}:
+  /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab-h.u09wwg,g1,ask,41231,,/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3JXY7K56VYRFZBVVT7KJNR4,1790564646
+ask_waiters[0]{home,task,pid,since}:
+[exit 0]
+
+$ bin/fm-heavy-slot.sh release --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg
+released heavy slot task=g1
+[exit 0]
+

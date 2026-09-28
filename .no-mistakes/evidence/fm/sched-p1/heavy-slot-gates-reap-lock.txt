@@ -1,0 +1,96 @@
+=== S5: memory/load/browser gates refuse a new heavy run (one bad reading each, others healthy) ===
+# reading: FM_HEAVY_SLOT_LOAD1=16
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_LOAD1=16 bin/fm-heavy-slot.sh acquire --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27249
+refused: load average 16 is at or above 16
+[exit 3]
+
+# reading: FM_HEAVY_SLOT_PRESSURE_LEVEL=4
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_PRESSURE_LEVEL=4 bin/fm-heavy-slot.sh acquire --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27249
+refused: memory pressure level 4 is at or above 4
+[exit 3]
+
+# reading: FM_HEAVY_SLOT_SWAP_USED_MB=7200
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_SWAP_USED_MB=7200 bin/fm-heavy-slot.sh acquire --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27249
+refused: swap used 7200MB is at or above 7168MB
+[exit 3]
+
+# reading: FM_HEAVY_SLOT_BROWSER_PAGES=31
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_BROWSER_PAGES=31 bin/fm-heavy-slot.sh acquire --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27249
+refused: 31 browser page processes exceed 30; close finished Playwright browsers and preview or Lavish tabs
+[exit 3]
+
+# boundary: pressure 3 (warning) and 30 browser pages still allowed
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_PRESSURE_LEVEL=3 FM_HEAVY_SLOT_BROWSER_PAGES=30 bin/fm-heavy-slot.sh acquire --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27249
+acquired heavy slot task=g1 lane=ask held=1/3
+[exit 0]
+
+# unknown readings never refuse
+$ env FM_HEAVY_SLOT_LOAD1=unknown FM_HEAVY_SLOT_PRESSURE_LEVEL=unknown FM_HEAVY_SLOT_SWAP_USED_MB=unknown FM_HEAVY_SLOT_BROWSER_PAGES=unknown bin/fm-heavy-slot.sh acquire --task g2 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27249
+acquired heavy slot task=g2 lane=ask held=2/3
+[exit 0]
+
+=== S6: release frees the slot; second release is idempotent ===
+$ bin/fm-heavy-slot.sh release --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg
+released heavy slot task=g1
+[exit 0]
+
+$ bin/fm-heavy-slot.sh release --task g1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg
+no heavy slot held by task=g1
+[exit 0]
+
+=== S7: reap needs positive evidence ===
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 bin/fm-heavy-slot.sh acquire --task r1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27828
+acquired heavy slot task=r1 lane=ask held=2/3
+[exit 0]
+
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 bin/fm-heavy-slot.sh acquire --task r2 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27828
+acquired heavy slot task=r2 lane=ask held=3/3
+[exit 0]
+
+$ bin/fm-heavy-slot.sh reap
+reaped task=r2 home=/private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab-h.u09wwg: holder and task record are gone
+reap: freed=1 kept=2
+[exit 0]
+
+# r1 kept (meta still exists), r2 reaped (dead pid, no meta); now remove r1 meta:
+$ bin/fm-heavy-slot.sh reap
+reaped task=r1 home=/private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab-h.u09wwg: holder and task record are gone
+reap: freed=1 kept=1
+[exit 0]
+
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 bin/fm-heavy-slot.sh list --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg
+ledger: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-heavy-ledger.3Jdvyt
+slots: held=1/3 ask=1 backlog=0/1
+gates: load1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4/16 pressure=2/4 swap_used_mb=6490.06/7168 browser_pages=12/30
+holders[1]{home,task,lane,pid,run,worktree,started}:
+  /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab-h.u09wwg,g2,ask,27249,,/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3JXY7K56VYRFZBVVT7KJNR4,1790564627
+ask_waiters[0]{home,task,pid,since}:
+[exit 0]
+
+=== S8: config/lanes.json overrides ===
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 bin/fm-heavy-slot.sh acquire --task c1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --lane backlog --pid 27249
+refused: backlog work may hold at most 0 of 2 heavy slots; 2 are reserved for asks
+[exit 3]
+
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 bin/fm-heavy-slot.sh acquire --task c1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27249
+error: /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab-h.u09wwg/config/lanes.json: ask_reserve (3) exceeds heavy_total (2)
+[exit 1]
+
+=== S9: a stuck live lock holder makes acquire fail after the bounded wait (FM_HEAVY_SLOT_LOCK_WAIT=2) ===
+locked-by-helper pid 28371
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_LOCK_WAIT=2 bin/fm-heavy-slot.sh acquire --task L1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27249
+error: cannot lock heavy-slot ledger /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-heavy-ledger.3Jdvyt (held by pid 28371)
+[exit 1]
+
+elapsed=2s
+# after holder dies, stale lock is recovered:
+$ env FM_HEAVY_SLOT_LOAD1=5 FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_SWAP_USED_MB=100 FM_HEAVY_SLOT_BROWSER_PAGES=4 FM_HEAVY_SLOT_LOCK_WAIT=5 bin/fm-heavy-slot.sh acquire --task L1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg --pid 27249
+acquired heavy slot task=L1 lane=ask held=2/3
+[exit 0]
+
+$ bin/fm-heavy-slot.sh release --task L1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h.u09wwg
+released heavy slot task=L1
+[exit 0]
+
+
+NOTE: in S5/S7 above, the "ok" injection string was not word-split by zsh, so non-bad readings came from the real machine (pressure=2 swap~6490MB pages=12, all under limits). See heavy-slot-gates-rerun.txt for the correctly isolated S5.

@@ -1,0 +1,64 @@
+=== S10: backlog-lane ship spawn with --yolo on is refused (merge approval kept) ===
+$ fm-spawn.sh bl-yolo1 <proj> --mode no-mistakes --yolo on --lane backlog
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.YmbuZH
+error: --lane backlog is refused with --yolo on; backlog work keeps the captain's merge approval, so spawn it with --yolo off
+[exit 1]
+
+$ fm-spawn.sh bl-bad1 <proj> --mode no-mistakes --yolo off --lane urgent
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.YmbuZH
+error: --lane must be ask or backlog (got 'urgent')
+[exit 1]
+
+$ fm-spawn.sh mate1 --secondmate --lane backlog
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.YmbuZH
+error: --lane applies only to ship and scout spawns; a secondmate is a persistent agent, not a work item
+[exit 1]
+
+state/ after refusals (no meta written):
+  (none)
+
+=== S11: generated ship and scout briefs carry the heavy-slot rule with a runnable acquire/release ===
+brief ship exit 0
+brief scout exit 0
+--- rule 8 in ship brief ---
+8. Hold a machine-wide heavy slot for every heavy command, because heavy runs across the whole fleet share three slots.
+   - Heavy: a no-mistakes validation run until it reaches its CI step, pixel or visual gates, full verify scripts,
+     Playwright or any headless browser, full or multi-package test suites (vitest, jest, pytest, bin/fm-test-run.sh
+     families) and full-suite walks, production builds, cold dependency installs, and local model runs.
+     Not heavy: single affected test files, lint, one-package typecheck, git, CI waits, reading, and editing.
+   - Before a heavy command, run `'/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3JXY7K56VYRFZBVVT7KJNR4/bin/fm-heavy-slot.sh' acquire --task 'hv-ship' --home '/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.YmbuZH'`; before starting a validation run,
+     acquire first, then re-run the same acquire with `--run <run-id>` once the run id is known.
+   - Release with `'/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3JXY7K56VYRFZBVVT7KJNR4/bin/fm-heavy-slot.sh' release --task 'hv-ship' --home '/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.YmbuZH'` when the heavy command finishes or the validation run
+     reaches its CI step.
+   - When a check finishes, close the Playwright browsers and preview or Lavish tabs it opened.
+   - A refused acquire (exit 3) names its reason: never run the heavy command anyway; append
+     `paused [at=<epoch>]: waiting for a heavy validation slot`, then retry with `--wait <secs>` and append
+     `resolved [at=<epoch>]: heavy validation slot acquired` once it succeeds.
+
+running emitted acquire:
+acquired heavy slot task=hv-ship lane=ask held=1/3
+[exit 0]
+running emitted release:
+released heavy slot task=hv-ship
+[exit 0]
+--- rule 8 in scout brief ---
+8. Hold a machine-wide heavy slot for every heavy command, because heavy runs across the whole fleet share three slots.
+   - Heavy: a no-mistakes validation run until it reaches its CI step, pixel or visual gates, full verify scripts,
+     Playwright or any headless browser, full or multi-package test suites (vitest, jest, pytest, bin/fm-test-run.sh
+     families) and full-suite walks, production builds, cold dependency installs, and local model runs.
+     Not heavy: single affected test files, lint, one-package typecheck, git, CI waits, reading, and editing.
+   - Before a heavy command, run `'/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3JXY7K56VYRFZBVVT7KJNR4/bin/fm-heavy-slot.sh' acquire --task 'hv-scout' --home '/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.YmbuZH'`; before starting a validation run,
+     acquire first, then re-run the same acquire with `--run <run-id>` once the run id is known.
+   - Release with `'/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3JXY7K56VYRFZBVVT7KJNR4/bin/fm-heavy-slot.sh' release --task 'hv-scout' --home '/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.YmbuZH'` when the heavy command finishes or the validation run
+     reaches its CI step.
+   - When a check finishes, close the Playwright browsers and preview or Lavish tabs it opened.
+   - A refused acquire (exit 3) names its reason: never run the heavy command anyway; append
+     `paused [at=<epoch>]: waiting for a heavy validation slot`, then retry with `--wait <secs>` and append
+     `resolved [at=<epoch>]: heavy validation slot acquired` once it succeeds.
+
+running emitted acquire:
+acquired heavy slot task=hv-scout lane=ask held=1/3
+[exit 0]
+running emitted release:
+released heavy slot task=hv-scout
+[exit 0]

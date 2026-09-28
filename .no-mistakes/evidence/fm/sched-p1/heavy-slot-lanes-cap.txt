@@ -1,0 +1,53 @@
+=== S0: real machine gate readings (no injection) ===
+$ bin/fm-heavy-slot.sh list --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h1.cxR4QO
+ledger: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-heavy-ledger.aW5PJ3
+slots: held=0/3 ask=0 backlog=0/1
+gates: load1=5.71/16 pressure=2/4 swap_used_mb=6470.56/7168 browser_pages=12/30
+holders[0]{home,task,lane,pid,run,worktree,started}:
+ask_waiters[0]{home,task,pid,since}:
+[exit 0]
+
+=== S1/S2: lanes and 3-slot cap (gates injected as healthy so capacity is isolated) ===
+$ bin/fm-heavy-slot.sh acquire --task b1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h2.majv6R --pid 12869
+acquired heavy slot task=b1 lane=backlog held=1/3
+[exit 0]
+
+$ bin/fm-heavy-slot.sh acquire --task b2 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h2.majv6R --pid 12869
+refused: backlog work may hold at most 1 of 3 heavy slots; 2 are reserved for asks
+[exit 3]
+
+$ bin/fm-heavy-slot.sh acquire --task a1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h1.cxR4QO --pid 12869
+acquired heavy slot task=a1 lane=ask held=2/3
+[exit 0]
+
+$ bin/fm-heavy-slot.sh acquire --task a2 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h1.cxR4QO --pid 12869
+acquired heavy slot task=a2 lane=ask held=3/3
+[exit 0]
+
+$ bin/fm-heavy-slot.sh acquire --task a3 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h1.cxR4QO --pid 12869
+refused: all 3 heavy slots are held
+[exit 3]
+
+$ bin/fm-heavy-slot.sh list --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h1.cxR4QO
+ledger: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-heavy-ledger.aW5PJ3
+slots: held=3/3 ask=2 backlog=1/1
+gates: load1=5/16 pressure=1/4 swap_used_mb=100/7168 browser_pages=4/30
+holders[3]{home,task,lane,pid,run,worktree,started}:
+  /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab-h2.majv6R,b1,backlog,12869,,/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3JXY7K56VYRFZBVVT7KJNR4,1790564476
+  /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab-h1.cxR4QO,a1,ask,12869,,/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3JXY7K56VYRFZBVVT7KJNR4,1790564477
+  /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab-h1.cxR4QO,a2,ask,12869,,/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3JXY7K56VYRFZBVVT7KJNR4,1790564477
+ask_waiters[1]{home,task,pid,since}:
+  /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab-h1.cxR4QO,a3,12869,1790564477
+[exit 0]
+
+=== S3: refresh with --run does not take a second slot ===
+$ bin/fm-heavy-slot.sh acquire --task a1 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h1.cxR4QO --pid 12869 --run R123
+acquired heavy slot (refreshed) task=a1 lane=ask held=3/3
+[exit 0]
+
+=== S4: release a2 then the waiting ask a3 gets it via --wait ===
+$ bin/fm-heavy-slot.sh acquire --task a3 --home /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab-h1.cxR4QO --pid 12869 --wait 10
+released heavy slot task=a2
+acquired heavy slot task=a3 lane=ask held=3/3
+[exit 0]
+
