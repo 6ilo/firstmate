@@ -389,7 +389,8 @@ Firstmate records those five in a sidecar, `data/backlog-plan.json`, keyed by ta
 | Waits on another task or a captain call | that task's id | tasks-axi `blocked-by` (`add --blocked-by`, `block <id> --by`) |
 
 Pass them to [`bin/fm-tasks-axi.sh`](../bin/fm-tasks-axi.sh) `add` or `update`, where a value of `-` clears a sidecar field.
-The wrapper refuses a bad value before tasks-axi runs, so nothing is written, and a successful `rm` drops the item's sidecar record.
+The record is keyed by the command's task id wherever the flags sit.
+The wrapper refuses a bad value, or planning fields with no task id, before tasks-axi runs, so nothing is written, and a successful `rm` (or `delete`) drops the item's sidecar record.
 [`bin/fm-backlog-plan.sh`](../bin/fm-backlog-plan.sh) is the sidecar's only writer and reader, and its header owns the exact values and commands.
 `bin/fm-bearings-snapshot.sh --json` adds an optional `plan` object to each main-home `in_flight` and `gates` row that has any of these recorded, leaving other rows and TOON output unchanged.
 

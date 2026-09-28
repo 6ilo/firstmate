@@ -20,7 +20,9 @@
 # tasks-axi arguments, and after tasks-axi succeeds records them through
 # bin/fm-backlog-plan.sh (that script's header owns the fields and values).
 # --urgency <0-4> is an alias for tasks-axi's own --priority, which firstmate
-# reads as urgency. A successful `rm <id>` also drops that item's plan record.
+# reads as urgency. The plan record is keyed by the command's first positional
+# argument (the task id), wherever the flags sit. A successful `rm <id>` (or its
+# `delete` alias) also drops that item's plan record.
 #
 # Why it exists: a bare `tasks-axi` resolves the tracked `.tasks.toml` paths
 # against its working directory, so from the code root it forks the queue
@@ -44,7 +46,8 @@
 #   - tasks-axi missing from PATH;
 #   - a planning field with a bad value, a planning field on any command other
 #     than add/create/update/edit, or planning fields with `add --mint` (the id
-#     is not known until tasks-axi mints it; add, then `update <id>`);
+#     is not known until tasks-axi mints it; add, then `update <id>`), or
+#     planning fields with no task id;
 #   - a caller-supplied --file, because this command owns the addressing and
 #     tasks-axi would silently let the last --file win;
 #   - `add` (or its `create` alias) with --start, so neither spelling places a
@@ -102,9 +105,16 @@ SUBCMD=${1:-}
 ARGS=()
 PLAN_ARGS=()
 MINT=0
+POS_ID=
 path_value_next=0
 plan_value_next=
+value_next=0
 for arg in "$@"; do
+  if [ "$value_next" = 1 ]; then
+    ARGS+=("$arg")
+    value_next=0
+    continue
+  fi
   if [ -n "$plan_value_next" ]; then
     if [ "$plan_value_next" = --urgency ]; then
       ARGS+=("$arg")
@@ -154,7 +164,15 @@ for arg in "$@"; do
     --to=*|--*-file=*)
       ARGS+=("${arg%%=*}=$(absolute_from_caller "${arg#*=}")")
       ;;
+    --kind|--repo|--body|--blocked-by|--pr|--report|--priority|--prefix|--title)
+      ARGS+=("$arg")
+      value_next=1
+      ;;
+    -*)
+      ARGS+=("$arg")
+      ;;
     *)
+      [ ${#ARGS[@]} -eq 0 ] || [ -n "$POS_ID" ] || POS_ID=$arg
       ARGS+=("$arg")
       ;;
   esac
@@ -172,7 +190,8 @@ done
 PLAN_ID=
 if [ ${#PLAN_ARGS[@]} -gt 0 ]; then
   [ "$MINT" = 0 ] || fail "planning fields cannot ride on add --mint; add the item, then run update <id> with them"
-  PLAN_ID=${2:-}
+  [ -n "$POS_ID" ] || fail "planning fields need the task id: $SUBCMD <id> ..."
+  PLAN_ID=$POS_ID
   "$SCRIPT_DIR/fm-backlog-plan.sh" check "${PLAN_ARGS[@]}" || exit 2
 fi
 
@@ -192,7 +211,10 @@ else
   unset TASKS_AXI_FILE
 fi
 
-if [ -z "$PLAN_ID" ] && [ "$SUBCMD" != rm ]; then
+case "$SUBCMD" in
+  rm|delete) PLAN_ID=$POS_ID ;;
+esac
+if [ -z "$PLAN_ID" ]; then
   cd "$FM_BACKLOG_AXI_ROOT" || fail "cannot enter the backlog root $FM_BACKLOG_AXI_ROOT"
   exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}
 fi
@@ -206,11 +228,13 @@ case "$SUBCMD:${#ARGS[@]}" in
   update:2|edit:2) ;;
   *) (cd "$FM_BACKLOG_AXI_ROOT" && exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}) || exit $? ;;
 esac
-if [ "$SUBCMD" = rm ]; then
-  [ -z "${2:-}" ] || "$SCRIPT_DIR/fm-backlog-plan.sh" rm "$2" \
-    || { printf 'fm-tasks-axi: removed %s but could not drop its planning record\n' "$2" >&2; exit 1; }
-  exit 0
-fi
+case "$SUBCMD" in
+  rm|delete)
+    "$SCRIPT_DIR/fm-backlog-plan.sh" rm "$PLAN_ID" \
+      || { printf 'fm-tasks-axi: removed %s but could not drop its planning record\n' "$PLAN_ID" >&2; exit 1; }
+    exit 0
+    ;;
+esac
 "$SCRIPT_DIR/fm-backlog-plan.sh" set "$PLAN_ID" "${PLAN_ARGS[@]}" >/dev/null
 rc=$?
 [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ] \
