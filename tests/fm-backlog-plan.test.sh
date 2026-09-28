@@ -95,11 +95,12 @@ test_a_row_written_without_its_plan_fails_loudly() {
   local home out rc
   home=$(make_home plan-write-fails)
   printf 'not json\n' > "$home/data/backlog-plan.json"
-  out=$(in_home "$home" "$WRAPPER" add --kind ship fm-q "queued" --size S 2>&1)
+  out=$(in_home "$home" "$WRAPPER" add --kind ship fm-q "queued" --size S --type=feature --waits-on "vendor release" 2>&1)
   rc=$?
   assert_equals 1 "$rc" "an add whose plan could not be recorded must exit nonzero"
   assert_grep "fm-q - queued" "$home/data/backlog.md" "the tasks-axi row should still be written"
   assert_contains "$out" "planning fields for fm-q were not recorded" "the dropped plan was not reported: $out"
+  assert_contains "$out" "--size 'S' --type 'feature' --waits-on 'vendor release'" "the dropped fields were not listed: $out"
   pass "a row written without its planning fields exits 1 and names the fields to re-record"
 }
 

@@ -249,6 +249,12 @@ rc=$?
 # Once tasks-axi has written the row, any plan failure is loud and nonzero so
 # the fields are never dropped silently.
 [ "$TASKS_RAN" = 1 ] || exit "$rc"
-printf 'fm-tasks-axi: %s wrote the backlog row, but planning fields for %s were not recorded; rerun update %s with them\n' \
-  "$SUBCMD" "$PLAN_ID" "$PLAN_ID" >&2
+DROPPED=
+i=0
+while [ "$i" -lt ${#PLAN_ARGS[@]} ]; do
+  DROPPED="$DROPPED ${PLAN_ARGS[$i]} '${PLAN_ARGS[$((i + 1))]}'"
+  i=$((i + 2))
+done
+printf 'fm-tasks-axi: %s wrote the backlog row, but planning fields for %s were not recorded:%s; rerun update %s with them\n' \
+  "$SUBCMD" "$PLAN_ID" "$DROPPED" "$PLAN_ID" >&2
 exit 1
