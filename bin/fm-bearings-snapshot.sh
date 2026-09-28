@@ -152,6 +152,9 @@ Default fields: schema, home, generated, prs, in_flight{id,kind,state,repo,name,
   decisions_open{id,key,verb,summary,owner}, landed{id,what,artifact,owner},
   gates{id,title,blocked_by,reason,owner,filed}, reports{id,path}, recorded_prs{id,url},
   unhealthy_endpoints{...} (only when non-empty), omitted{surface,reveal}.
+--json only: main-home in_flight and gates rows carry an optional plan object
+  {urgency,size,type,order,target,waits_on} when any is recorded
+  (bin/fm-backlog-plan.sh); rows with none, and TOON output, are unchanged.
 Default gates are selected newest filed first before their bound; undated gates
   retain input order after dated gates.
 landed merges this home's Done with registered secondmate homes' Done, bounded by
@@ -243,6 +246,18 @@ else
 fi
 HOME_LABEL=$(printf '%s' "$SNAP" | jq -er '.fm_home | strings | split("/") | (.[-2:] | join("/"))') \
   || { echo "fm-bearings-snapshot: invalid canonical snapshot" >&2; exit 1; }
+
+# --- planning fields (bin/fm-backlog-plan.sh owns the sidecar) ---------------
+# An unreadable sidecar leaves every row without plan fields and is disclosed in
+# omitted[] rather than failing the whole projection.
+PLAN_DATA=$(printf '%s' "$SNAP" | jq -r '.roots.data // empty')
+PLAN_UNREADABLE=0
+if [ -n "$PLAN_DATA" ] && PLAN_JSON=$(FM_DATA_OVERRIDE="$PLAN_DATA" "$SCRIPT_DIR/fm-backlog-plan.sh" list 2>/dev/null); then
+  :
+else
+  PLAN_JSON='{}'
+  [ -z "$PLAN_DATA" ] || PLAN_UNREADABLE=1
+fi
 
 # --- optional live GitHub PR enrichment -------------------------------------
 PR_STATUS='not_requested (run: /bearings include PRs)'
@@ -381,6 +396,8 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   --argjson pr_rows_capped "$PR_ROWS_CAPPED" \
   --argjson pr_rows_min_total "$PR_ROWS_MIN_TOTAL" \
   --argjson return_catchup "$RETURN_CATCHUP" \
+  --argjson plan "$PLAN_JSON" \
+  --argjson plan_unreadable "$PLAN_UNREADABLE" \
   --argjson candidate_prs "$CANDIDATE_PRS" "$FM_LANDED_JQ_DEFS"'
   def trunc($n): if . == null then null else
     (tostring | gsub("\\s+"; " ") | if (length > $n) then (.[:$n] + "…") else . end) end;
@@ -429,6 +446,13 @@ MODEL=$(printf '%s' "$SNAP" | jq \
            + ($base | fit($context_n - $title_n)))
         end
       end;
+  # Optional planning fields for one main-home row: urgency is the backlog
+  # priority, the rest come from the sidecar. Absent when none are recorded.
+  def with_plan($id; $priority):
+    ($priority | tostring | if test("^[0-4]$") then tonumber else null end) as $urgency
+    | (($plan[$id] // {}) + {urgency:$urgency}
+     | with_entries(select(.value != null and .value != []))) as $p
+    | if ($p | length) > 0 then . + {plan:$p} else . end;
   def as_gate($owner):
     {id, title:(.title | trunc(60)),
      blocked_by:((.unresolved_blocker_ids // []) | if length > 0 then join(",") else "-" end | trunc(120)),
@@ -506,6 +530,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
        | select(.kind != "secondmate")
        | select(.backlog.current_role != "program")
        | select(.backlog.current_role != "held" or .current_state.state == "working")
+       | . as $task
        | {id, kind,
         state: .current_state.state,
         repo:(.backlog.repo // .project // null),
@@ -513,7 +538,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
               | (if ($name | test("[^[:space:]]")) then $name else .id end) | trunc(70)),
         doing: ((.current_state.detail // "") as $d
                 | (if $d != "" then $d else (.hints.last_event_text // "") end) | trunc(90))
-      } ]
+      } + ({} | with_plan($task.id; $task.backlog.priority // null)) ]
      + [ $secondmate_views[] as $m
          | $m.active_children[]?
          | {id:($m.id + "/" + .id),
@@ -581,7 +606,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
               (.state == "in_flight" and .current_role == "held" and ($working_ids | index($record.id) | not))))
          | select(.captain_actionable != true)
          | select((.hold_bucket == null) or ($all_decisions == 0))
-         | as_gate("(main)") ]
+         | as_gate("(main)") + ({} | with_plan($record.id; $record.priority // null)) ]
      + [ (.secondmate_current.records // [])[] as $m
          | select($m.provenance.selected == "structured-home")
          | $m.queued[]?
@@ -695,6 +720,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
         (if $all_unhealthy == 0 and ($unhealthy_all | length) > $unhealthy_n then {surface:("unhealthy_endpoints showing \($unhealthy_n) of \($unhealthy_all | length)"), reveal:"--all-unhealthy"} else empty end),
         (if $include_prs == 1 and $pr_repos_total > $pr_repos_shown then {surface:("PR repositories showing \($pr_repos_shown) of \($pr_repos_total)"), reveal:"--all-pr-repos"} else empty end),
         (if $include_prs == 1 and $pr_rows_capped > 0 then {surface:("candidate_prs showing \($candidate_prs | length) of at least \($pr_rows_min_total); capped in \($pr_rows_capped) repo(s)"), reveal:"raise FM_BEARINGS_PR_LIMIT"} else empty end),
+        (if $plan_unreadable == 1 then {surface:"backlog planning fields (sidecar unreadable)", reveal:"bin/fm-backlog-plan.sh list"} else empty end),
         (if $include_prs == 1 then empty else {surface:"live PR discovery + checks", reveal:"--include-prs"} end) ]) }
 ') || { echo "fm-bearings-snapshot: projection failed" >&2; exit 1; }
 
@@ -708,7 +734,10 @@ fi
 # the tabular array form
 # (key[N]{fields}: + comma rows at +2 indent), and the empty-array form (key: []),
 # per the TOON spec. Quoting follows the spec exactly.
+# Planning fields are a nested per-row object that tabular TOON rows cannot
+# carry, so they are a --json-only surface.
 TOON=$(printf '%s\n' "$MODEL" | jq -r '
+  (.in_flight, .gates) |= map(del(.plan)) |
   def q:
     tostring
     | if (. == "")

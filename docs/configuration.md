@@ -373,6 +373,26 @@ Migrated-hold resolution on a beads home reads its graph path, binary, and prefi
 On an automatic-backend home, missing or incompatible `tasks-axi`, an unresolvable configured data directory, or one containing a control byte fails lifecycle work before mutation.
 An unreadable backend configuration can refuse lifecycle work before the no-backlog exemption applies; repair the configuration named in the diagnostic ([backend resolution contract](../bin/fm-tasks-axi-lib.sh)).
 
+### Planning fields
+
+tasks-axi's row format carries a priority from 0 to 4, which firstmate reads as urgency, and blocked-by edges, but no size, type tag, order, target date, or named outside event.
+Firstmate records those five in a sidecar, `data/backlog-plan.json`, keyed by task id, so the rows stay tasks-axi's own format.
+
+| Field | Values | Recorded where |
+| --- | --- | --- |
+| Urgency | 0 (most urgent) to 4 | tasks-axi `priority`; `--urgency` is an alias for `--priority` |
+| Size | S, M, L | sidecar |
+| Type | feature, fix, upkeep (the kind stays ship, scout, or docs) | sidecar |
+| Order | whole number from 1 to 9999; lower goes first | sidecar |
+| Target | a real date as YYYY-MM-DD, for ordinary work | sidecar |
+| Waits on an outside event | one named event per flag, repeatable | sidecar |
+| Waits on another task or a captain call | that task's id | tasks-axi `blocked-by` (`add --blocked-by`, `block <id> --by`) |
+
+Pass them to [`bin/fm-tasks-axi.sh`](../bin/fm-tasks-axi.sh) `add` or `update`, where a value of `-` clears a sidecar field.
+The wrapper refuses a bad value before tasks-axi runs, so nothing is written, and a successful `rm` drops the item's sidecar record.
+[`bin/fm-backlog-plan.sh`](../bin/fm-backlog-plan.sh) is the sidecar's only writer and reader, and its header owns the exact values and commands.
+`bin/fm-bearings-snapshot.sh --json` adds an optional `plan` object to each main-home `in_flight` and `gates` row that has any of these recorded, leaving other rows and TOON output unchanged.
+
 ### Handoffs between homes
 
 Secondmate handoffs bypass that routine-backend choice: `fm-backlog-handoff.sh` keeps only its own fleet-level validation and delegates the item move to `tasks-axi mv`; its [script header](../bin/fm-backlog-handoff.sh) owns route-specific wake outcomes and remote outbox release.

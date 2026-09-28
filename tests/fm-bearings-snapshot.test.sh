@@ -3355,6 +3355,62 @@ test_a_remote_home_without_any_ledger_is_explicitly_unreadable_without_remote_co
   pass "a missing remote ledger stays explicitly unreadable without remote summary computation"
 }
 
+test_planning_fields_ride_main_rows_in_json_only() {
+  local home fakebin json toon plain_json plain_toon
+  home=$(make_home planning-fields)
+  : > "$home/data/secondmates.md"
+  mkdir -p "$home/projects/main-wt"
+  cat > "$home/data/backlog.md" <<'EOF'
+## In flight
+- [ ] main-ship - Build the timeline (repo: firstmate) (kind: ship) (priority: 1) (since 2026-07-09)
+
+## Queued
+- [ ] plan-gate - Planned queued work (repo: firstmate) (kind: ship) (priority: 3) (since 2026-07-10)
+- [ ] plain-gate - Unplanned queued work (repo: firstmate) (kind: ship) (since 2026-07-10)
+
+## Done
+EOF
+  fm_write_meta "$home/state/main-ship.meta" \
+    "window=firstmate:fm-main-ship" "worktree=$home/projects/main-wt" "project=firstmate" \
+    "harness=claude" "kind=ship" "mode=no-mistakes"
+  record_claude_state "$home/state" main-ship busy
+  printf 'working: building\n' > "$home/state/main-ship.status"
+  fakebin=$(make_fakebin "$home")
+
+  plain_json=$(run "$home" "$fakebin" --json)
+  plain_toon=$(run "$home" "$fakebin")
+  printf '%s' "$plain_json" | jq -e '
+    (.gates | any(.id == "plain-gate" and (has("plan") | not)))
+      and (.gates | any(.id == "plan-gate" and .plan == {urgency:3}))
+      and (.in_flight | any(.id == "main-ship" and .plan == {urgency:1}))
+  ' >/dev/null || fail "priority alone must surface as urgency, and a bare row carries no plan: $plain_json"
+
+  cat > "$home/data/backlog-plan.json" <<'EOF'
+{"main-ship":{"size":"L","type":"feature","order":1,"target":"2026-07-20"},
+ "plan-gate":{"size":"S","type":"fix","order":2,"waits_on":["vendor release"]},
+ "gone-task":{"size":"M"}}
+EOF
+  json=$(run "$home" "$fakebin" --json)
+  printf '%s' "$json" | jq -e '
+    (.in_flight | any(.id == "main-ship"
+      and .plan == {size:"L",type:"feature",order:1,target:"2026-07-20",urgency:1}))
+      and (.gates | any(.id == "plan-gate"
+        and .plan == {size:"S",type:"fix",order:2,waits_on:["vendor release"],urgency:3}))
+      and (.gates | any(.id == "plain-gate" and (has("plan") | not)))
+      and ([.. | objects | select(.id? == "gone-task")] | length) == 0
+  ' >/dev/null || fail "recorded planning fields must ride their main rows: $json"
+  toon=$(run "$home" "$fakebin")
+  [ "$toon" = "$plain_toon" ] || fail "TOON output must not change with planning fields recorded"
+
+  printf 'not json\n' > "$home/data/backlog-plan.json"
+  json=$(run "$home" "$fakebin" --json)
+  printf '%s' "$json" | jq -e '
+    (.gates | any(.id == "plan-gate" and .plan == {urgency:3}))
+      and (.omitted | any(.surface == "backlog planning fields (sidecar unreadable)"))
+  ' >/dev/null || fail "an unreadable plan sidecar must degrade to urgency only and be disclosed: $json"
+  pass "planning fields ride main in_flight and gates rows in --json only, absent when unrecorded"
+}
+
 test_task_teardown_during_metadata_capture_does_not_abort_snapshot
 test_current_state_uses_captured_status_observation
 test_relaunched_task_does_not_inherit_reused_endpoint_state
@@ -3415,3 +3471,4 @@ test_revealed_deferred_holds_show_their_deferral_reason
 test_pr_repository_cap_and_expansion
 test_per_repository_pr_cap_is_disclosed
 test_projection_and_toon_fail_closed
+test_planning_fields_ride_main_rows_in_json_only

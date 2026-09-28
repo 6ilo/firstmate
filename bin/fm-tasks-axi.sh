@@ -14,6 +14,14 @@
 # stores it verbatim as a link, which lifecycle transitions record relative to
 # that same root.
 #
+# Planning fields: on `add`/`create` and `update`/`edit` the wrapper also takes
+# --size, --type, --order, --target, and --waits-on, which tasks-axi's row format
+# does not carry. It validates them before tasks-axi runs, strips them from the
+# tasks-axi arguments, and after tasks-axi succeeds records them through
+# bin/fm-backlog-plan.sh (that script's header owns the fields and values).
+# --urgency <0-4> is an alias for tasks-axi's own --priority, which firstmate
+# reads as urgency. A successful `rm <id>` also drops that item's plan record.
+#
 # Why it exists: a bare `tasks-axi` resolves the tracked `.tasks.toml` paths
 # against its working directory, so from the code root it forks the queue
 # whenever the home lives elsewhere; docs/configuration.md ("Backlog backend")
@@ -34,6 +42,9 @@
 #
 # Refusals (exit 2, nothing run):
 #   - tasks-axi missing from PATH;
+#   - a planning field with a bad value, a planning field on any command other
+#     than add/create/update/edit, or planning fields with `add --mint` (the id
+#     is not known until tasks-axi mints it; add, then `update <id>`);
 #   - a caller-supplied --file, because this command owns the addressing and
 #     tasks-axi would silently let the last --file win;
 #   - `add` (or its `create` alias) with --start, so neither spelling places a
@@ -87,9 +98,22 @@ absolute_from_caller() {  # <path-value>
   esac
 }
 
+SUBCMD=${1:-}
 ARGS=()
+PLAN_ARGS=()
+MINT=0
 path_value_next=0
+plan_value_next=
 for arg in "$@"; do
+  if [ -n "$plan_value_next" ]; then
+    if [ "$plan_value_next" = --urgency ]; then
+      ARGS+=("$arg")
+    else
+      PLAN_ARGS+=("$plan_value_next" "$arg")
+    fi
+    plan_value_next=
+    continue
+  fi
   if [ "$path_value_next" = 1 ]; then
     ARGS+=("$(absolute_from_caller "$arg")")
     path_value_next=0
@@ -107,6 +131,22 @@ for arg in "$@"; do
       esac
       ARGS+=("$arg")
       ;;
+    --size|--type|--order|--target|--waits-on|--urgency|--size=*|--type=*|--order=*|--target=*|--waits-on=*|--urgency=*)
+      case "$SUBCMD" in
+        add|create|update|edit) ;;
+        *) fail "${arg%%=*} is a planning field; it goes on add or update" ;;
+      esac
+      case "$arg" in
+        --urgency=*) ARGS+=(--priority "${arg#*=}") ;;
+        --urgency) ARGS+=(--priority); plan_value_next=--urgency ;;
+        *=*) PLAN_ARGS+=("${arg%%=*}" "${arg#*=}") ;;
+        *) plan_value_next=$arg ;;
+      esac
+      ;;
+    --mint)
+      MINT=1
+      ARGS+=("$arg")
+      ;;
     --to|--*-file)
       ARGS+=("$arg")
       path_value_next=1
@@ -119,6 +159,22 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+[ -z "$plan_value_next" ] || fail "$plan_value_next needs a value"
+for ((i = 0; i < ${#ARGS[@]}; i++)); do
+  if [ "${ARGS[$i]}" = --priority ]; then
+    case "${ARGS[$((i + 1))]:-}" in
+      [0-4]) ;;
+      *) fail "urgency (--priority/--urgency) must be 0 to 4 (got: ${ARGS[$((i + 1))]:-nothing})" ;;
+    esac
+  fi
+done
+PLAN_ID=
+if [ ${#PLAN_ARGS[@]} -gt 0 ]; then
+  [ "$MINT" = 0 ] || fail "planning fields cannot ride on add --mint; add the item, then run update <id> with them"
+  PLAN_ID=${2:-}
+  "$SCRIPT_DIR/fm-backlog-plan.sh" check "${PLAN_ARGS[@]}" || exit 2
+fi
 
 command -v tasks-axi >/dev/null 2>&1 || fail "tasks-axi is not on PATH; run bin/fm-bootstrap.sh for the install command"
 
@@ -136,5 +192,27 @@ else
   unset TASKS_AXI_FILE
 fi
 
-cd "$FM_BACKLOG_AXI_ROOT" || fail "cannot enter the backlog root $FM_BACKLOG_AXI_ROOT"
-exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}
+if [ -z "$PLAN_ID" ] && [ "$SUBCMD" != rm ]; then
+  cd "$FM_BACKLOG_AXI_ROOT" || fail "cannot enter the backlog root $FM_BACKLOG_AXI_ROOT"
+  exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}
+fi
+
+# The planning record is written only after tasks-axi succeeded, so a refused
+# row never leaves a plan behind; the subshell keeps this process's working
+# directory for the relative paths the plan script may resolve.
+# An update carrying only planning fields has nothing for tasks-axi to change;
+# the plan script itself refuses an id this backlog does not hold.
+case "$SUBCMD:${#ARGS[@]}" in
+  update:2|edit:2) ;;
+  *) (cd "$FM_BACKLOG_AXI_ROOT" && exec tasks-axi ${ARGS[@]+"${ARGS[@]}"}) || exit $? ;;
+esac
+if [ "$SUBCMD" = rm ]; then
+  [ -z "${2:-}" ] || "$SCRIPT_DIR/fm-backlog-plan.sh" rm "$2" \
+    || { printf 'fm-tasks-axi: removed %s but could not drop its planning record\n' "$2" >&2; exit 1; }
+  exit 0
+fi
+"$SCRIPT_DIR/fm-backlog-plan.sh" set "$PLAN_ID" "${PLAN_ARGS[@]}" >/dev/null
+rc=$?
+[ "$rc" -eq 0 ] || [ "$rc" -eq 2 ] \
+  || printf 'fm-tasks-axi: planning fields for %s were not recorded; rerun update %s with them\n' "$PLAN_ID" "$PLAN_ID" >&2
+exit "$rc"
