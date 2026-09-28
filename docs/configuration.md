@@ -679,8 +679,8 @@ All keys are optional, and the file is never created by the gate.
 | `idle_secs` | 3600 | Idle seconds that open the night branch |
 | `quiet_load` | 6 | Daytime 1- and 5-minute load averages must both be under this |
 | `load_ceiling` | `max_load`, else 16 | 1-minute load that trips the lane on two consecutive samples; when unset it follows the ledger's `max_load` from the same file |
-| `reopen_load` | 12 | Load a tripped lane must stay under to reopen |
-| `reopen_secs` | 900 | How long load must stay under `reopen_load` |
+| `reopen_load` | 12 | Load a tripped lane must stay under, as well as `load_ceiling`, to reopen |
+| `reopen_secs` | 900 | How long load must stay under both `reopen_load` and `load_ceiling` |
 | `calendar_max_age_secs` | 28800 | Oldest calendar cache still trusted |
 | `calendar_cache` | `~/.local/state/firstmate/calendar-busy.json` | Calendar cache path |
 
