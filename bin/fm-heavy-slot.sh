@@ -55,8 +55,6 @@ SCRIPT_NAME=${0##*/}
 LEDGER=${FM_HEAVY_SLOT_DIR:-$HOME/.local/state/firstmate/heavy-slots}
 EXIT_REFUSED=3
 CALLER_FM_HOME=${FM_HOME:-}
-# shellcheck source=bin/fm-wake-lib.sh
-. "$(dirname "${BASH_SOURCE[0]}")/fm-wake-lib.sh"
 
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"
@@ -104,8 +102,17 @@ pid_alive() {
 # --- ledger lock -------------------------------------------------------------
 
 LOCK_HELD=0
+LOCK_LIB_LOADED=0
 lock_acquire() {
   mkdir -p "$LEDGER/holders" "$LEDGER/waiters" || die "cannot create ledger $LEDGER"
+  # Loading bin/fm-wake-lib.sh creates its state dir; point that at the ledger
+  # so a release after a secondmate home is retired cannot recreate the home.
+  if [ "$LOCK_LIB_LOADED" = 0 ]; then
+    FM_STATE_OVERRIDE=$LEDGER
+    # shellcheck source=bin/fm-wake-lib.sh
+    . "$(dirname "${BASH_SOURCE[0]}")/fm-wake-lib.sh"
+    LOCK_LIB_LOADED=1
+  fi
   fm_lock_acquire_wait_bounded "$LEDGER/.lock" "${FM_HEAVY_SLOT_LOCK_WAIT:-30}" \
     || die "cannot lock heavy-slot ledger $LEDGER (held by pid ${FM_LOCK_HELD_PID:-unknown})"
   LOCK_HELD=1

@@ -286,6 +286,13 @@ test_release() {
   out=$(FM_HEAVY_SLOT_DIR="$TMP_ROOT/release/none" "$SLOT" release --home "$HOME_A" --task t1) \
     || fail "release without a ledger should succeed"
   assert_absent "$TMP_ROOT/release/none" "release created a ledger that did not exist"
+  # Teardown releases after a retired secondmate home (and its state dir) is
+  # already removed; the release must not recreate that home.
+  acquire "$HOME_A" t2 ask >/dev/null
+  out=$(FM_HOME="$TMP_ROOT/release/retired-home" FM_STATE_OVERRIDE="$TMP_ROOT/release/retired-home/state" \
+    FM_HEAVY_SLOT_DIR="$LEDGER_DIR" "$SLOT" release --home "$HOME_A" --task t2)
+  assert_contains "$out" "released heavy slot task=t2" "release did not free the slot of a retired home's task"
+  assert_absent "$TMP_ROOT/release/retired-home" "release recreated a retired home's state dir"
   pass "fm-heavy-slot: release frees only this home's task and is idempotent"
 }
 
