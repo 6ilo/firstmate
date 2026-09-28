@@ -10,11 +10,9 @@
 #
 # Ledger: $FM_HEAVY_SLOT_DIR, default ~/.local/state/firstmate/heavy-slots/.
 #   holders/<key>.slot and waiters/<key>.wait are key=value records, keyed by
-#   the canonical home path plus task id. Every mutation runs under one lock,
-#   the symlink <ledger>/.lock-owner whose target is the owner pid, created in
-#   one step. A lock whose owner pid is gone is broken by the one contender
-#   that claims the symlink <ledger>/.breaker.<pid> (target: its own pid), and
-#   only while it still names that pid; a breaker whose pid is gone is removed.
+#   the canonical home path plus task id. Every mutation runs under one lock
+#   at <ledger>/.lock, taken with bin/fm-wake-lib.sh's fm_lock_acquire_wait,
+#   which owns stale-owner recovery.
 # Capacity: heavy_total (default 3) and ask_reserve (default 2) from the active
 #   home's config/lanes.json when present (read with jq; the file is never
 #   created here). An ask may take any free slot. A backlog holder may take one
@@ -54,6 +52,9 @@ set -eu
 SCRIPT_NAME=${0##*/}
 LEDGER=${FM_HEAVY_SLOT_DIR:-$HOME/.local/state/firstmate/heavy-slots}
 EXIT_REFUSED=3
+CALLER_FM_HOME=${FM_HOME:-}
+# shellcheck source=bin/fm-wake-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fm-wake-lib.sh"
 
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"
@@ -102,34 +103,14 @@ pid_alive() {
 
 LOCK_HELD=0
 lock_acquire() {
-  local lock="$LEDGER/.lock-owner" tries=0 owner breaker
   mkdir -p "$LEDGER/holders" "$LEDGER/waiters" || die "cannot create ledger $LEDGER"
-  while ! ln -s "$$" "$lock" 2>/dev/null; do
-    owner=$(readlink "$lock" 2>/dev/null || true)
-    if [ -n "$owner" ] && ! pid_alive "$owner"; then
-      breaker="$LEDGER/.breaker.$owner"
-      if ln -s "$$" "$breaker" 2>/dev/null; then
-        if [ "$(readlink "$lock" 2>/dev/null || true)" = "$owner" ] && ! pid_alive "$owner"; then
-          rm -f "$lock"
-        fi
-        rm -f "$breaker"
-        continue
-      fi
-      if ! pid_alive "$(readlink "$breaker" 2>/dev/null || true)"; then
-        rm -f "$breaker"
-        continue
-      fi
-    fi
-    tries=$((tries + 1))
-    [ "$tries" -lt 300 ] || die "heavy-slot ledger lock $lock is held by pid ${owner:-unknown}"
-    sleep 0.1
-  done
+  fm_lock_acquire_wait "$LEDGER/.lock" || die "cannot lock heavy-slot ledger $LEDGER"
   LOCK_HELD=1
 }
 
 lock_release() {
   [ "$LOCK_HELD" = 1 ] || return 0
-  [ "$(readlink "$LEDGER/.lock-owner" 2>/dev/null || true)" != "$$" ] || rm -f "$LEDGER/.lock-owner"
+  fm_lock_release "$LEDGER/.lock" || true
   LOCK_HELD=0
 }
 trap lock_release EXIT
@@ -412,7 +393,7 @@ cmd_list() {
   local f n ask backlog w
   parse_args list "$@"
   [ -z "$HOME_ARG" ] || HOME_ARG=$(canonical_home "$HOME_ARG")
-  [ -n "$HOME_ARG" ] || HOME_ARG=${FM_HOME:-}
+  [ -n "$HOME_ARG" ] || HOME_ARG=$CALLER_FM_HOME
   load_config "$HOME_ARG"
   mkdir -p "$LEDGER/holders" "$LEDGER/waiters" || die "cannot create ledger $LEDGER"
   n=$(count_holders)

@@ -221,33 +221,44 @@ test_ask_waiters() {
   pass "fm-heavy-slot: a refused or waiting ask is visible as a waiter until it acquires or gives up"
 }
 
+lock_owned_by() {  # <lock path> <pid>
+  local owner
+  owner=$(mktemp -d "$1.owner.XXXXXX")
+  printf '%s\n' "$2" > "$owner/pid"
+  ln -s "$owner" "$1"
+}
+
 test_ledger_lock() {
   local out status holder
   new_world lock
   mkdir -p "$LEDGER_DIR"
-  ln -s "$(dead_pid)" "$LEDGER_DIR/.lock-owner"
+  LEDGER_DIR=$(cd "$LEDGER_DIR" && pwd -P)
+  lock_owned_by "$LEDGER_DIR/.lock" "$(dead_pid)"
   out=$(acquire "$HOME_A" t1 ask); status=$?
   expect_code 0 "$status" "a lock left by a dead process was not broken: $out"
-  [ ! -e "$LEDGER_DIR/.lock-owner" ] && [ ! -L "$LEDGER_DIR/.lock-owner" ] \
+  [ ! -e "$LEDGER_DIR/.lock" ] && [ ! -L "$LEDGER_DIR/.lock" ] \
     || fail "the ledger lock was not released after acquire"
 
   sleep 30 &
   holder=$!
-  ln -s "$holder" "$LEDGER_DIR/.lock-owner"
+  lock_owned_by "$LEDGER_DIR/.lock" "$holder"
   ( sleep 2; kill "$holder" 2>/dev/null ) &
   out=$(acquire "$HOME_A" t2 ask); status=$?
   wait
   expect_code 0 "$status" "acquire did not proceed once the lock holder exited: $out"
   assert_contains "$(slot list)" "held=2/3" "acquire under a contested lock did not take exactly one slot"
-  new_world lock-breaker
-  mkdir -p "$LEDGER_DIR"
-  holder=$(dead_pid)
-  ln -s "$holder" "$LEDGER_DIR/.lock-owner"
-  ln -s "$(dead_pid)" "$LEDGER_DIR/.breaker.$holder"
-  out=$(acquire "$HOME_A" t1 ask); status=$?
-  expect_code 0 "$status" "a breaker left by a killed contender wedged the lock: $out"
-  [ ! -L "$LEDGER_DIR/.breaker.$holder" ] || fail "the abandoned breaker was not removed"
-  pass "fm-heavy-slot: the ledger lock waits for a live owner and breaks a dead owner's lock"
+
+  mkdir "$LEDGER_DIR/.lock"
+  touch -t 202001010000 "$LEDGER_DIR/.lock"
+  out=$(acquire "$HOME_A" t3 ask); status=$?
+  expect_code 0 "$status" "a lock left with no owner pid wedged the ledger: $out"
+
+  lock_owned_by "$LEDGER_DIR/.lock" "$(dead_pid)"
+  lock_owned_by "$LEDGER_DIR/.lock.steal" "$(dead_pid)"
+  out=$(slot release --home "$HOME_A" --task t3); status=$?
+  expect_code 0 "$status" "a steal marker left by a killed contender wedged the lock: $out"
+  assert_contains "$(slot list)" "held=2/3" "release under a recovered lock did not free exactly one slot"
+  pass "fm-heavy-slot: the ledger lock waits for a live owner and recovers a dead or interrupted one"
 }
 
 test_release() {
