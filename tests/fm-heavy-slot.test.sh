@@ -387,6 +387,26 @@ test_usage_errors() {
   pass "fm-heavy-slot: usage errors are distinct and the lane defaults to the task record"
 }
 
+test_gates_read() {
+  local out
+  new_world gates
+  out=$(slot gates --home "$HOME_A")
+  assert_contains "$out" "gates: load1=1.5/16 pressure=1/4 swap_used_mb=100/7168 browser_pages=4/30" "gates did not report readings and limits"
+  assert_contains "$out" "memory_refusal: none" "calm readings reported a memory refusal"
+  assert_contains "$out" "ask_waiters: 0" "gates did not report zero waiters"
+  [ ! -e "$LEDGER_DIR" ] || fail "gates created the ledger"
+  out=$(FM_HEAVY_SLOT_LOAD1=40 slot gates --home "$HOME_A")
+  assert_contains "$out" "memory_refusal: none" "load alone was reported as a memory refusal"
+  out=$(FM_HEAVY_SLOT_BROWSER_PAGES=31 slot gates --home "$HOME_A")
+  assert_contains "$out" "memory_refusal: 31 browser page processes exceed 30" "browser pages did not refuse"
+  printf '{"max_swap_used_mb": 50}\n' >"$HOME_A/config/lanes.json"
+  out=$(slot gates --home "$HOME_A")
+  assert_contains "$out" "memory_refusal: swap used 100MB is at or above 50MB" "gates ignored the home's config"
+  FM_HEAVY_SLOT_PRESSURE_LEVEL=9 acquire "$HOME_A" a1 ask >/dev/null
+  assert_contains "$(slot gates --home "$HOME_A")" "ask_waiters: 1" "gates did not count the ask waiter"
+  pass "fm-heavy-slot: gates reports readings, memory refusal without load, and ask waiters"
+}
+
 test_reservation_math
 test_capacity_from_home_config
 test_contention_between_two_homes
@@ -394,6 +414,7 @@ test_each_gate_refuses
 test_macos_swap_reading_is_absolute
 test_unknown_readings_never_refuse
 test_ask_waiters
+test_gates_read
 test_ledger_lock
 test_release
 test_reap_frees_only_on_positive_evidence
