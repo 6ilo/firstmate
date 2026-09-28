@@ -75,8 +75,10 @@
 # checked field, never partly redacted. Every other free-text field passes the
 # same check: a tripped work title becomes the work id and a tripped `doing`,
 # `reason`, or wait label becomes neutral text. Day block titles are exempt.
-# Text bearings cut short (ending in …) loses its trailing partial word before
-# the check, so a pattern split at the cut cannot slip past it.
+# Wherever a field was cut (a …, from bearings or from the bridge's own length
+# cap, at the end or mid-text), the partial word before each … is dropped
+# before the check, and the field trips when any of the five words before a
+# cut contains a digit.
 # Bump the checker version whenever RULES changes.
 #
 # Exit status: 0 on success; 1 when the snapshot cannot be built or fails the
@@ -106,7 +108,7 @@ usage() {
 }
 
 die() {
-  printf 'fm-today-bridge: %s\n' "$*" >&2
+  printf 'fm-today-bridge: %s\n' "$1" >&2
   exit "${2:-1}"
 }
 
@@ -191,7 +193,9 @@ RULES = (
     ("word", re.compile(r"\b(?:guardians?|parents?|minors?|learners?|students?|family|families|"
                         r"tuition|fees?|invoices?|counsel|attorneys?|lawyers?|lawsuits?|custody)\b",
                         re.IGNORECASE)),
+    ("cut", re.compile(r"\d[^\s…]*(?:\s+[^\s…]+){0,4}…")),
 )
+CUT_WORD = re.compile(r"\s*[^\s…]*…")
 
 WITHHELD_TITLE = "A call is waiting on the machine"
 WITHHELD_QUESTION = "This call's text stays on the machine. Read it there."
@@ -228,17 +232,14 @@ def fit(text, limit):
     return cut.rstrip() + "…"
 
 
-def whole(value):
-    """Collapsed to one line, without the partial word a cut left before its …."""
-    text = " ".join(str(value if value is not None else "").split())
-    if text.endswith("…"):
-        head = text[:-1].rpartition(" ")[0].rstrip()
-        text = head + "…" if head else ""
-    return text
+def whole(text):
+    """Without the partial word a cut left before each …; empty when nothing else is left."""
+    text = CUT_WORD.sub("…", text)
+    return text if re.search(r"[^\s…]", text) else ""
 
 
 def line(value, limit, fallback=""):
-    text = whole(value)
+    text = " ".join(str(value if value is not None else "").split())
     if text in ("", "-"):
         text = fallback
     return fit(text, limit) if text else ""
@@ -246,8 +247,8 @@ def line(value, limit, fallback=""):
 
 def checked(value, limit, fallback):
     """A free-text field after the text check: neutral text when it trips."""
-    text = line(value, limit, fallback)
-    return fit(fallback, limit) if tripped(text) else text
+    text = whole(line(value, limit, fallback))
+    return fit(fallback, limit) if not text or tripped(text) else text
 
 
 def canonical(value):
@@ -380,9 +381,8 @@ for dec in bearings.get("decisions_open") or []:
         skipped.append("call %s: already listed or over the 200-call limit" % tid)
         continue
     seen_calls.add(tid)
-    summary = whole(dec.get("summary"))
-    title = line(dec.get("summary"), 200, tid)
-    question = fit(summary or tid, 4000)
+    title = whole(line(dec.get("summary"), 200, tid)) or tid
+    question = whole(line(dec.get("summary"), 4000, tid)) or tid
     options = [dict(RECONCILE)]
     shown = [title, question] + [o["label"] for o in options] + [o.get("hint", "") for o in options]
     verdict = "withheld" if tripped(*shown) else "pass"

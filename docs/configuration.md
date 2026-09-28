@@ -1574,7 +1574,8 @@ It trips on any of these, and is deterministic, so the same text always gets the
 
 A call that trips goes out with the `withheld` verdict and firstmate's own neutral title and question in place of the call's words, never partly redacted.
 Every other free-text field in the snapshot passes the same check: a work title that trips is replaced by the work's id, and any other tripped text by neutral text.
-Text that bearings cut short, ending in `…`, loses its trailing partial word before the check and before it is sent, so a pattern split at the cut cannot leave in part.
+Wherever a field was cut, marked by `…` at its end or mid-text (bearings' cuts and the bridge's own 200-character cap alike), the partial word before each `…` is dropped before the check and before the field is sent.
+A cut field is then withheld, as if it tripped, when any of the five words before a cut contains a digit, so a house number or phone number split at the cut cannot leave in part.
 The check leans toward withholding, so ordinary words such as "parent" or "minor" in a technical call also keep that call's text on the machine.
 
 ## Relay (.env)

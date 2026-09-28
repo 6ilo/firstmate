@@ -58,6 +58,10 @@ make_home() {  # <name>
 - [ ] call-dob - Confirm the date of birth on file (kind: captain) (hold: confirm or not) (hold-kind: captain)
 - [ ] call-word - Tell the guardian about the change (kind: captain) (hold: tell or not) (hold-kind: captain)
 - [ ] call-cut - Choose the order (kind: captain) (hold: check the vendor timeline first and after that write back to jo.smith@example.org) (hold-kind: captain)
+- [ ] call-cut-address - Choose a kit (kind: captain) (hold: ship it to the depot at the far side of the town square at 42 Juniper Hill Rd) (hold-kind: captain)
+- [ ] call-cut-phone - Ring the suppliers (kind: captain) (hold: call the front desk at the hq office after lunch and ask for +1 555 123 4567) (hold-kind: captain)
+- [ ] call-cut-noted - Confirm the order and write to jo.smith@example.org (kind: captain) (hold: send it or not) (hold-kind: captain)
+  Captain hold set: 2000-01-01T00:00:00Z
 
 ## Done
 - [x] done-a - Landed thing https://github.com/acme/widget/pull/7 (repo: firstmate) (kind: ship) (merged 2026-09-27)
@@ -272,7 +276,8 @@ test_push_reports_portal_refusal() {
   FM_TODAY_PORTAL_URL=$STUB_URL FM_TODAY_BRIDGE_TOKEN=$TOKEN bridge "$HOME_A" push
   stop_stub
   [ "$CODE" -eq 3 ] || fail "a 400 answer exited $CODE, want 3"
-  grep -q 'answered 400 (bad_snapshot)' "$ERR" || fail "status not reported: $(cat "$ERR")"
+  [ "$(tail -n1 "$ERR")" = "fm-today-bridge: the portal answered 400 (bad_snapshot)" ] \
+    || fail "status not reported alone: $(cat "$ERR")"
   pass "push exits non-zero naming the portal's status"
 }
 
@@ -316,6 +321,27 @@ test_cut_text_loses_its_partial_word() {
   pass "text bearings cut short loses its trailing partial word before the check"
 }
 
+test_cut_after_a_number_is_withheld() {
+  local snap=$TMP_ROOT/snap.json id
+  for id in call-cut-address call-cut-phone; do
+    [ "$(jq -r --arg id "$id" '.sections.calls[] | select(.task_id == $id) | .text_check.verdict' "$snap")" = withheld ] \
+      || fail "$id went out with a number just before its cut: $(jq -c --arg id "$id" '.sections.calls[] | select(.task_id == $id)' "$snap")"
+  done
+  ! grep -qE -- 'town square|555 1' "$snap" || fail "text before a cut number left in the snapshot"
+  pass "a cut field with a number in the five words before the cut is withheld"
+}
+
+test_mid_text_cut_loses_its_partial_word() {
+  local snap=$TMP_ROOT/snap.json card
+  card=$(jq -c '.sections.calls[] | select(.task_id == "call-cut-noted")' "$snap")
+  [ -n "$card" ] || fail "the hold-noted call is missing"
+  [ "$(jq -r .text_check.verdict <<< "$card")" = pass ] || fail "the hold-noted call was withheld: $card"
+  jq -e '.title | test("write to…: held [0-9]+d: send it or not$")' <<< "$card" >/dev/null \
+    || fail "the mid-text cut kept its partial word: $card"
+  ! grep -q -- 'jo\.s' "$snap" || fail "part of a mid-text cut email address left in the snapshot"
+  pass "a cut in the middle of a hold-noted summary loses its partial word before the check"
+}
+
 test_dry_run_writes_and_sends_nothing() {
   local stub=$TMP_ROOT/stub-dry out=$TMP_ROOT/dry.json
   start_stub "$stub" 200
@@ -337,6 +363,8 @@ test_snapshot_is_valid_and_withholds_each_rule_family
 test_snapshot_carries_the_fleet
 test_card_hash_recomputes
 test_cut_text_loses_its_partial_word
+test_cut_after_a_number_is_withheld
+test_mid_text_cut_loses_its_partial_word
 test_day_from_file_and_empty_when_missing
 test_board_row_carries_no_board_text
 test_push_sends_with_the_bearer_header
