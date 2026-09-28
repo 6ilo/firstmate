@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Spawn a direct report: a crewmate in a treehouse or Orca worktree, or a
 # secondmate in its isolated firstmate home.
-# Usage: fm-spawn.sh <task-id> <project-dir> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
-#        fm-spawn.sh <task-id> <project-dir> --scout [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
+# Usage: fm-spawn.sh <task-id> <project-dir> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--lane <ask|backlog>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
+#        fm-spawn.sh <task-id> <project-dir> --scout [--lane <ask|backlog>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
 #        fm-spawn.sh <task-id> [<firstmate-home>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>] --secondmate
 #   --mode and --yolo are this task's delivery contract, REQUIRED for every ship
 #   spawn and refused on --scout and --secondmate spawns. Firstmate resolves both
@@ -31,6 +31,13 @@
 #   loud one-line deviation notice is printed and the spawn continues.
 #   no-mistakes-prod-only is a registry policy rather than a task mode and is
 #   refused as a flag value.
+#   --lane <ask|backlog> is the task's work lane, recorded as lane= in the meta
+#   of every ship and scout (default ask: anything dispatched because the
+#   captain asked). Only a scheduler dispatching queued backlog work passes
+#   backlog. --lane backlog with --yolo on is refused so backlog work never
+#   merges without the captain's word. A secondmate records no lane and refuses
+#   the flag; a relaunch keeps the recorded lane and refuses the flag. The
+#   heavy-slot ledger that consumes the lane is bin/fm-heavy-slot.sh.
 #   --branch-prefix is the optional prefix selected at intake for this ship's
 #   immutable branch, defaulting to "fm/". It must agree with the branch recorded
 #   in the brief, and is refused on scouts, secondmates, and relaunches. When the
@@ -628,6 +635,7 @@ BACKEND_ARG=
 MODE=
 YOLO=
 BRANCH_PREFIX=fm/
+LANE=ask
 TRACEPARENT_ARG=
 HARNESS_SET=0
 MODEL_SET=0
@@ -636,6 +644,7 @@ BACKEND_SET=0
 MODE_SET=0
 YOLO_SET=0
 BRANCH_PREFIX_SET=0
+LANE_SET=0
 TRACEPARENT_SET=0
 RELAUNCH=0
 POS=()
@@ -676,6 +685,10 @@ for a in "$@"; do
     branch-prefix)
       BRANCH_PREFIX=$a
       BRANCH_PREFIX_SET=1
+      ;;
+    lane)
+      LANE=$a
+      LANE_SET=1
       ;;
     traceparent)
       TRACEPARENT_ARG=$a
@@ -734,6 +747,11 @@ for a in "$@"; do
     BRANCH_PREFIX=${a#--branch-prefix=}
     BRANCH_PREFIX_SET=1
     ;;
+  --lane) want_value=lane ;;
+  --lane=*)
+    LANE=${a#--lane=}
+    LANE_SET=1
+    ;;
   --traceparent) want_value=traceparent ;;
   --traceparent=*)
     TRACEPARENT_ARG=${a#--traceparent=}
@@ -770,6 +788,13 @@ done
   echo "error: --yolo requires a non-empty value" >&2
   exit 1
 }
+case "$LANE" in
+ask | backlog) ;;
+*)
+  echo "error: --lane must be ask or backlog (got '$LANE')" >&2
+  exit 1
+  ;;
+esac
 [ "$TRACEPARENT_SET" -eq 0 ] || [ -n "$TRACEPARENT_ARG" ] || {
   echo "error: --traceparent requires a non-empty value" >&2
   exit 1
@@ -820,6 +845,10 @@ if [ "$RELAUNCH" -eq 1 ]; then
     echo "error: --relaunch reuses the task's recorded ship branch; --branch-prefix cannot override it" >&2
     exit 1
   }
+  [ "$LANE_SET" -eq 0 ] || {
+    echo "error: --relaunch reuses the task's recorded lane; --lane cannot override it" >&2
+    exit 1
+  }
 else
   # Delivery contract (AGENTS.md section 7). A ship task's mode and yolo are
   # firstmate's per-task decision, so they are required and closed-set validated
@@ -852,6 +881,10 @@ else
       exit 1
       ;;
     esac
+    if [ "$LANE" = backlog ] && [ "$YOLO" = on ]; then
+      echo "error: --lane backlog is refused with --yolo on; backlog work keeps the captain's merge approval, so spawn it with --yolo off" >&2
+      exit 1
+    fi
   else
     [ "$MODE_SET" -eq 0 ] || {
       echo "error: --mode applies only to ship spawns; a scout delivers a report and a secondmate records its own fixed posture" >&2
@@ -865,6 +898,13 @@ else
       echo "error: --branch-prefix applies only to ship spawns; a scout makes no branch and a secondmate records no ship branch" >&2
       exit 1
     }
+    if [ "$KIND" = secondmate ]; then
+      [ "$LANE_SET" -eq 0 ] || {
+        echo "error: --lane applies only to ship and scout spawns; a secondmate is a persistent agent, not a work item" >&2
+        exit 1
+      }
+      LANE=
+    fi
   fi
 fi
 
@@ -1446,6 +1486,7 @@ if [ "${#POS[@]}" -gt 0 ] && [ "${POS[0]}" != "$idpart" ] && case "$idpart" in *
   [ "$MODE_SET" -eq 0 ] || shared_args+=(--mode "$MODE")
   [ "$YOLO_SET" -eq 0 ] || shared_args+=(--yolo "$YOLO")
   [ "$BRANCH_PREFIX_SET" -eq 0 ] || shared_args+=(--branch-prefix "$BRANCH_PREFIX")
+  [ "$LANE_SET" -eq 0 ] || shared_args+=(--lane "$LANE")
   for pair in "${POS[@]}"; do
     case "$pair" in
     *=*) : ;;
@@ -1761,6 +1802,7 @@ if [ "$RELAUNCH" -eq 1 ]; then
   fi
   MODE=$(fm_meta_get "$RELAUNCH_META" mode)
   YOLO=$(fm_meta_get "$RELAUNCH_META" yolo)
+  LANE=$(fm_meta_get "$RELAUNCH_META" lane)
   if [ "$KIND" = ship ]; then
     BRANCH=$(fm_meta_get "$RELAUNCH_META" branch)
     [ -n "$BRANCH" ] || BRANCH="fm/$ID"
@@ -4681,7 +4723,7 @@ SPAWN_META_PATH=$SPAWN_META_TMP
 preserve_relaunch_meta() {
   awk -F= '
     BEGIN {
-      split("window endpoint_task_id worktree project harness kind mode yolo branch tasktmp model effort account account_provider busy_gen spawn_gen traceparent backend herdr_session herdr_workspace_id herdr_tab_id herdr_pane_id zellij_session zellij_tab_id zellij_pane_id orca_worktree_id terminal cmux_workspace_id cmux_surface_id home projects control_relaunch_tx", keys, " ")
+      split("window endpoint_task_id worktree project harness kind mode yolo lane branch tasktmp model effort account account_provider busy_gen spawn_gen traceparent backend herdr_session herdr_workspace_id herdr_tab_id herdr_pane_id zellij_session zellij_tab_id zellij_pane_id orca_worktree_id terminal cmux_workspace_id cmux_surface_id home projects control_relaunch_tx", keys, " ")
       for (i in keys) owned[keys[i]] = 1
     }
     !($1 in owned)
@@ -4696,6 +4738,7 @@ preserve_relaunch_meta() {
   echo "kind=$KIND"
   [ -z "$MODE" ] || echo "mode=$MODE"
   [ -z "$YOLO" ] || echo "yolo=$YOLO"
+  [ -z "${LANE:-}" ] || echo "lane=$LANE"
   [ -z "${BRANCH:-}" ] || echo "branch=$BRANCH"
   echo "tasktmp=$TASK_TMP"
   echo "model=${MODEL:-default}"

@@ -146,6 +146,25 @@ test_no_profile_keeps_claude_profile_defaults() {
   pass "no --model/--effort records defaults and types the claude launch instructions"
 }
 
+# Every ship and scout records its work lane; ask is the default and only an
+# explicit --lane backlog records backlog.
+test_spawn_records_the_work_lane() {
+  local rec out status
+  rec=$(make_spawn_case lane-record claude lane-ask-l1 lane-backlog-l2)
+  read_case_record "$rec"
+
+  out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" lane-ask-l1 "$PROJ_DIR")
+  status=$?
+  expect_code 0 "$status" "a ship spawn without --lane should succeed"
+  assert_grep 'lane=ask' "$HOME_DIR/state/lane-ask-l1.meta" "a spawn without --lane did not record lane=ask"
+
+  out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" lane-backlog-l2 "$PROJ_DIR" --lane backlog)
+  status=$?
+  expect_code 0 "$status" "a backlog-lane ship spawn with --yolo off should succeed: $out"
+  assert_grep 'lane=backlog' "$HOME_DIR/state/lane-backlog-l2.meta" "--lane backlog was not recorded"
+  pass "fm-spawn records lane=ask by default and lane=backlog when passed"
+}
+
 test_non_cursor_launch_clears_inherited_cursor_markers() {
   local rec id out status launch
   id=profile-claude-cursor-markers-z1b
@@ -1514,6 +1533,7 @@ test_non_claude_harness_ignores_claude_permission_mode() {
 
 test_worker_launch_delivers_role_scope
 test_no_profile_keeps_claude_profile_defaults
+test_spawn_records_the_work_lane
 test_non_cursor_launch_clears_inherited_cursor_markers
 test_relative_home_overrides_launch_with_absolute_cross_process_paths
 test_home_defaults_preserve_absolute_or_resolve_relative_paths

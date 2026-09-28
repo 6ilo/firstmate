@@ -520,6 +520,28 @@ IFS= read -r -d '' SHARED_INFRA_RULE <<'EOF' || true
 EOF
 SHARED_INFRA_RULE=${SHARED_INFRA_RULE%$'\n'}
 
+# One shared heavy-slot rule for ship and scout scaffolds. The ledger is
+# bin/fm-heavy-slot.sh, and docs/configuration.md "Heavy validation slots"
+# owns the operator-facing contract and heavy list.
+HEAVY_SLOT_CMD=$(shell_quote "$FM_ROOT/bin/fm-heavy-slot.sh")
+HEAVY_SLOT_ARGS="--task $(shell_quote "$ID") --home $(shell_quote "$FM_HOME")"
+IFS= read -r -d '' SHARED_HEAVY_RULE <<EOF || true
+8. Hold a machine-wide heavy slot for every heavy command, because heavy runs across the whole fleet share three slots.
+   - Heavy: a no-mistakes validation run until it reaches its CI step, pixel or visual gates, full verify scripts,
+     Playwright or any headless browser, full or multi-package test suites (vitest, jest, pytest, bin/fm-test-run.sh
+     families) and full-suite walks, production builds, cold dependency installs, and local model runs.
+     Not heavy: single affected test files, lint, one-package typecheck, git, CI waits, reading, and editing.
+   - Before a heavy command, run \`$HEAVY_SLOT_CMD acquire $HEAVY_SLOT_ARGS\`; before starting a validation run,
+     acquire first, then re-run the same acquire with \`--run <run-id>\` once the run id is known.
+   - Release with \`$HEAVY_SLOT_CMD release $HEAVY_SLOT_ARGS\` when the heavy command finishes or the validation run
+     reaches its CI step.
+   - When a check finishes, close the Playwright browsers and preview or Lavish tabs it opened.
+   - A refused acquire (exit 3) names its reason: never run the heavy command anyway; append
+     \`$PAUSED_VERB [at=<epoch>]: waiting for a heavy validation slot\`, then retry with \`--wait <secs>\` and append
+     \`resolved [at=<epoch>]: heavy validation slot acquired\` once it succeeds.
+EOF
+SHARED_HEAVY_RULE=${SHARED_HEAVY_RULE%$'\n'}
+
 if [ "$KIND" = scout ]; then
 if "$SCRIPT_DIR/fm-bootstrap.sh" lavish-compatible >/dev/null 2>&1; then
   LAVISH_LINE='If your deliverable is a visual artifact the captain will review and iterate on, use the lavish-axi rule: arm your board with bin/fm-procevent-lavish.sh arm <artifact.html> --for <task-id>; never run lavish-axi poll yourself. Re-arm with the reply after each nonterminal round to acknowledge it, route the board feedback through your steering inbox, write needs-decision [key=board-review] with the live board URL when the captain owes a decision, and stop at session_ended or an empty End without re-arming - acknowledge that final round with bin/fm-procevent.sh handled <source-id> <sequence> to conclude and retire your board.'
@@ -560,6 +582,7 @@ The worktree is scratch: install, run, edit, and commit freely; teardown discard
    A decision or blocker you opened stays open until a \`resolved\` line carrying its exact key lands; a later \`done:\` or \`working:\` line never closes it, even when the answer is what started that work.
    When a blocker or wait clears WITHOUT a firstmate reply, append \`resolved [at=<epoch>]: {how it cleared}\` yourself (same \`[key=<slug>]\` if you opened it with one) as you resume; firstmate's reply otherwise writes it.
 $SHARED_INFRA_RULE
+$SHARED_HEAVY_RULE
 
 $INBOX_SECTION
 
@@ -641,6 +664,7 @@ $ASK_USER_BLOCK
    A decision or blocker you opened stays open until a \`resolved\` line carrying its exact key lands; a later \`done:\` or \`working:\` line never closes it, even when the answer is what started that work.
    When a blocker or wait clears WITHOUT a firstmate reply, append \`resolved [at=<epoch>]: {how it cleared}\` yourself (same \`[key=<slug>]\` if you opened it with one) as you resume; firstmate's reply otherwise writes it.
 $SHARED_INFRA_RULE
+$SHARED_HEAVY_RULE
 
 $INBOX_SECTION
 

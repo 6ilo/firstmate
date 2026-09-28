@@ -147,6 +147,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-teardown.sh`         | Fail-closed teardown: return landed ship worktrees, require completed scout deliverables, retire secondmate homes |
 | `fm-harness.sh`          | Detect the running harness, resolve crew or secondmate harness, model, and effort, and validate the native-only `ultra` effort |
 | `fm-lock.sh`             | Per-home firstmate session lock                                                      |
+| `fm-heavy-slot.sh`       | Machine-wide heavy validation slot ledger shared by every local home ([contract](configuration.md#heavy-validation-slots-configlanesjson)) |
 | `fm-x-lib.sh`            | Shared Relay config, relay, and reply-threading helpers                              |
 | `fm-x-poll.sh`           | One bounded Relay poll: stash newly offered mentions, emit their once-only wake, and raise queued public-followup rejection wakes at least once |
 | `fm-x-reply.sh`          | Post or dry-run preview a composed Relay reply or follow-up                          |

@@ -13,6 +13,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), and [startup memory budget](#startup-memory-budget-configstartup-memory-budget) |
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
+| Work lanes and machine-wide heavy runs | [Heavy validation slots](#heavy-validation-slots-configlanesjson) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
 
 ## FM_HOME
@@ -594,6 +595,46 @@ With the flag absent the wedge timer spends no fold or current-state read for it
 The flag is a home-local supervision-noise preference and is not inherited by secondmate homes, which supervise their own crew and own that trade separately.
 
 [`architecture.md`](architecture.md) owns the wait-evidence contract and which records may take the ladder away; `bin/fm-watch.sh`'s `wedge_wait_evidence` owns the exact derivation and its fail-closed boundaries.
+
+## Heavy validation slots (config/lanes.json)
+
+Heavy runs on one machine share a small number of slots, so a few concurrent validations cannot push the machine into swap.
+Every task carries a work lane in its task metadata: `ask` for work the captain asked for, the default, and `backlog` for scheduled backlog work, set by `bin/fm-spawn.sh --lane`.
+A backlog-lane ship spawn refuses `--yolo on`, so backlog work always keeps the captain's merge approval.
+
+### Slots, lanes, and the ledger
+
+`bin/fm-heavy-slot.sh` keeps one ledger per machine at `~/.local/state/firstmate/heavy-slots/`, or at `FM_HEAVY_SLOT_DIR` when set, shared by every local home.
+There are 3 slots by default and 2 are reserved for asks: an ask may take any free slot, and backlog work may hold at most `heavy_total - ask_reserve` of them.
+An ask that is refused or still waiting is listed as a waiter, so backlog work can see that an ask needs a slot.
+Every ship and scout brief tells the worker to acquire a slot before a heavy command and release it when the command finishes or the validation run reaches its CI step.
+A refused acquire is a declared wait: the worker appends `paused: waiting for a heavy validation slot` and retries rather than running anyway.
+Teardown releases any slot the task still holds, and `reap` frees a slot only on positive evidence that its holder is finished.
+
+### Gates on every new heavy start
+
+A new heavy run is refused while any reading is at its limit:
+
+| Reading | Default limit | `config/lanes.json` key |
+| --- | --- | --- |
+| 1-minute load average | refuse at 16 or above | `max_load` |
+| `kern.memorystatus_vm_pressure_level` | refuse at 4 (critical) or above | `max_pressure_level` |
+| Swap used, from `sysctl vm.swapusage` | refuse at 7168 MB used or above | `max_swap_used_mb` |
+| WebKit WebContent page processes | refuse above 30 | `max_browser_pages` |
+
+A reading the platform cannot take is reported as unknown and never refuses; load and the slot count still apply.
+Workers close Playwright browsers and preview or Lavish tabs when a check finishes, which keeps browser page processes under the cap.
+
+### What counts as heavy
+
+Heavy: a no-mistakes validation run until it reaches its CI step, pixel or visual gates, full verify scripts, Playwright or any headless browser, full or multi-package test suites and full-suite walks, production builds, cold dependency installs, and local model runs.
+Not heavy: single affected test files, lint, one-package typecheck, git, CI waits, reading, and editing.
+
+### config/lanes.json
+
+The optional local, gitignored `config/lanes.json` is a JSON object whose keys all default when absent: `heavy_total` (3), `ask_reserve` (2), and the gate keys above.
+The ledger reads the file from the home that runs the acquire and never creates it.
+The script's header owns the subcommands, exit codes, ledger record fields, and reap evidence.
 
 ## Gate defaults (.no-mistakes.yaml)
 
@@ -2210,6 +2251,7 @@ FM_CONFIG_OVERRIDE=      # alternate config dir, mainly for tests
 FM_PROC_ROOT_OVERRIDE=   # alternate /proc root for Linux process-identity reads in fm-wake-lib.sh and fm-teardown.sh, mainly for tests
 FM_BACKEND=             # optional runtime backend override for new spawns; tmux/herdr/zellij/orca/cmux support ship/scout spawns, codex-app is not accepted
 FM_TRACE_CONTEXT=       # optional trace-context override; see "Trace context propagation"
+FM_HEAVY_SLOT_DIR=~/.local/state/firstmate/heavy-slots  # machine-wide heavy-slot ledger; see "Heavy validation slots"
 FM_TASK_ID=             # internal task-worker marker fm-spawn.sh exports into ship and scout panes, never set by hand; bin/fm-test-run.sh refuses to execute in the repository primary checkout while it is set
 HERDR_SESSION=default  # herdr-only: named session for normal backend ops; not enough for destructive cleanup (docs/herdr-backend.md)
 FM_BACKEND_HERDR_SUBMIT_POLLS=6  # herdr-only: agent-state samples spread across each Enter attempt's budget when confirming a submit (docs/herdr-backend.md "Current transport behavior")
