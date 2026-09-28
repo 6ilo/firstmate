@@ -159,6 +159,7 @@ test_macos_swap_reading_is_absolute() {
   bin="$TMP_ROOT/macos-swap/bin"
   mkdir -p "$bin"
   printf '#!/bin/sh\necho Darwin\n' > "$bin/uname"
+  # shellcheck disable=SC2016 # $2 is expanded by the generated sysctl stub, not here
   printf '#!/bin/sh\n[ "$2" = vm.swapusage ] && echo "%s"\n' \
     'total = 3072.00M  used = 2800.00M  free = 272.00M  (encrypted)' > "$bin/sysctl"
   chmod +x "$bin/uname" "$bin/sysctl"
@@ -358,7 +359,7 @@ SH
   chmod +x "$fakebin/no-mistakes"
   slot acquire --home "$HOME_A" --task t1 --lane ask --pid "$$" --run first-run --worktree "$wt" >/dev/null
   printf 'kind=ship\n' > "$HOME_A/state/t1.meta"
-  out=$(PATH="$fakebin:$PATH" SLOT="$SLOT" RACE_HOME="$HOME_A" RACE_PID="$$" RACE_WT="$wt" \
+  out=$(export SLOT; PATH="$fakebin:$PATH" RACE_HOME="$HOME_A" RACE_PID="$$" RACE_WT="$wt" \
     FM_HEAVY_SLOT_DIR="$LEDGER_DIR" "$SLOT" reap)
   assert_contains "$out" "freed=0 kept=1" "reap deleted a slot re-acquired while its evidence was checked"
   assert_contains "$(slot list)" "held=1/3" "the re-acquired slot is missing from the ledger"

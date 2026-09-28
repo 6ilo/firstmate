@@ -208,7 +208,7 @@ number_or_unknown() {
 num_ge() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a + 0 >= b + 0) }'; }
 num_gt() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a + 0 > b + 0) }'; }
 
-GATE_LOAD= GATE_PRESSURE= GATE_SWAP_MB= GATE_PAGES=
+GATE_LOAD='' GATE_PRESSURE='' GATE_SWAP_MB='' GATE_PAGES=''
 read_gates() {
   GATE_LOAD=$(read_load1)
   GATE_PRESSURE=$(read_pressure)
@@ -275,7 +275,7 @@ write_record() {  # <path> <lines...>
 
 # --- subcommands -------------------------------------------------------------
 
-TASK= HOME_ARG= LANE= RUN= PID= WORKTREE= WAIT=0
+TASK='' HOME_ARG='' LANE='' RUN='' PID='' WORKTREE='' WAIT=0
 parse_args() {
   local sub=$1
   shift
@@ -358,7 +358,7 @@ cmd_acquire() {
   poll=${FM_HEAVY_SLOT_POLL:-15}
   deadline=$(($(date +%s) + WAIT))
   while :; do
-    ACQ_REASON= ACQ_MSG=
+    ACQ_REASON='' ACQ_MSG=''
     rc=0
     try_acquire || rc=$?
     if [ "$rc" = 0 ]; then
