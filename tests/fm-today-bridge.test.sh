@@ -218,7 +218,8 @@ test_board_row_carries_no_board_text() {
 }
 
 test_retired_source_boards() {
-  local home gone ended lost live open fresh sid_gone sid_ended sid_lost sid_live sid_open sid_fresh
+  local home gone ended lost live open fresh split twice sid_gone sid_ended sid_lost sid_live sid_open
+  local sid_fresh sid_split sid_twice
   local snap before after inbox
   home=$(make_home home-retired)
   mkdir -p "$home/state/procevent-inbox" "$home/.lavish" "$home/data/handoff" "$LAVISH_AXI_STATE_DIR"
@@ -227,14 +228,20 @@ test_retired_source_boards() {
   gone="$home/.lavish/gone-board.html"; ended="$home/.lavish/ended-board.html"
   lost="$home/.lavish/lost-board.html"; live="$home/.lavish/live-board.html"
   open="$home/.lavish/open-board.html"; fresh="$home/data/handoff/fresh-board.html"
+  split="$home/.lavish/split-board.html"; twice="$home/.lavish/twice-board.html"
   printf '<h1>Secret gone title</h1>\n' > "$gone"
-  for f in "$ended" "$lost" "$live" "$open" "$fresh"; do printf 'x\n' > "$f"; done
+  for f in "$ended" "$lost" "$live" "$open" "$fresh" "$split" "$twice"; do printf 'x\n' > "$f"; done
   sid_gone=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$gone")
   sid_ended=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$ended")
   sid_lost=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$lost")
   sid_live=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$live")
   sid_open=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$open")
   sid_fresh=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$fresh")
+  sid_split=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$split")
+  sid_twice=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$twice")
+  : > "$inbox/$sid_split.1.result"; printf 'torn-task\n' > "$inbox/$sid_split.1.owner-task"
+  : > "$inbox/$sid_split.2.result"; printf 'ship-task\n' > "$inbox/$sid_split.2.owner-task"
+  : > "$inbox/$sid_twice.1.result"; printf 'torn-task\n' > "$inbox/$sid_twice.1.owner-task"
   : > "$inbox/$sid_gone.1.result"; : > "$inbox/$sid_gone.1.handled"
   printf 'torn-task\n' > "$inbox/$sid_gone.1.owner-task"
   : > "$inbox/$sid_ended.1.result"
@@ -247,14 +254,17 @@ test_retired_source_boards() {
   : > "$inbox/$sid_open.2.result"
   printf 'ship-task\n' > "$inbox/$sid_open.2.owner-task"
   jq -n --arg g "$gone" --arg e "$ended" --arg l "$lost" --arg v "$live" --arg o "$open" \
-      --arg f "$fresh" '{sessions:{
+      --arg f "$fresh" --arg s "$split" --arg t "$twice" '{sessions:{
       a:{file:$g,status:"open",url:"http://host.example:4387/session/aaaa"},
       b:{file:$e,status:"ended",url:"http://host.example:4387/session/bbbb"},
       c:{file:$l,status:"open",url:"http://host.example:4387/session/cccc"},
       d:{file:"/elsewhere/other.html",status:"open",url:"http://host.example:4387/session/dddd"},
       e:{file:$v,status:"open",url:"http://host.example:4387/session/eeee"},
       f:{file:$o,status:"open",url:"http://host.example:4387/session/ffff"},
-      g:{file:$f,status:"open",url:"http://host.example:4387/session/gggg"}}}' \
+      g:{file:$f,status:"open",url:"http://host.example:4387/session/gggg"},
+      h:{file:$s,status:"open",url:"http://host.example:4387/session/hhhh"},
+      i:{file:$t,status:"ended",url:"http://host.example:4387/session/iiii"},
+      j:{file:$t,status:"open",url:"http://host.example:4387/session/jjjj"}}}' \
     > "$LAVISH_AXI_STATE_DIR/state.json"
   before=$(cd "$home/state" && find . -type f -exec shasum {} + | sort; find . | sort)
   bridge "$home" snapshot
@@ -268,12 +278,14 @@ test_retired_source_boards() {
           {owner_task:"ship-task",state:"round-open",round:2,link:"http://host.example:4387/session/ffff"}]' \
       "$snap" >/dev/null \
     || fail "retired board rows wrong: $(jq -c .sections.boards "$snap")"
-  grep -q "board $sid_lost: owner task cannot be recovered" "$ERR" \
-    || fail "an unrecoverable owner was not named on stderr: $(cat "$ERR")"
-  ! grep -q "$sid_ended\|$sid_fresh\|dddd\|handoff" "$ERR" \
-    || fail "an ended, never-armed, or foreign board was named: $(cat "$ERR")"
+  grep -q "board $sid_split: owner task cannot be recovered" "$ERR" \
+    || fail "a board with disagreeing owners was not named on stderr: $(cat "$ERR")"
+  grep -q "board $sid_twice: no single saved session link" "$ERR" \
+    || fail "a board with two saved sessions was not named on stderr: $(cat "$ERR")"
+  ! grep -q "$sid_ended\|$sid_fresh\|$sid_lost\|dddd\|handoff" "$ERR" \
+    || fail "an ended, never-armed, unowned, or foreign board was named: $(cat "$ERR")"
   ! grep -qi 'secret' "$snap" || fail "board text reached the snapshot"
-  pass "a still-open board whose source was retired keeps its owner's state; ended, unarmed, and ownerless ones stay out"
+  pass "a still-open board whose source was retired keeps its owner's state; ended, unarmed, unowned, ambiguous, and doubly linked ones stay out"
 }
 
 test_push_sends_with_the_bearer_header() {
