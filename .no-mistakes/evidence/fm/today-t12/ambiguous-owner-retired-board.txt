@@ -1,0 +1,13 @@
+board=/Users/anwulikaanigbodesktop/.lavish/mmeg-us-proposal.html sid=lavish-d921b2a351f4331e
+registered: lavish-d921b2a351f4331e (lavish, task=task-a)
+handled: lavish-d921b2a351f4331e 1
+retired: lavish-d921b2a351f4331e
+registered: lavish-d921b2a351f4331e (lavish, task=task-b)
+handled: lavish-d921b2a351f4331e 2
+retired: lavish-d921b2a351f4331e
+  lavish-d921b2a351f4331e.1.owner-task: task-a
+  lavish-d921b2a351f4331e.2.owner-task: task-b
+snapshot exit=0
+boards: []
+stderr board lines:
+fm-today-bridge: left out board lavish-d921b2a351f4331e: owner task cannot be recovered

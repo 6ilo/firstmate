@@ -1,0 +1,56 @@
+board=/Users/anwulikaanigbodesktop/.lavish/mmeg-minimal-landing.html sid=lavish-2d04f34cd6c9d89b
+
+== 1. task t12-lab arms the board (register-task) and one round is captured
+registered: lavish-2d04f34cd6c9d89b (lavish, task=t12-lab)
+register exit=0
+start exit=0
+  /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab.t12base/state/procevent:
+  lavish-2d04f34cd6c9d89b.16777231-334864688.last-launch
+  lavish-2d04f34cd6c9d89b.source
+  
+  /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab.t12base/state/procevent-inbox:
+  lavish-2d04f34cd6c9d89b.1.adapter
+  lavish-2d04f34cd6c9d89b.1.owner-task
+  lavish-2d04f34cd6c9d89b.1.result
+$ fm-today-bridge.sh snapshot | jq .sections.boards
+exit=0
+{"owner_task":"t12-lab","state":"round-open","round":1,"last_changed":"2026-09-29T01:10:57Z","link":"http://anwulikas-imac-1.tail26dc39.ts.net:4387/session/2d04f34cd6c9d89b"}
+stderr board lines:
+  (none)
+contract check: ok
+
+== 2. round acknowledged (handled)
+handled: lavish-2d04f34cd6c9d89b 1
+$ fm-today-bridge.sh snapshot | jq .sections.boards
+exit=0
+{"owner_task":"t12-lab","state":"listening","round":1,"last_changed":"2026-09-29T01:10:59Z","link":"http://anwulikas-imac-1.tail26dc39.ts.net:4387/session/2d04f34cd6c9d89b"}
+stderr board lines:
+  (none)
+contract check: ok
+
+== 3. source retired while task is alive -> must stay listed, state listening (not owner-gone)
+retired: lavish-2d04f34cd6c9d89b
+retire exit=0
+  lavish-2d04f34cd6c9d89b.16777231-334864688.last-launch
+$ fm-today-bridge.sh snapshot | jq .sections.boards
+exit=0
+stderr board lines:
+  (none)
+contract check: ok
+state/ unchanged by snapshot: yes
+
+== 4. task torn down (state/t12-lab.meta removed) -> listed owner-gone
+$ fm-today-bridge.sh snapshot | jq .sections.boards
+exit=0
+stderr board lines:
+  (none)
+contract check: ok
+
+== 5. push --dry-run writes the checked snapshot
+dry-run: wrote /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab.t12base/dry.json; nothing was sent
+exit=0
+[]
+
+== 6. privacy: board title/body text absent from snapshot
+board <title> length=23
+title leaked: no

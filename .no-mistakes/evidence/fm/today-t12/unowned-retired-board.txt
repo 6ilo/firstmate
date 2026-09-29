@@ -1,0 +1,14 @@
+open boards in real Lavish store: 16
+board=/Users/anwulikaanigbodesktop/.lavish/fleet-improvement-plan.html sid=lavish-e66eca35c0f3b90c
+registered: lavish-e66eca35c0f3b90c (lavish)
+handled: lavish-e66eca35c0f3b90c 1
+retired: lavish-e66eca35c0f3b90c
+inbox:
+  lavish-e66eca35c0f3b90c.1.adapter
+  lavish-e66eca35c0f3b90c.1.handled
+  lavish-e66eca35c0f3b90c.1.result
+source records:
+snapshot exit=0
+boards: []
+stderr board lines:
+  (none)
