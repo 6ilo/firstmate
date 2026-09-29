@@ -4,7 +4,9 @@
 # a fixture home, and a local stub portal (python3 http.server) standing in for
 # POST /api/fleet/bridge/snapshot: a valid push carries the right header and gets the
 # portal's heard_at, an invalid snapshot is refused before anything is sent, a
-# call tripping each text-check rule family goes out withheld, the day comes
+# call tripping each text-check rule family goes out withheld, every card and
+# work row names its repo or null, the snapshot passes the portal's own ajv
+# engine when a portal checkout is named, the day comes
 # from the day file or is empty for today, and the token never reaches output.
 set -u
 
@@ -157,6 +159,51 @@ test_card_hash_recomputes() {
   want=$(python3 "$ROOT/tests/fm-today-contract-check.py" hash "$card")
   [ "$(jq -r .card_hash "$card")" = "$want" ] || fail "card_hash does not recompute"
   pass "every card carries the contract's card_hash"
+}
+
+# The standing rule: every card and work row names its repository explicitly,
+# owner/name when one is found and null otherwise, never by leaving it out.
+test_every_row_carries_repo() {
+  local snap=$TMP_ROOT/snap.json
+  jq -e '[.sections.calls[], .sections.underway[], .sections.charted_next[], .sections.landed[]]
+          | length > 0 and all(has("repo"))' "$snap" >/dev/null \
+    || fail "a card or work row left out repo: $(jq -c '[.sections[] | arrays | .[] | select(has("repo") | not)]' "$snap")"
+  jq -e '[.sections.calls[].repo] | all(. == null)' "$snap" >/dev/null \
+    || fail "a card named a repository bearings never recorded: $(jq -c '[.sections.calls[].repo]' "$snap")"
+  [ "$(jq -r '.sections.underway[] | select(.id == "ship-task") | .repo' "$snap")" = acme/widget ] \
+    || fail "underway work lost the repository its PR names"
+  jq -e '.sections.charted_next[] | select(.id == "live-gate") | has("repo") and .repo == null' "$snap" >/dev/null \
+    || fail "work whose clone is absent did not carry repo null: $(jq -c .sections.charted_next "$snap")"
+  pass "every card and work row carries repo, null when no repository is found"
+}
+
+# The portal validates with ajv over its byte-for-byte copy of these schemas.
+# When FM_TODAY_PORTAL_DIR names a relay-platform checkout with its node
+# modules installed, run that same ajv engine over the bridge's own snapshot;
+# otherwise the reference checker above is the check and this case skips.
+test_snapshot_passes_the_portal_ajv() {
+  local snap=$TMP_ROOT/snap.json out
+  if [ -z "${FM_TODAY_PORTAL_DIR:-}" ] || [ ! -d "$FM_TODAY_PORTAL_DIR/node_modules/ajv" ] \
+    || ! command -v node >/dev/null 2>&1; then
+    echo "skip - portal ajv check: set FM_TODAY_PORTAL_DIR to a relay-platform checkout with node_modules"
+    return 0
+  fi
+  out=$(node - "$FM_TODAY_PORTAL_DIR" "$ROOT/docs/today-contract" "$snap" 2>&1 <<'JS'
+const [portal, dir, file] = process.argv.slice(2);
+const Ajv2020 = require(portal + "/node_modules/ajv/dist/2020").default;
+const fs = require("fs");
+const read = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
+const ajv = new Ajv2020({ allErrors: false });
+ajv.addSchema(read(dir + "/fm-today-card.v1.schema.json"));
+const check = ajv.compile(read(dir + "/fm-today-snapshot.v1.schema.json"));
+if (!check(read(file))) {
+  console.log(JSON.stringify(check.errors.map((e) => [e.instancePath, e.keyword])));
+  process.exit(1);
+}
+JS
+) || fail "the portal's ajv refused the bridge snapshot: $out"
+  [ -z "$out" ] || fail "the portal's ajv warned on the canonical schemas: $out"
+  pass "the portal's ajv engine accepts the bridge snapshot under the canonical schemas"
 }
 
 test_day_from_file_and_empty_when_missing() {
@@ -433,6 +480,8 @@ test_token_never_in_output() {
 test_snapshot_is_valid_and_withholds_each_rule_family
 test_snapshot_carries_the_fleet
 test_card_hash_recomputes
+test_every_row_carries_repo
+test_snapshot_passes_the_portal_ajv
 test_cut_text_loses_its_partial_word
 test_cut_after_a_number_is_withheld
 test_mid_text_cut_loses_its_partial_word

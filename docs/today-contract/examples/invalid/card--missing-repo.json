@@ -23,12 +23,11 @@
       "recommended": false
     }
   ],
-  "repo": null,
   "due": "2026-10-02",
   "text_check": {
     "verdict": "pass",
     "checker": "fm-today-text-check@1.0.0",
     "checked_at": "2026-09-28T14:05:00Z"
   },
-  "card_hash": "9ca90b45818624bdcc46043048b4fdd0682a31812b98e1ef7db31e7b7f4ed130"
+  "card_hash": "b65638fa0b25343d86364cf087781b596904ec77054357129a1b587644318d71"
 }

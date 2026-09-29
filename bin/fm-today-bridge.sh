@@ -42,7 +42,9 @@
 #           not listed again. Each left-out row is named on stderr.
 #           Bearings holds no structured answer options for a call, so every
 #           card is a `decision` card offering the standard `reconcile` option;
-#           the portal adds `later` itself.
+#           the portal adds `later` itself. Every card and work row carries
+#           `repo`: `owner/name` when one is found, otherwise `null`; bearings
+#           records no repository for a call, so a card's is always `null`.
 #
 # push      Build the snapshot, check it with the
 #           contract's reference checker (tests/fm-today-contract-check.py), and
@@ -168,7 +170,7 @@ import re
 import subprocess
 import sys
 
-GENERATOR_VERSION = "1.0.0"
+GENERATOR_VERSION = "1.1.0"
 CHECKER = "fm-today-text-check@1.0.0"
 # docs/today-contract.md owns this definition.
 CARD_HASH_FIELDS = ("schema", "task_id", "kind", "title", "question",
@@ -394,7 +396,7 @@ for dec in bearings.get("decisions_open") or []:
     if verdict == "withheld":
         title, question = WITHHELD_TITLE, WITHHELD_QUESTION
     card = {"schema": "fm-today-card.v1", "task_id": tid, "kind": "decision",
-            "title": title, "question": question, "options": options}
+            "title": title, "question": question, "options": options, "repo": None}
     card["text_check"] = {"verdict": verdict, "checker": CHECKER, "checked_at": now}
     card["card_hash"] = card_hash(card)
     calls.append(card)
@@ -414,10 +416,8 @@ for row in bearings.get("in_flight") or []:
     out = {"id": raw,
            "title": checked(row.get("name"), 200, raw),
            "kind": kind, "state": state,
-           "doing": checked(row.get("doing"), 200, state)}
-    repo = repo_for(row.get("repo"), pr)
-    if repo:
-        out["repo"] = repo
+           "doing": checked(row.get("doing"), 200, state),
+           "repo": repo_for(row.get("repo"), pr)}
     if owner and len(owner) <= 128:
         out["owner"] = owner
     out.update(plan_fields(row.get("plan"), row.get("kind"), False))
@@ -447,9 +447,7 @@ for row in bearings.get("gates") or []:
         out["filed"] = filed[:10]
     if blocked:
         out["blocked_by"] = blocked
-    repo = repo_for(row.get("repo"))
-    if repo:
-        out["repo"] = repo
+    out["repo"] = repo_for(row.get("repo"))
     owner = row.get("owner")
     if isinstance(owner, str) and 0 < len(owner) <= 128:
         out["owner"] = owner
@@ -468,9 +466,7 @@ for row in bearings.get("landed") or []:
     pr = pr_for(row.get("artifact"))
     if pr and "/pull/" not in pr:
         pr = None
-    repo = repo_for(None, pr)
-    if repo:
-        out["repo"] = repo
+    out["repo"] = repo_for(None, pr)
     if pr:
         out["pr_url"] = pr
     landed.append(out)

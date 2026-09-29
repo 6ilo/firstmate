@@ -50,7 +50,7 @@ card--duplicate-option-value $.options: value: an option value appears twice
 card--extra-field additionalProperties: body
 card--later-as-option $.options[1].value: not:
 card--merge-without-pr-url required: missing pr_url
-card--null-repo $.repo: type
+card--missing-repo required: missing repo
 card--stale-hash $.card_hash: card_hash
 card--two-recommended $.options: maxContains
 card--unknown-kind $.kind: enum
@@ -92,8 +92,9 @@ EOF
 
 # card_hash is SHA-256 over the RFC 8785 serialization of the shown fields.
 # The literal below is that serialization written out by hand: sorted keys, no
-# whitespace, raw UTF-8, the newline escaped, and text_check and card_hash left
-# out. openssl digests it independently of the checker.
+# whitespace, raw UTF-8, the newline escaped, a null repo kept as null, and
+# text_check and card_hash left out. openssl digests it independently of the
+# checker.
 test_card_hash_matches_published_definition() {
   local card canonical want got
   card="$TMP_ROOT/card.json"
@@ -109,11 +110,12 @@ test_card_hash_matches_published_definition() {
   ],
   "kind": "decision",
   "title": "Ship",
+  "repo": null,
   "due": "2026-10-01",
   "card_hash": "unused"
 }
 EOF
-  canonical='{"due":"2026-10-01","kind":"decision","options":[{"label":"Yes","recommended":true,"value":"yes"},{"hint":"Hold","label":"No","recommended":false,"value":"no"}],"question":"Ship it?\nSay “yes”.","schema":"fm-today-card.v1","task_id":"t-1","title":"Ship"}'
+  canonical='{"due":"2026-10-01","kind":"decision","options":[{"label":"Yes","recommended":true,"value":"yes"},{"hint":"Hold","label":"No","recommended":false,"value":"no"}],"question":"Ship it?\nSay “yes”.","repo":null,"schema":"fm-today-card.v1","task_id":"t-1","title":"Ship"}'
   want=$(printf '%s' "$canonical" | sha256_hex)
   got=$("${CHECK[@]}" hash "$card") || fail "hash refused the fixture card"
   [ "$got" = "$want" ] || fail "card_hash $got does not match the published definition $want"
