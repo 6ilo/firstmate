@@ -217,6 +217,47 @@ test_board_row_carries_no_board_text() {
   pass "an open review board goes out as owner, state, round, change time, and link only"
 }
 
+test_retired_source_boards() {
+  local home gone ended lost sid_gone sid_ended sid_lost snap before after
+  home=$(make_home home-retired)
+  mkdir -p "$home/state/procevent-inbox" "$home/.lavish" "$LAVISH_AXI_STATE_DIR"
+  home=$(cd "$home" && pwd -P)
+  gone="$home/.lavish/gone-board.html"; ended="$home/.lavish/ended-board.html"
+  lost="$home/.lavish/lost-board.html"
+  printf '<h1>Secret gone title</h1>\n' > "$gone"
+  printf 'x\n' > "$ended"; printf 'x\n' > "$lost"
+  sid_gone=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$gone")
+  sid_ended=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$ended")
+  sid_lost=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$lost")
+  : > "$home/state/procevent-inbox/$sid_gone.1.result"
+  : > "$home/state/procevent-inbox/$sid_gone.1.handled"
+  printf 'torn-task\n' > "$home/state/procevent-inbox/$sid_gone.1.owner-task"
+  : > "$home/state/procevent-inbox/$sid_ended.1.result"
+  printf 'torn-task\n' > "$home/state/procevent-inbox/$sid_ended.1.owner-task"
+  : > "$home/state/procevent-inbox/$sid_lost.1.result"
+  jq -n --arg g "$gone" --arg e "$ended" --arg l "$lost" '{sessions:{
+      a:{file:$g,status:"open",url:"http://host.example:4387/session/aaaa"},
+      b:{file:$e,status:"ended",url:"http://host.example:4387/session/bbbb"},
+      c:{file:$l,status:"open",url:"http://host.example:4387/session/cccc"},
+      d:{file:"/elsewhere/other.html",status:"open",url:"http://host.example:4387/session/dddd"}}}' \
+    > "$LAVISH_AXI_STATE_DIR/state.json"
+  before=$(cd "$home/state" && find . -type f -exec shasum {} + | sort; find . | sort)
+  bridge "$home" snapshot
+  after=$(cd "$home/state" && find . -type f -exec shasum {} + | sort; find . | sort)
+  snap=$OUT
+  [ "$before" = "$after" ] || fail "building the snapshot changed a file under state/"
+  "${CHECK[@]}" "$snap" >/dev/null || fail "snapshot with a retired board fails the contract"
+  jq -e '.sections.boards == [{owner_task:"torn-task",state:"owner-gone",round:1,
+          last_changed:.sections.boards[0].last_changed,
+          link:"http://host.example:4387/session/aaaa"}]' "$snap" >/dev/null \
+    || fail "retired board rows wrong: $(jq -c .sections.boards "$snap")"
+  grep -q "board $sid_lost: owner task cannot be recovered" "$ERR" \
+    || fail "an unrecoverable owner was not named on stderr: $(cat "$ERR")"
+  ! grep -q "$sid_ended\|dddd" "$ERR" || fail "an ended or foreign board was named"
+  ! grep -qi 'secret' "$snap" || fail "board text reached the snapshot"
+  pass "a still-open board whose source was retired goes out owner-gone; ended and ownerless ones stay out"
+}
+
 test_push_sends_with_the_bearer_header() {
   local stub=$TMP_ROOT/stub-ok req
   start_stub "$stub" 200
@@ -367,6 +408,7 @@ test_cut_after_a_number_is_withheld
 test_mid_text_cut_loses_its_partial_word
 test_day_from_file_and_empty_when_missing
 test_board_row_carries_no_board_text
+test_retired_source_boards
 test_push_sends_with_the_bearer_header
 test_push_reads_the_home_env
 test_push_refuses_invalid_snapshot

@@ -28,7 +28,11 @@
 #               (state/procevent/*.source) and their captured rounds
 #               (state/procevent-inbox/); the link is the board's saved
 #               Lavish session URL. A board whose link cannot be resolved is
-#               left out. Only the owner task, state, round count, last
+#               left out. A board still open in Lavish's store whose source
+#               registration is gone is listed `owner-gone` when its owner is
+#               recovered from the owner-task files its captured rounds left
+#               or from a board file under data/<task>/; one whose owner
+#               cannot be recovered is left out. Only the owner task, state, round count, last
 #               change, and link leave; never a board's title or body.
 #             day
 #               the calendar day file (below)
@@ -487,16 +491,18 @@ if health["supervision"] not in ("live", "lapsed", "unknown"):
     health["supervision"] = "unknown"
 
 # --- boards ------------------------------------------------------------------
-sessions = {}
+sessions, open_sessions = {}, []
 try:
     with open(os.environ["FM_TODAY_LAVISH_STATE"], encoding="utf-8") as fh:
         for sess in (json.load(fh).get("sessions") or {}).values():
             if isinstance(sess, dict) and isinstance(sess.get("file"), str):
                 sessions.setdefault(sess["file"], []).append(sess.get("url"))
+                if sess.get("status") == "open":
+                    open_sessions.append((sess["file"], sess.get("url")))
 except (OSError, ValueError, AttributeError):
-    sessions = {}
+    sessions, open_sessions = {}, []
 
-boards = []
+boards, listed_sources = [], set()
 for rec in sorted(glob.glob(os.path.join(state_dir, "procevent", "*.source"))):
     sid = os.path.basename(rec)[:-len(".source")]
     fields, argv = {}, []
@@ -539,6 +545,50 @@ for rec in sorted(glob.glob(os.path.join(state_dir, "procevent", "*.source"))):
         bstate = "listening"
     boards.append({"owner_task": task, "state": bstate, "round": len(results),
                    "last_changed": utc_stamp(max(stamps)), "link": urls[0]})
+    listed_sources.add(sid)
+
+# A board still open in Lavish whose source registration is gone: its task was
+# torn down or retired the source, and nothing listens to it any more. Its
+# owner is recovered only from durable local records - the owner-task files its
+# captured rounds left behind, or the board file living under this home's
+# data/<task>/ - and never guessed. The source id is Lavish's own derivation
+# (bin/fm-procevent-lavish.sh source-id).
+data_dir = os.path.realpath(os.path.join(home_dir, "data"))
+home_real = os.path.realpath(home_dir)
+for board_file, url in sorted(open_sessions, key=lambda x: x[0]):
+    real = os.path.realpath(board_file)
+    sid = "lavish-" + hashlib.sha256(real.encode("utf-8")).hexdigest()[:16]
+    if sid in listed_sources or os.path.exists(
+            os.path.join(state_dir, "procevent", sid + ".source")):
+        continue
+    results = glob.glob(os.path.join(state_dir, "procevent-inbox", glob.escape(sid) + ".*.result"))
+    results = [r for r in results if re.match(r"^\d+$", r[:-len(".result")].rsplit(".", 1)[-1])]
+    under_home = real.startswith(home_real + os.sep)
+    if not results and not under_home:
+        continue  # not a board this home ever armed
+    owners = set()
+    for r in results:
+        try:
+            with open(r[:-len(".result")] + ".owner-task", encoding="utf-8") as fh:
+                lines = fh.read().splitlines()
+            if len(lines) == 1:
+                owners.add(lines[0])
+        except OSError:
+            pass
+    if not owners and real.startswith(data_dir + os.sep):
+        owners.add(os.path.relpath(real, data_dir).split(os.sep)[0])
+    if len(owners) != 1 or not TASK_ID.match(next(iter(owners))):
+        skipped.append("board %s: owner task cannot be recovered" % sid)
+        continue
+    if not (isinstance(url, str) and LINK.match(url) and len(url) <= 500):
+        skipped.append("board %s: no single saved session link" % sid)
+        continue
+    stamps = [os.path.getmtime(p) for p in [real] + results if os.path.exists(p)]
+    boards.append({"owner_task": next(iter(owners)), "state": "owner-gone",
+                   "round": len(results),
+                   "last_changed": utc_stamp(max(stamps)) if stamps else now,
+                   "link": url})
+    listed_sources.add(sid)
 
 # --- day ---------------------------------------------------------------------
 local_now = datetime.datetime.now().astimezone()
