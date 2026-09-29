@@ -1533,7 +1533,7 @@ A value set in the environment wins over the `.env` line.
 
 | Name | Meaning |
 | --- | --- |
-| `FM_TODAY_PORTAL_URL` | The portal's origin, such as `https://portal.example`; the bridge posts to `/api/fleet/snapshot` under it. It must be `https://`, or `http://` only to `127.0.0.1` or `localhost`; any other URL exits 2 and sends nothing |
+| `FM_TODAY_PORTAL_URL` | The portal's origin, such as `https://portal.example`; the bridge posts to `/api/fleet/bridge/snapshot` under it. It must be `https://`, or `http://` only to `127.0.0.1` or `localhost`; any other URL exits 2 and sends nothing |
 | `FM_TODAY_BRIDGE_TOKEN` | The bridge's bearer token; the portal keeps only its SHA-256 digest |
 | `FM_TODAY_DAY_FILE` | Optional path of the calendar day file, default `~/.local/state/firstmate/calendar-day.json` |
 

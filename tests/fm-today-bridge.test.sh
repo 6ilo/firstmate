@@ -2,7 +2,7 @@
 # Behavior tests for bin/fm-today-bridge.sh, the outward half of the Today
 # bridge (docs/today-contract.md). The seams are the bridge's own commands over
 # a fixture home, and a local stub portal (python3 http.server) standing in for
-# POST /api/fleet/snapshot: a valid push carries the right header and gets the
+# POST /api/fleet/bridge/snapshot: a valid push carries the right header and gets the
 # portal's heard_at, an invalid snapshot is refused before anything is sent, a
 # call tripping each text-check rule family goes out withheld, the day comes
 # from the day file or is empty for today, and the token never reaches output.
@@ -226,7 +226,7 @@ test_push_sends_with_the_bearer_header() {
   [ "$(cat "$OUT")" = "heard_at: 2026-09-28T18:00:00Z" ] || fail "push printed: $(cat "$OUT")"
   req="$stub/req-0.json"
   [ -f "$req" ] || fail "the stub portal received nothing"
-  [ "$(jq -r .path "$req")" = /api/fleet/snapshot ] || fail "wrong path $(jq -r .path "$req")"
+  [ "$(jq -r .path "$req")" = /api/fleet/bridge/snapshot ] || fail "wrong path $(jq -r .path "$req")"
   [ "$(jq -r .auth "$req")" = "Bearer $TOKEN" ] || fail "wrong Authorization header"
   [ "$(jq -r .type "$req")" = application/json ] || fail "wrong content type"
   jq -r .body "$req" > "$TMP_ROOT/sent.json"
