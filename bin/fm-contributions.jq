@@ -12,6 +12,7 @@ def valid_record:
     and all(.seen[]; type == "string")
     and ((.notified // []) | type == "array" and all(.[]; type == "string"))
     and (.error == null or (.error | type == "string"))
+    and ((.failures // 0) | type == "number" and . >= 0 and . == floor)
     and (.checked_at == null or (.checked_at | fromdateiso8601 | type == "number"))
     and (.verdict == null or (.verdict | (.head | sha) and (.source | type == "string")
       and (.actor | IN("captain","fleet","maintainer","nobody")) and (.summary | type == "string")))
@@ -52,6 +53,7 @@ def projected($input; $saved; $now; $max_age):
     | (($final or ($checked != null and ($now - $checked) >= 0 and ($now - $checked) <= $max_age))
        and (if $record.kind == "pr" then $observed_head != null
             else $record.error == null and $record.observation != null end)
+       and ($record.failures // 0) == 0
        and ($k.url | startswith("https://github.com/"))) as $fresh
     | (($o.checks // []) | latest_checks) as $checks
     | [$checks[] | select(.status == "completed" and (.conclusion == null or .conclusion == ""))] as $no_verdict

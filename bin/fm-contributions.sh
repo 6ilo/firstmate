@@ -18,6 +18,7 @@
 #
 # This script owns fm-contributions.v1: one atomic file per durable task with
 # task and records[]. Each record contains url, kind, checked_at, error,
+# failures (consecutive failed observations; optional, 0 when absent),
 # observation, verdict, seen event tokens, pending events, and notified tokens.
 # observation is one coherent forge read (a PR head is rechecked after fetching
 # checks/reviews). Checks are normalized by name, id, started_at, status and
@@ -42,14 +43,19 @@
 # unmeasured, rather than being mislabeled unavailable. Each distinct URL is
 # observed once per poll and applied to every owner. A final observation applies
 # to every owner without another forge read. When the budget runs out
-# mid-observation, the poll ends with that URL's records untouched; only a
-# genuine forge failure or head change records an error.
-# API failure leaves error evidence; an expired or absent observation is not
-# silence. FM_CONTRIBUTIONS_MAX_AGE (default 900 seconds) bounds freshness.
+# mid-observation, the poll ends with that URL's records untouched. A genuine
+# forge failure, a read killed at its cap, or a head change stamps checked_at
+# and increments failures, so the URL moves behind the others; the error is
+# recorded only at three consecutive failures, and a clean observation resets
+# failures and clears the error. A record with failures above 0 is not fresh.
+# Watcher-run reads intermittently fail where session-run reads succeed; the
+# cause was not isolated, so an isolated failure is not reported as an outage.
+# Sustained API failure leaves error evidence; an expired or absent observation
+# is not silence. FM_CONTRIBUTIONS_MAX_AGE (default 900 seconds) bounds freshness.
 # A URL whose last good observation is merged or closed is final: it is
 # never re-read, stays fresh, and a stale error beside it is cleared once.
-# A genuine failure prints its unavailable line only when it starts an episode
-# (no prior owner has an error); a successful read ends the episode.
+# A failure prints its unavailable line only when it records the error that
+# starts an episode (no prior owner has an error); a clean read ends the episode.
 # FM_CONTRIBUTIONS_NOW supplies an ISO UTC clock for tests, otherwise UTC now.
 # FM_CONTRIBUTIONS_READY_LABEL selects the equivalent triage label, default
 # ready-for-pr. Labels are matched case-insensitively and exactly.
@@ -88,6 +94,7 @@ NOW=${FM_CONTRIBUTIONS_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
 EPOCH=$(jq -nr --arg now "$NOW" '$now | fromdateiso8601') || fail 'invalid observation clock'
 MAX_AGE=${FM_CONTRIBUTIONS_MAX_AGE:-900}
 BUDGET=${FM_CONTRIBUTIONS_BUDGET:-20}
+FAILURE_LIMIT=3
 case "$MAX_AGE" in ''|*[!0-9]*) fail 'invalid freshness bound' ;; esac
 case "$BUDGET" in ''|*[!0-9]*) fail 'invalid poll budget' ;; esac
 [ "$BUDGET" -ge 1 ] && [ "$BUDGET" -le 25 ] || fail 'poll budget must be 1..25 seconds'
@@ -316,17 +323,17 @@ settle_final() { # canonical-url task... : copy the URL's final observation to e
       [$saved[0][] | select(.task == $task) | .records[] | select(.url == $url)] | first' > "$TMP/old.json"
     if jq -e '. == null' "$TMP/old.json" >/dev/null; then
       jq -n --slurpfile final "$TMP/final.json" '
-        $final[0] + {error:null,pending:[],notified:[]}' > "$TMP/row.json"
+        $final[0] + {error:null,failures:0,pending:[],notified:[]}' > "$TMP/row.json"
       write_record "$task" "$TMP/row.json"
     elif jq -e '.error != null' "$TMP/old.json" >/dev/null; then
-      jq '.error = null' "$TMP/old.json" > "$TMP/row.json"
+      jq '.error = null | .failures = 0' "$TMP/old.json" > "$TMP/row.json"
       write_record "$task" "$TMP/row.json"
     fi
   done
 }
 
 poll() {
-  local task url old kind error observed
+  local task url old kind error observed failures
   local -a row
   acquire
   get_input
@@ -356,8 +363,12 @@ poll() {
     # An observation the budget cut short is unmeasured, not unavailable: keep
     # every owner's prior record so the URL is observed first next poll.
     [ "$BUDGET_EXHAUSTED" -eq 0 ] || break
-    # Wake once per failure episode: only when no owner has a prior error.
-    if [ "$observed" -ne 0 ] && jq -ne --slurpfile saved "$TMP/saved.json" --arg url "$url" --args \
+    failures=0
+    [ "$observed" -eq 0 ] || failures=$(jq -n --slurpfile saved "$TMP/saved.json" --arg url "$url" --args \
+      '[$ARGS.positional[] as $task | [$saved[0][] | select(.task == $task) | .records[] | select(.url == $url)] | first
+        | .failures // 0] | max + 1' "${row[@]:1}")
+    # Wake once per failure episode: when the error is first recorded for any owner.
+    if [ "$failures" -ge "$FAILURE_LIMIT" ] && jq -ne --slurpfile saved "$TMP/saved.json" --arg url "$url" --args \
       'all($ARGS.positional[] as $task | [$saved[0][] | select(.task == $task) | .records[] | select(.url == $url)] | first;
         .error == null)' "${row[@]:1}" >/dev/null; then
       printf 'contributions: observation unavailable for %s\n' "$url"
@@ -375,13 +386,14 @@ poll() {
           | ($o.events + (if $o.ready == true and $old.observation.ready != true and (any($o.events[]; .type == "ready-for-pr") | not) then
               [{token:("ready-for-pr:" + $now),type:"ready-for-pr",source:$old.url,head:null,body:"filed issue reached ready-for-pr"}]
               else [] end)) as $events
-          | $old + {checked_at:$now,error:null,
+          | $old + {checked_at:$now,error:null,failures:0,
             observation:($o + {absent_checks:((($old.observation.absent_checks // []) + [($old.observation.checks // [])[] | .name]) - [$o.checks[].name] | unique)}),
             seen:($events | map(.token)),
             pending:(($old.pending // []) + [$events[] | select(.token as $t | ($old.seen // [] | index($t)) == null)] | unique_by(.token))}' > "$TMP/row.json"
       else
         error='forge observation unavailable or changed during read'
-        jq --arg now "$NOW" --arg error "$error" '.checked_at=$now | .error=$error' "$old" > "$TMP/row.json"
+        jq --arg now "$NOW" --arg error "$error" --argjson failures "$failures" --argjson limit "$FAILURE_LIMIT" '
+          .checked_at=$now | .failures=$failures | .error=(if $failures >= $limit then $error else .error end)' "$old" > "$TMP/row.json"
       fi
       write_record "$task" "$TMP/row.json"
       publish_pending "$task" "$url" "$TMP/row.json"
