@@ -12,6 +12,7 @@
     "title",
     "question",
     "options",
+    "repo",
     "text_check",
     "card_hash"
   ],
@@ -35,9 +36,11 @@
       "description": "The options in the order shown: one or more, except a credential card, which carries none and is answered seen or later."
     },
     "repo": {
-      "description": "owner/name of the repository the call is about; absent when the call has no repository.",
-      "type": "string",
-      "pattern": "^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$"
+      "description": "owner/name of the repository the call is about, or null when the call genuinely has no repository.",
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$" }
+      ]
     },
     "pr_url": {
       "type": "string",
@@ -64,8 +67,8 @@
     },
     {
       "if": { "properties": { "kind": { "const": "credential" } }, "required": ["kind"] },
-      "then": { "properties": { "options": { "maxItems": 0 } } },
-      "else": { "properties": { "options": { "minItems": 1 } } }
+      "then": { "properties": { "options": { "type": "array", "maxItems": 0 } } },
+      "else": { "properties": { "options": { "type": "array", "minItems": 1 } } }
     }
   ],
   "$defs": {

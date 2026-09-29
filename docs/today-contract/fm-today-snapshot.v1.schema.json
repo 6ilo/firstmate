@@ -65,7 +65,7 @@
     "underway_row": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "title", "kind", "state", "doing"],
+      "required": ["id", "title", "kind", "state", "doing", "repo"],
       "properties": {
         "id": { "$ref": "#/$defs/task_id" },
         "title": { "$ref": "#/$defs/short_text" },
@@ -84,7 +84,7 @@
     "charted_row": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "title", "reason", "dispatchable"],
+      "required": ["id", "title", "reason", "dispatchable", "repo"],
       "properties": {
         "id": { "$ref": "#/$defs/task_id" },
         "title": { "$ref": "#/$defs/short_text" },
@@ -111,7 +111,7 @@
     "landed_row": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "title", "owner"],
+      "required": ["id", "title", "owner", "repo"],
       "properties": {
         "id": { "$ref": "#/$defs/task_id" },
         "title": { "$ref": "#/$defs/short_text" },

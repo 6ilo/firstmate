@@ -74,12 +74,13 @@
         "title": "A credential is needed",
         "question": "This call's text stays on the machine. Read it there.",
         "options": [],
+        "repo": null,
         "text_check": {
           "verdict": "withheld",
           "checker": "fm-today-text-check@1.0.0",
           "checked_at": "2026-09-28T14:05:00Z"
         },
-        "card_hash": "796492460f6f93c2a5fb18fcab83a8b029082a1bb3b487dcf64ee7943411fb1b"
+        "card_hash": "b96d8c0786fb913a46180fa2a4a995faf8c0a9ac735967ce15f87f4d37902cbc"
       },
       {
         "schema": "fm-today-card.v1",
@@ -167,6 +168,7 @@
         "title": "Main backlog has an orphan row",
         "reason": "Inventory needs a look",
         "dispatchable": false,
+        "repo": null,
         "kind": "warning"
       }
     ],
@@ -182,6 +184,7 @@
         "id": "guide-release",
         "title": "Guide 1.4.0 published",
         "owner": "relay-platform",
+        "repo": null,
         "subject": {
           "artifact": "guide",
           "version": "1.4.0"

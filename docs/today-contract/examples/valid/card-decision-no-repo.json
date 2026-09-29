@@ -1,0 +1,34 @@
+{
+  "schema": "fm-today-card.v1",
+  "task_id": "portal-copy-order",
+  "kind": "decision",
+  "title": "Rail order for the overhaul",
+  "question": "Which order should the rail use?\nThe plan recommends Today first, “one place to look”.",
+  "options": [
+    {
+      "value": "today-first",
+      "label": "Today first",
+      "hint": "Matches the plan",
+      "recommended": true
+    },
+    {
+      "value": "keep-current",
+      "label": "Keep the current order",
+      "recommended": false
+    },
+    {
+      "value": "reconcile",
+      "label": "Reconcile",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ],
+  "repo": null,
+  "due": "2026-10-02",
+  "text_check": {
+    "verdict": "pass",
+    "checker": "fm-today-text-check@1.0.0",
+    "checked_at": "2026-09-28T14:05:00Z"
+  },
+  "card_hash": "bba3ebfb599efe569b919fe1b3bffeb968a3e96236fc2d30c7204fa8c1cb5530"
+}

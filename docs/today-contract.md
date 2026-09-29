@@ -38,10 +38,11 @@ The bridge calls exactly two endpoints on the portal.
 
 **Snapshot.**
 The portal refuses a body over 512 KiB with `413` before reading further, and a body that fails the snapshot schema with `400`.
+It also answers `400` with code `generated_at_in_future` to a snapshot whose `generated_at` is more than 5 minutes past the portal's clock, because one sent from a fast clock would make every later snapshot stale.
 It keeps the newest snapshot by `generated_at` and answers `409` to one older than the snapshot it holds, such as a delayed retry.
 Each snapshot replaces the previous one whole; there are no partial updates.
 The time the portal last accepted a snapshot is the portal's own `heard_at` stamp, returned in the `200` body; the bridge reads nothing else from that body.
-An error body is `{"code", "message", "request_id"}`, and a `400` lists at most the paths of the failing fields, never their values, which may be call text.
+An error body is `{"code", "message", "request_id"}`, and a `400` for an invalid snapshot adds `issues`, a list of `{"path", "rule"}` naming each failing field's path and the rule it broke, never its value, which may be call text.
 
 **Answers and receipts.**
 One call does both jobs.
@@ -68,14 +69,14 @@ Where a fact already exists in the bearings snapshot (`bin/fm-bearings-snapshot.
 | Section | Rows | Meaning |
 | --- | --- | --- |
 | `calls` | `fm-today-card.v1` | Every open captain call, each once; at most 200. |
-| `underway` | `id`, `title`, `kind`, `state`, `doing`, optional `repo`, `owner`, `pr_url` | Work being done now, as the board's Underway: `title` is the task title or its id, and `pr_url` its open pull request. |
-| `charted_next` | `id`, `title`, `reason`, `dispatchable`, optional `repo`, `kind`, `filed`, `blocked_by`, `owner` | Work filed but not started, as the board's Charted Next; `kind` is `queued` or `warning`, and a `warning` row is never dispatchable. |
-| `landed` | `id`, `title`, `owner`, optional `repo`, `pr_url`, `landed_at`, `subject` | Recently finished work, as the board's landed rows; `owner` is `(main)` or the secondmate home that recorded it. |
+| `underway` | `id`, `title`, `kind`, `state`, `doing`, `repo`, optional `owner`, `pr_url` | Work being done now, as the board's Underway: `title` is the task title or its id, and `pr_url` its open pull request. |
+| `charted_next` | `id`, `title`, `reason`, `dispatchable`, `repo`, optional `kind`, `filed`, `blocked_by`, `owner` | Work filed but not started, as the board's Charted Next; `kind` is `queued` or `warning`, and a `warning` row is never dispatchable. |
+| `landed` | `id`, `title`, `owner`, `repo`, optional `pr_url`, `landed_at`, `subject` | Recently finished work, as the board's landed rows; `owner` is `(main)` or the secondmate home that recorded it. |
 | `health` | `supervision`, `unhealthy[]` | `supervision` is `live`, `lapsed`, or `unknown`; each unhealthy row is a worker id with `endpoint_exists` and `agent_alive` (`null` when unknown), as bearings' unhealthy endpoints without their machine detail. |
 | `boards` | `owner_task`, `state`, `round`, `last_changed`, `link` | Open review boards: the owning task, `listening`, `round-open`, or `owner-gone`, the count of captured rounds, when the board last changed, and its local address on the captain's machine. |
 | `day` | `date`, `ends_at`, `blocks[]` of `id`, `title`, `starts_at`, `ends_at` | The captain's calendar for one day, as the board's Today lane: `ends_at` is the instant the day is over in the captain's own time zone, each block's `id` is stable across snapshots, and its times are instants with an explicit UTC offset, ending at or after they start; at most 200 blocks. |
 
-`repo` is `owner/name`, and absent when the work has no repository.
+`repo` is always present, as `owner/name`, or `null` when the work genuinely has no repository.
 Every work `id` appears once across `underway`, `charted_next`, and `landed`, and the three hold at most 1000 rows together.
 Every other timestamp in the contract is UTC with a `Z` suffix.
 A board's `link` opens only where the captain's private network reaches the captain's machine.
@@ -102,7 +103,7 @@ Firstmate composes every card; the portal renders it and never edits it.
 | `kind` | `decision`, `merge`, `credential`, or `go`. |
 | `title`, `question` | The call's heading and its full question; `question` may span lines. |
 | `options` | Up to 12 `{value, label, hint?, recommended}`, in the order shown; at most one is recommended, values are unique, and none is `later`. |
-| `repo` | `owner/name`, absent when the call has no repository. |
+| `repo` | `owner/name`, or `null` when the call genuinely has no repository. |
 | `pr_url` | The pull request a call is about; required on a `merge` card. |
 | `due` | The date the call must be settled by, `YYYY-MM-DD`. |
 | `text_check` | `verdict` (`pass` or `withheld`), `checker` (`name@x.y.z`), and `checked_at`. |
@@ -114,6 +115,7 @@ A decision card may carry a `reconcile` option, meaning "already settled, re-che
 
 **`card_hash`.**
 Take the card's `schema`, `task_id`, `kind`, `title`, `question`, `options`, `repo`, `pr_url`, and `due` fields, leaving out any optional field the card does not carry.
+`repo` is always carried, so a call with no repository hashes `"repo":null`.
 Serialize that object with the JSON Canonicalization Scheme, RFC 8785: keys sorted, no whitespace, strings in UTF-8 with only the escapes RFC 8785 requires.
 `card_hash` is the SHA-256 of those bytes, as 64 lowercase hex characters.
 `text_check` and `card_hash` are left out, so re-running the check or re-sending the snapshot does not change the hash of an unchanged call.
@@ -188,7 +190,7 @@ The reference checker enforces these beside the schemas:
 ## Alignment with the portal's draft
 
 relay-platform built its first slice against internal draft shapes before v1 was published, and the draft expects to change to match v1.
-Where the draft already named or shaped a fact, v1 takes its shape: work titles, `waits_on`, `order`, `landed_at`, `pr_url` on work, an absent rather than null `repo`, a credential card with no options, the day's `ends_at` and blocks as instants with ids, the limits, the snapshot path, and its status codes.
+Where the draft already named or shaped a fact, v1 takes its shape: work titles, `waits_on`, `order`, `landed_at`, `pr_url` on work, a credential card with no options, the day's `ends_at` and blocks as instants with ids, the limits, the snapshot path, and its status codes.
 These differences are deliberate:
 
 | v1 | Draft | Reason |
@@ -205,6 +207,7 @@ These differences are deliberate:
 | `size`, and Underway and Charted Next's bearings fields | - | Recorded by firstmate when it files the work, or already on the bearings board. |
 | Tighter limits | Wider limits | Task ids are at most 128 characters without `:` or `/`, titles at most 200, and timestamps outside the day are UTC; each still fits the draft's limit. |
 | An `event` wait requires `label` | Optional | An unnamed outside event tells the captain nothing. |
+| `repo` required on every card and work row, `null` for none | Optional | The captain's standing rule: every row names its repository explicitly, and `null` means genuinely none. |
 | Answers, receipts, and `POST /api/fleet/answers` | - | The draft covers the snapshot only. |
 
 ## Versioning
@@ -214,3 +217,5 @@ An additive change keeps v1: a new optional field whose absence keeps today's me
 Because the shapes are closed, the receiving side adopts the new schema before the sending side starts sending the field.
 Anything else is v2: a new required field, a removed or renamed field, a new enum value, a changed type, pattern, or meaning, or any change to how `card_hash` or the passkey challenge is computed.
 A v2 shape gets new `.v2` schema constants beside the v1 files, and both sides accept both versions until the change is complete.
+The required, nullable `repo` stays v1 because the portal's copy of v1 already required it and no v1 snapshot had been accepted before the two copies were made identical.
+The portal vendors the snapshot and card schema files byte-for-byte from this repository, so a change to either reaches the portal only as a fresh copy of both.
