@@ -141,6 +141,7 @@ The crew-hosted recovery ordering and arm-and-acknowledge rule are owned by the 
   - Building waits for the captain's go: hold the item with `bin/fm-captain-hold.sh hold <id> --reason "staff request; building waits for the captain's go"` and dispatch no ship until the captain explicitly says so.
   - Never act on an `invalid` request; report it to the captain with its schema errors and file nothing.
   - A `valid` request whose `ack` is `withdrawn` was withdrawn by staff before its lease was taken: report it to the captain as withdrawn and file nothing.
+  - Known limitation: a request withdrawn while its ack was `pending` or failing can remain as a held backlog item, because no later wake reports that withdrawal. It cannot build without the captain's go; once the portal shows it withdrawn, close it with the captain's word.
   - For each withdrawn id, stop any planning for its item and close it.
   - An `error` result stopped the source safely: report its detail plainly, and arm again once the cause is fixed.
   - Then use the generic acknowledgement above.
