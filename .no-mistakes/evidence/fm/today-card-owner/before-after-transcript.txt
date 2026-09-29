@@ -1,0 +1,31 @@
+## Lab: main home + registered second mate 'portal-mate' (real bearings via fm-home-summary-refresh + fm-bearings-snapshot)
+bearings decisions/in_flight/gates/landed ids:
+{"decisions_open":["rail-order","portal-mate/rail-order","portal-mate/kit-order"],"in_flight":["ship-task","portal-mate/ship-task"],"gates":[{"id":"live-gate","owner":"(main)"},{"id":"live-gate","owner":"portal-mate"}],"landed":[{"id":"done-a","owner":"(main)"},{"id":"done-a","owner":"portal-mate"}]}
+
+## BEFORE (base 578e75f) fm-today-bridge.sh snapshot
+exit=0
+stderr:
+fm-today-bridge: left out call "portal-mate/rail-order": id the contract cannot carry
+fm-today-bridge: left out call "portal-mate/kit-order": id the contract cannot carry
+fm-today-bridge: left out underway row ship-task: already listed
+fm-today-bridge: left out charted_next row live-gate: already listed
+fm-today-bridge: left out landed row done-a: already listed
+calls:
+{"owner":null,"task_id":"rail-order","title":"Choose the rail order: captain choice pending","card_hash":"777645bdfb66c8bfc5d1ab69dcfd012550d6f6a8e38e807bde2d739c362ca86f"}
+underway: [{"owner":null,"id":"ship-task","title":"Ship the thing"}]
+charted_next: [{"owner":"(main)","id":"live-gate","title":"Main queued work"}]
+landed: [{"owner":"(main)","id":"done-a","title":"Main landed thing"}]
+
+## AFTER (target 44b9ab6) fm-today-bridge.sh snapshot
+exit=0
+stderr: 
+calls:
+{"owner":"(main)","task_id":"rail-order","title":"Choose the rail order: captain choice pending","card_hash":"19d749dc84439117b40d33382ebcce21ffa83732c44a6e6541842a5ea512f760"}
+{"owner":"portal-mate","task_id":"rail-order","title":"Choose the portal rail order: captain choice pending","card_hash":"d270f5ac9ca467b81c16b57a6dee728dd8c8e7463670db36ebd7f7906ec87dd8"}
+{"owner":"portal-mate","task_id":"kit-order","title":"Choose the kit order: captain choice pending","card_hash":"8e6d4a2080b938ebad79305901ea4b7a6709783420a3db59fe384f01f582640f"}
+underway: [{"owner":"(main)","id":"ship-task","title":"Ship the thing"},{"owner":"portal-mate","id":"ship-task","title":"Ship the thing"}]
+charted_next: [{"owner":"(main)","id":"live-gate","title":"Main queued work"},{"owner":"portal-mate","id":"live-gate","title":"Mate queued work"}]
+landed: [{"owner":"(main)","id":"done-a","title":"Main landed thing"},{"owner":"portal-mate","id":"done-a","title":"Mate landed thing"}]
+contract check (tests/fm-today-contract-check.py check): ok
+card_hash recomputes: ok ok ok 
+owner is hashed (changing owner changes hash): yes

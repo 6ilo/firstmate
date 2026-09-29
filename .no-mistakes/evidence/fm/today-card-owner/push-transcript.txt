@@ -1,0 +1,11 @@
+## fm-today-bridge.sh push -> http://127.0.0.1:63714 (local portal stand-in; URL+token from lab $FM_HOME/.env)
+ok
+heard_at: 2026-09-29T20:10:00Z
+exit=0
+(eval):wait:9: pid 58728 is not a child of this shell
+request: {"path": "/api/fleet/bridge/snapshot", "auth_is_bearer": true, "content_type": "application/json"}
+pushed calls [owner, task_id]: [["(main)","rail-order"],["portal-mate","rail-order"],["portal-mate","kit-order"]]
+pushed underway [owner, id]: [["(main)","ship-task"],["portal-mate","ship-task"]]
+pushed charted_next [owner, id]: [["(main)","live-gate"],["portal-mate","live-gate"]]
+pushed landed [owner, id]: [["(main)","done-a"],["portal-mate","done-a"]]
+token appears in body: 0

@@ -1,0 +1,148 @@
+{
+  "schema": "fm-bearings.v1",
+  "home": "/fm-lab.JftHJB",
+  "generated": "2026-09-29T19:58:07Z",
+  "prs": "not_requested (run: /bearings include PRs)",
+  "contributions": {
+    "scope": "owned contributions per home",
+    "known": 2,
+    "checked": 0,
+    "counts": {
+      "captain": 0,
+      "fleet": 2,
+      "maintainer": 0,
+      "nobody": 0
+    },
+    "complete": false,
+    "proven_clear": false,
+    "unmeasured_homes": 0,
+    "unreadable_records": 0,
+    "unmeasured": 0,
+    "stale_verdicts": 0,
+    "missing_verdicts": 0,
+    "captain_omitted": 0,
+    "captain": []
+  },
+  "in_flight": [
+    {
+      "id": "ship-task",
+      "kind": "ship",
+      "state": "working",
+      "repo": "firstmate",
+      "name": "Ship the thing",
+      "doing": "harness busy (claude-hook)"
+    },
+    {
+      "id": "portal-mate/ship-task",
+      "kind": "ship",
+      "state": "working",
+      "repo": "firstmate",
+      "name": "Ship the thing",
+      "doing": "harness busy (claude-hook)"
+    }
+  ],
+  "secondmates": [
+    {
+      "id": "portal-mate",
+      "state": "captain_decision",
+      "doing": "Choose the portal rail order; Choose the kit order",
+      "provenance": "structured-home",
+      "freshness": "fresh",
+      "age_seconds": 13,
+      "contradiction": false,
+      "reason": "-"
+    }
+  ],
+  "secondmate_reconcile": [
+    {
+      "id": "portal-mate",
+      "spawn_gen": null,
+      "host": null,
+      "kind": null,
+      "ids": []
+    }
+  ],
+  "decisions_open": [
+    {
+      "id": "rail-order",
+      "key": "rail-order",
+      "verb": "captain-hold",
+      "summary": "Choose the rail order: captain choice pending",
+      "owner": "(main)"
+    },
+    {
+      "id": "portal-mate/rail-order",
+      "key": "rail-order",
+      "verb": "captain-hold",
+      "summary": "Choose the portal rail order: captain choice pending",
+      "owner": "portal-mate"
+    },
+    {
+      "id": "portal-mate/kit-order",
+      "key": "kit-order",
+      "verb": "captain-hold",
+      "summary": "Choose the kit order: captain choice pending",
+      "owner": "portal-mate"
+    }
+  ],
+  "landed": [
+    {
+      "id": "done-a",
+      "what": "Main landed thing",
+      "artifact": "https://github.com/6ilo/firstmate/pull/7",
+      "owner": "(main)"
+    },
+    {
+      "id": "done-a",
+      "what": "Mate landed thing",
+      "artifact": "https://github.com/6ilo/firstmate/pull/8",
+      "owner": "portal-mate"
+    }
+  ],
+  "gates": [
+    {
+      "id": "live-gate",
+      "title": "Main queued work",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "(main)",
+      "filed": null
+    },
+    {
+      "id": "live-gate",
+      "title": "Mate queued work",
+      "blocked_by": "-",
+      "reason": "-",
+      "owner": "portal-mate",
+      "filed": null
+    }
+  ],
+  "reports": [],
+  "recorded_prs": [],
+  "omitted": [
+    {
+      "surface": "backlog item bodies",
+      "reveal": "--fields bodies"
+    },
+    {
+      "surface": "task paths",
+      "reveal": "--fields paths"
+    },
+    {
+      "surface": "watch/steer actions",
+      "reveal": "--fields actions"
+    },
+    {
+      "surface": "healthy endpoint detail",
+      "reveal": "--fields endpoints"
+    },
+    {
+      "surface": "full scout-report inventory",
+      "reveal": "--all-reports"
+    },
+    {
+      "surface": "live PR discovery + checks",
+      "reveal": "--include-prs"
+    }
+  ]
+}
