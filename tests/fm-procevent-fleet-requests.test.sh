@@ -230,8 +230,10 @@ pass "a new request is captured, acked, and wakes firstmate once"
 # --- a repeat poll does not re-deliver an acknowledged request ---------------
 pulls_before=$(stub_count "$STUB" "GET")
 assert_present "$H/state/procevent/fleet-requests.source" "a delivery keeps the source registered"
-pe "$H" reconcile >/dev/null 2>&1
-wait_until 150 stub_at_least "$STUB" "GET" $((pulls_before + 3)) || fail "the source did not keep polling"
+# Reconcile on every try, as supervision does: one issued while the previous
+# round's runner still holds its claim starts nothing.
+reconciled_stub_at_least() { pe "$H" reconcile >/dev/null 2>&1; stub_at_least "$@"; }
+wait_until 150 reconciled_stub_at_least "$STUB" "GET" $((pulls_before + 3)) || fail "the source did not keep polling"
 assert_equals "$(result_count "$H")" 1 "no second result for the acked request"
 assert_equals "$(wake_count "$H")" 1 "no second announcement for the acked request"
 grep -q 'since=' "$STUB/log" || fail "later pulls pass the since cursor"
@@ -246,8 +248,7 @@ assert_equals "$(cat "$OUT")" withdrawn "the result classifies as withdrawn"
 fr "$H" read "$R2"
 assert_equals "$(jq -r '.withdrawn[0].id' "$OUT")" "$ID1" "the withdrawn id is delivered"
 pulls_before=$(stub_count "$STUB" "GET")
-pe "$H" reconcile >/dev/null 2>&1
-wait_until 150 stub_at_least "$STUB" "GET" $((pulls_before + 3)) || fail "the source did not keep polling"
+wait_until 150 reconciled_stub_at_least "$STUB" "GET" $((pulls_before + 3)) || fail "the source did not keep polling"
 assert_equals "$(result_count "$H")" 2 "a repeated withdrawal is not re-reported"
 pass "a withdrawal is reported once"
 
