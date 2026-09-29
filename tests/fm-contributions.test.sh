@@ -838,9 +838,11 @@ test_unavailable_forge_records_error_and_wakes_once_per_episode() { # consecutiv
   poll_next; [ -z "$out" ] || fail "the second consecutive failure woke: $out"
   poll_next
   [ "$out" = "$line" ] || fail "the third consecutive failure did not wake once: $out"
+  # shellcheck disable=SC2016 # $error is a jq variable.
   record_is '.error == $error and .failures == 3' || fail 'the third consecutive failure recorded no error'
   poll_next
   [ -z "$out" ] || fail "an unchanged failure woke again on the next cycle: $out"
+  # shellcheck disable=SC2016 # $error is a jq variable.
   record_is '.error == $error and .failures == 4' || fail 'a repeated failure stopped recording its error'
   : > "$home/forge/fault"
   poll_next
