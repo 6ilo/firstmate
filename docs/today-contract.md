@@ -122,7 +122,9 @@ Firstmate composes every card; the portal renders it and never edits it.
 
 A `withheld` verdict means the check refused the call's own words, and firstmate replaced the title, question, and every option label and hint with neutral text of its own; the portal should tell the captain to read the call on the machine.
 Every card carries at least one option except a `credential` card, which carries none and is answered only `seen` or `later`: the portal never holds, asks for, or creates a key.
-A decision card may carry a `reconcile` option, meaning "already settled, re-check", with the meaning [`captain-hold-lifecycle.md`](captain-hold-lifecycle.md) gives it.
+Every decision card the bridge sends ends with the `reconcile` option, labelled "Already settled", and the portal may show that label for it.
+No other option may use the value `reconcile`: it is only ever a decision card's final option.
+This is a contract rule the reference checker enforces, not a schema pattern, so the v1 schemas are unchanged.
 Firstmate sends `head_sha`, `subject_sha256`, and `proof` on every merge and go card it raises, and mints a fresh `proof.nonce` each time it raises or re-raises a call.
 Because all three are hashed, a signature binds the head the captain was shown, the words the go approves, and this raising of the call: a new head, changed words, or a re-minted nonce makes a new `card_hash`.
 Firstmate re-mints the nonce no later than `proof.expires_at`, so the portal should not ask for a signature after that instant.
@@ -143,13 +145,18 @@ An answer is what the portal sends back for one card.
 | --- | --- |
 | `answer_id` | The portal's id for this answer, 8 to 64 of `A-Z a-z 0-9 _ -`; the key for receipts and duplicates. On a signed answer the browser mints it before the challenge, from at least 128 random bits, and the portal checks its form and uniqueness when it stores the answer. |
 | `task_id`, `owner`, `kind` | Copied from the card answered; `owner` is left out when the card carries none. |
-| `value` | One option value from the card, or `later`; on a `credential` card, `seen` or `later`. |
+| `value` | One option value from the card, or `later`; on a `credential` card, `seen` or `later`. `reconcile` answers only a decision card. |
 | `later_until` | Required with `later` and allowed only with it: when to ask again, UTC. |
 | `note` | Optional words, up to 512 characters; firstmate also refuses more than 512 UTF-8 bytes. |
 | `card_hash` | The `card_hash` of the card as the person saw it. |
 | `answered_at` | When the person answered, UTC. |
 | `person`, `device` | The portal's ids for who answered and on which device. |
 | `passkey` | Required on `merge` and `go` answers and forbidden on the others. |
+
+**A `reconcile` answer.**
+An answer whose value is `reconcile` means "already settled, re-check".
+Firstmate routes it into its existing reconcile-request path (`bin/fm-captain-hold.sh reconcile-requests`), with the meaning [`captain-hold-lifecycle.md`](captain-hold-lifecycle.md#reconcile-re-check-reality-never-a-blind-close) gives it.
+It never closes or releases a call by itself: the call stays open until firstmate re-checks it and closes it with evidence, or keeps it open with a note.
 
 ## The passkey
 
@@ -247,6 +254,7 @@ The reference checker enforces these beside the schemas:
 
 - Every `card_hash` recomputes from its card.
 - Option values are unique within a card, and a call appears once in a snapshot for each `owner` and `task_id` pair.
+- `reconcile` appears only as a decision card's final option, and an answer's value is `reconcile` only on a decision card.
 - A work id appears once per `owner` across the three work sections, which hold at most 1000 rows together.
 - An absent `owner` counts as `(main)` in both keys.
 - Each day block's `id` is unique, its `starts_at` and `ends_at` name real instants (not, say, February 30), and its `ends_at` is at or after its `starts_at`.
@@ -301,6 +309,7 @@ Because the shapes are closed, the receiving side adopts the new schema before t
 Anything else is v2: a new required field, a removed or renamed field, a new enum value, a changed type, pattern, or meaning, or any change to how `card_hash` or the passkey challenge is computed.
 Two exceptions keep v1: a new optional field joining `card_hash`'s field list, because a card that lacks it hashes exactly as before, and a uniqueness rule relaxed so that every snapshot it accepted before it still accepts.
 The card `owner` is both, and it stays optional in v1 because a new required field is v2; a v2 would make it required.
+The `reconcile` rule changes no schema: the bridge already sent `reconcile` as every decision card's final option, and the answer's `value` already accepted any option value, so a `reconcile` answer was valid v1 before the rule was written down.
 A v2 shape gets new `.v2` schema constants beside the v1 files, and both sides accept both versions until the change is complete.
 The required, nullable `repo` stays v1 because the portal's copy of v1 already required it and no v1 snapshot had been accepted before the two copies were made identical.
 The passkey additions stay v1 by these rules: `head_sha`, `subject_sha256`, and `proof` are optional card fields joining `card_hash`'s field list; `passkeys`, `enrolment`, and the answers response's `enrolments` are optional members; `fm-today-enrolment.v1` is a new shape that changes no existing one; the receipt reasons are text in the existing `reason`; and the challenge and the answer shape are unchanged.
