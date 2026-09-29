@@ -65,6 +65,17 @@ make_home() {  # <name>
 - [ ] call-cut-phone - Ring the suppliers (kind: captain) (hold: call the front desk at the hq office after lunch and ask for +1 555 123 4567) (hold-kind: captain)
 - [ ] call-cut-noted - Confirm the order and write to jo.smith@example.org (kind: captain) (hold: send it or not) (hold-kind: captain)
   Captain hold set: 2000-01-01T00:00:00Z
+- [ ] call-options - Choose the launch week (kind: captain) (hold: which week) (hold-kind: captain)
+  Captain hold set: 2000-01-01T00:00:00Z
+  Captain hold due: 2000-01-02
+  Captain hold option: {"value":"week-1","label":"First week","hint":"Ships before the review","recommended":true}
+  Captain hold option: {"value":"week-2","label":"Second week","recommended":false}
+  Captain hold option: {"value":"later","label":"Reserved by the contract","recommended":false}
+  Captain hold option: {"value":"week-2","label":"Repeated value","recommended":false}
+- [ ] call-options-tripped - Choose a supplier (kind: captain) (hold: which supplier) (hold-kind: captain)
+  Captain hold set: 2000-01-01T00:00:00Z
+  Captain hold option: {"value":"north","label":"North depot","hint":"Write to jo.smith@example.org","recommended":false}
+  Captain hold option: {"value":"south","label":"South depot","recommended":true}
 
 ## Done
 - [x] done-a - Landed thing https://github.com/acme/widget/pull/7 (repo: firstmate) (kind: ship) (merged 2026-09-27)
@@ -123,6 +134,7 @@ test_snapshot_is_valid_and_withholds_each_rule_family() {
   bridge "$HOME_A" snapshot
   [ "$CODE" -eq 0 ] || fail "snapshot exited $CODE: $(cat "$ERR")"
   cp "$OUT" "$snap"
+  ERR_SNAP=$ERR
   "${CHECK[@]}" "$snap" >/dev/null || fail "snapshot fails the contract: $("${CHECK[@]}" "$snap")"
   [ "$(jq -r '.sections.calls[] | select(.task_id == "call-clean") | .text_check.verdict' "$snap")" = pass ] \
     || fail "a clean call was not passed"
@@ -152,6 +164,31 @@ test_snapshot_carries_the_fleet() {
   jq -e '.sections.landed[] | select(.id == "done-a" and .pr_url == "https://github.com/acme/widget/pull/7")' \
     "$snap" >/dev/null || fail "landed work missing: $(jq -c .sections.landed "$snap")"
   pass "the snapshot carries underway, charted, and landed work from bearings"
+}
+
+# A call held with options (bin/fm-captain-hold.sh hold --option) offers them,
+# in order, then reconcile; a call without offers reconcile alone. An option
+# the card cannot carry is left out and named; a tripped option withholds the
+# whole card and shows each recorded option only by its position.
+test_recorded_options_reach_the_card() {
+  local snap=$TMP_ROOT/snap.json
+  [ "$(jq -c '.sections.calls[] | select(.task_id == "call-options") | .options' "$snap")" \
+    = '[{"value":"week-1","label":"First week","hint":"Ships before the review","recommended":true},{"value":"week-2","label":"Second week","recommended":false},{"value":"reconcile","label":"Already settled","hint":"Re-check the latest state, then close this with evidence or keep it open with a note","recommended":false}]' ] \
+    || fail "the recorded options did not reach the card: $(jq -c '.sections.calls[] | select(.task_id == "call-options")' "$snap")"
+  [ "$(jq -r '.sections.calls[] | select(.task_id == "call-options") | .text_check.verdict' "$snap")" = pass ] \
+    || fail "a clean call with options was not passed"
+  [ "$(jq -c '[.sections.calls[] | select(.task_id == "call-clean") | .options[].value]' "$snap")" = '["reconcile"]' ] \
+    || fail "a call without options no longer offers reconcile alone"
+  grep -q 'call call-options option "later"' "$ERR_SNAP" \
+    || fail "a reserved option value was not named as left out: $(cat "$ERR_SNAP")"
+  grep -q 'call call-options option "week-2"' "$ERR_SNAP" \
+    || fail "a repeated option value was not named as left out: $(cat "$ERR_SNAP")"
+  [ "$(jq -c '.sections.calls[] | select(.task_id == "call-options-tripped")
+               | [.text_check.verdict, [.options[] | [.value, .label, .hint, .recommended]]]' "$snap")" \
+    = '["withheld",[["north","Option 1","Text kept on the machine",false],["south","Option 2",null,true],["reconcile","Already settled","Re-check the latest state, then close this with evidence or keep it open with a note",false]]]' ] \
+    || fail "a tripped option did not withhold its card: $(jq -c '.sections.calls[] | select(.task_id == "call-options-tripped")' "$snap")"
+  ! grep -q 'depot' "$snap" || fail "withheld option text left in the snapshot"
+  pass "recorded options reach the card before reconcile and pass the text check"
 }
 
 test_card_hash_recomputes() {
@@ -571,6 +608,7 @@ test_token_never_in_output() {
 
 test_snapshot_is_valid_and_withholds_each_rule_family
 test_snapshot_carries_the_fleet
+test_recorded_options_reach_the_card
 test_card_hash_recomputes
 test_every_row_carries_repo
 test_every_row_carries_its_owner

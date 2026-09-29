@@ -1245,6 +1245,91 @@ test_due_date_keeps_a_call_on_captains_call_until_answered() {
 # The recorded-answer guard survives an out-of-band close: a bare tasks-axi done
 # fails verify until answer records the captain's word, and an ordinary finished
 # task can never be dressed up as an answered captain call.
+# Structured options ride under the stamps as one line each, reach bearings'
+# JSON (never its TOON), follow the due date's lifecycle, and a hold without
+# them stays prose-only.
+test_hold_records_structured_options() {
+  local home body json opt1 opt2 bad
+  home=$(make_home hold-options)
+  body_of() {  # <id>: the task's indented body lines, unindented
+    awk -v id="$1" '
+      $0 ~ "^- \\[.\\] " id " " { on = 1; next }
+      on && /^  / { sub(/^  /, ""); print; next }
+      on { exit }
+    ' "$home/data/backlog.md"
+  }
+  opt1='Captain hold option: {"value":"week-1","label":"First week","hint":"Ships before the review | early","recommended":true}'
+  opt2='Captain hold option: {"value":"week-2","label":"Second \"late\" week","recommended":false}'
+  FM_CAPTAIN_HOLD_NOW=2026-07-01T12:00:00Z run_captain "$home" hold sample-week --title "Choose the launch week" \
+    --reason "which week" --repo sample --due 2026-07-20 \
+    --option 'week-1|First week|Ships before the review | early' --option 'week-2|Second "late" week' \
+    --recommend week-1 >/dev/null || fail "could not hold a call with options"
+  body=$(body_of sample-week)
+  [ "$body" = "$(printf 'Captain hold set: 2026-07-01T12:00:00Z\nCaptain hold due: 2026-07-20\n%s\n%s' "$opt1" "$opt2")" ] \
+    || fail "the options are not the lines under the due stamp: $body"
+
+  json=$(run_bearings "$home" --all-decisions) || fail "Bearings failed with an optioned call"
+  printf '%s' "$json" | jq -e '
+    .decisions_open[] | select(.id == "sample-week") | .options
+      == [{value:"week-1",label:"First week",hint:"Ships before the review | early",recommended:true},
+          {value:"week-2",label:"Second \"late\" week",recommended:false}]
+  ' >/dev/null || fail "bearings did not carry the options in order: $json"
+  ! PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_BEARINGS_NOW=2026-07-14T12:00:00Z "$BEARINGS" \
+    --all-decisions | grep -q 'week-1' || fail "the options leaked into TOON output"
+
+  # Repeating the active hold keeps them; --option replaces them.
+  FM_CAPTAIN_HOLD_NOW=2026-07-02T12:00:00Z run_captain "$home" hold sample-week --reason "which week" >/dev/null \
+    || fail "could not repeat the hold"
+  [ "$(body_of sample-week)" = "$body" ] || fail "repeating the hold changed its options: $(body_of sample-week)"
+  FM_CAPTAIN_HOLD_NOW=2026-07-02T12:00:00Z run_captain "$home" hold sample-week --reason "which week" \
+    --option 'week-3|Third week' >/dev/null || fail "could not replace the options"
+  [ "$(body_of sample-week)" = "$(printf 'Captain hold set: 2026-07-01T12:00:00Z\nCaptain hold due: 2026-07-20\n%s' \
+    'Captain hold option: {"value":"week-3","label":"Third week","recommended":false}')" ] \
+    || fail "replacing the options kept the old ones or lost a stamp: $(body_of sample-week)"
+  body=$(body_of sample-week)
+
+  # Every malformed option is refused and changes nothing.
+  for bad in 'week-4' 'later|Later' 'reconcile|Re-check' 'bad value|Label' 'week-4|' "week-4|$(printf 'x%.0s' $(seq 121))"; do
+    if run_captain "$home" hold sample-week --reason "which week" --option "$bad" \
+      > "$home/bad.out" 2> "$home/bad.err"; then
+      fail "hold accepted a malformed option: $bad"
+    fi
+  done
+  if run_captain "$home" hold sample-week --reason "which week" --option 'a|A' --option 'a|B' \
+    > "$home/bad.out" 2> "$home/bad.err"; then
+    fail "hold accepted a repeated option value"
+  fi
+  if run_captain "$home" hold sample-week --reason "which week" --option 'a|A' --recommend b \
+    > "$home/bad.out" 2> "$home/bad.err"; then
+    fail "hold accepted a recommendation naming no option"
+  fi
+  if run_captain "$home" hold sample-week --reason "which week" --recommend a \
+    > "$home/bad.out" 2> "$home/bad.err"; then
+    fail "hold accepted a recommendation with no options"
+  fi
+  [ "$(body_of sample-week)" = "$body" ] || fail "a refused option changed the call: $(body_of sample-week)"
+
+  # A hold without options is prose-only, as before.
+  FM_CAPTAIN_HOLD_NOW=2026-07-01T12:00:00Z run_captain "$home" hold sample-plain --title "Pick a venue" \
+    --reason "captain venue choice" --repo sample >/dev/null || fail "could not hold a plain call"
+  [ "$(body_of sample-plain)" = "Captain hold set: 2026-07-01T12:00:00Z" ] \
+    || fail "a plain hold wrote more than its stamp: $(body_of sample-plain)"
+  json=$(run_bearings "$home" --all-decisions) || fail "Bearings failed with a plain call"
+  printf '%s' "$json" | jq -e '.decisions_open[] | select(.id == "sample-plain") | has("options") | not' >/dev/null \
+    || fail "a plain call carried options: $json"
+
+  # Answering releases the call; a new hold lifecycle starts with no options.
+  printf 'Week three.\n' > "$home/answer.txt"
+  run_captain "$home" answer sample-week --decision-file "$home/answer.txt" --release >/dev/null \
+    || fail "could not answer the optioned call"
+  FM_CAPTAIN_HOLD_NOW=2026-07-25T12:00:00Z run_captain "$home" hold sample-week --reason "a second week" >/dev/null \
+    || fail "could not re-hold the call"
+  json=$(run_bearings "$home" --all-decisions) || fail "Bearings failed after the re-hold"
+  printf '%s' "$json" | jq -e '.decisions_open[] | select(.id == "sample-week") | has("options") | not' >/dev/null \
+    || fail "a new hold lifecycle inherited the old options: $json"
+  pass "hold records structured options for Bearings and keeps prose-only holds unchanged"
+}
+
 test_out_of_band_close_is_recordable() {
   local home id show
   home=$(make_home out-of-band)
@@ -4128,6 +4213,7 @@ test_hold_stamp_precedes_hold_visibility
 test_interrupted_answer_preserves_hold_age
 test_deferral_leaves_captains_call_until_due
 test_due_date_keeps_a_call_on_captains_call_until_answered
+test_hold_records_structured_options
 test_out_of_band_close_is_recordable
 test_visual_review_uses_shared_completion_owner
 test_none_inventory_and_resolved_prose_do_not_create_holds

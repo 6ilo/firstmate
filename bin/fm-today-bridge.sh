@@ -45,10 +45,15 @@
 #           rather than rewritten, and work already listed for the same owner
 #           in an earlier section is not listed again. Each left-out row is
 #           named on stderr.
-#           Bearings holds no structured answer options for a call, so every
-#           card is a `decision` card whose final option is the standard
-#           `reconcile` option, labelled "Already settled"; the portal adds
-#           `later` itself. Every card and work row carries
+#           Every card is a `decision` card offering, in order, the options
+#           the hold recorded (bin/fm-captain-hold.sh hold --option, carried as
+#           bearings' decisions_open options), then the standard `reconcile`
+#           option, labelled "Already settled"; a call with none offers
+#           `reconcile` alone, and the portal adds `later` itself. A recorded
+#           option the card cannot carry is left out and named on stderr.
+#           Option labels and hints pass the text check with the rest of the
+#           card; a withheld card shows each recorded option as `Option <n>`,
+#           its hint as neutral text. Every card and work row carries
 #           `repo`: `owner/name` when one is found, otherwise `null`; bearings
 #           records no repository for a call, so a card's is always `null`.
 #
@@ -185,6 +190,7 @@ MAIN = "(main)"
 WORK_LIMIT = 1000
 TASK_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 OWNER = re.compile(r"^(\(main\)|[A-Za-z0-9._-]{1,128})$")
+OPTION_VALUE = TASK_ID
 REF = re.compile(r"^[A-Za-z0-9._:/-]{1,200}$")
 REPO = re.compile(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
 PR_URL = re.compile(r"^https://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?/[^\s]*$")
@@ -394,6 +400,35 @@ def claim_work(section, owner, raw_id):
 recorded_prs = {r.get("id"): r.get("url") for r in bearings.get("recorded_prs") or []
                 if isinstance(r, dict)}
 
+def recorded_options(raw, tid):
+    """The call's own options as bin/fm-captain-hold.sh recorded them, checked
+    against the card's option shape; the contract's reserved values, repeats,
+    a second recommendation, and anything past 11 are left out and named."""
+    kept, values = [], {RECONCILE["value"]}
+    for opt in raw if isinstance(raw, list) else []:
+        value = opt.get("value") if isinstance(opt, dict) else None
+        if (not isinstance(value, str) or not OPTION_VALUE.match(value)
+                or value == "later" or value in values or len(kept) >= 11):
+            skipped.append("call %s option %s: a value the card cannot carry" % (tid, json.dumps(value)))
+            continue
+        values.add(value)
+        shown = {"value": value, "label": whole(line(opt.get("label"), 120, value)) or value}
+        hint = whole(line(opt.get("hint"), 400))
+        if hint:
+            shown["hint"] = hint
+        recommended = opt.get("recommended") is True and not any(o["recommended"] for o in kept)
+        shown["recommended"] = recommended
+        kept.append(shown)
+    return kept
+
+
+def withheld_option(opt, index):
+    shown = {"value": opt["value"], "label": "Option %d" % index, "recommended": opt["recommended"]}
+    if "hint" in opt:
+        shown["hint"] = WITHHELD_TEXT
+    return shown
+
+
 # --- calls -------------------------------------------------------------------
 calls = []
 seen_calls = set()
@@ -408,11 +443,13 @@ for dec in bearings.get("decisions_open") or []:
     seen_calls.add((owner, tid))
     title = whole(line(dec.get("summary"), 200, tid)) or tid
     question = whole(line(dec.get("summary"), 4000, tid)) or tid
-    options = [dict(RECONCILE)]
+    options = recorded_options(dec.get("options"), tid) + [dict(RECONCILE)]
     shown = [title, question] + [o["label"] for o in options] + [o.get("hint", "") for o in options]
     verdict = "withheld" if tripped(*shown) else "pass"
     if verdict == "withheld":
         title, question = WITHHELD_TITLE, WITHHELD_QUESTION
+        options = [o if o["value"] == RECONCILE["value"] else withheld_option(o, i)
+                   for i, o in enumerate(options, 1)]
     card = {"schema": "fm-today-card.v1", "task_id": tid, "owner": owner, "kind": "decision",
             "title": title, "question": question, "options": options, "repo": None}
     card["text_check"] = {"verdict": verdict, "checker": CHECKER, "checked_at": now}

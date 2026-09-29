@@ -22,7 +22,7 @@
 # Usage:
 #   fm-captain-hold.sh hold <task-id> --reason <reason> \
 #     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD] \
-#     [--due YYYY-MM-DD]
+#     [--due YYYY-MM-DD] [--option '<value>|<label>[|<hint>]']... [--recommend <value>]
 #   fm-captain-hold.sh answer <task-id> --decision-file <path> [--release]
 #   fm-captain-hold.sh answers [<legacy-origin> | --any-origin] --source <provenance>   (keyed answers on stdin)
 #   fm-captain-hold.sh reconcile-requests --source-id <source-id> --source <provenance>   (task ids on stdin)
@@ -59,6 +59,17 @@
 # Captain's Call from its lead window until answered, and bin/fm-watch.sh
 # notifies firstmate as the window opens and on the day. Repeating an active
 # hold without `--due` keeps its due date; a new hold lifecycle drops it.
+# `--option`, repeatable, records one structured answer option for the call,
+# in the order given, as a `Captain hold option: <json>` line under the due
+# stamp (or the hold-set stamp when there is none); the JSON object carries
+# `value`, `label`, optional `hint`, and `recommended`. `value` is a slug that
+# is not `later` or `reconcile` (both reserved by docs/today-contract.md), the
+# label runs to the next `|` and is at most 120 characters, and the hint, the
+# rest, at most 400. At most 11 options, values unique; `--recommend <value>`
+# marks one of them. bin/fm-fleet-snapshot.sh reads the lines as hold_options.
+# Repeating an active hold without `--option` keeps its options, with
+# `--option` replaces them; a new hold lifecycle drops them. A hold without
+# options is prose-only and unchanged.
 #
 # `answer` records the captain's exact words and resolves the call in the same
 # act. It requires a non-empty captain decision file of at most 8192 bytes and
@@ -767,6 +778,12 @@ body_hold_set_timestamp() {  # <decoded-task-body>
     | head -1
 }
 
+# The option lines follow the hold-set stamp and any due stamp. Prints the
+# body's leading run of them, one per line, or nothing.
+body_hold_option_lines() {  # <body-after-the-hold-set-and-due-stamps>
+  printf '%s\n' "$1" | awk '/^Captain hold option: / { print; next } { exit }'
+}
+
 # The due stamp is the first non-blank line after a leading hold-set stamp,
 # the same line bin/fm-fleet-snapshot.sh reads. Prints its date or nothing.
 body_hold_due_date() {  # <body-after-the-hold-set-stamp>
@@ -785,8 +802,8 @@ trim_leading_newlines() {  # <text>
   printf '%s' "$text"
 }
 
-write_hold_set_stamp() {  # <task-id> <shown-body> <timestamp> <preserve-existing-0-or-1> [<due-date>]
-  local id=$1 body=$2 hold_set=$3 preserve=$4 due=${5:-} existing existing_due='' new_body tmp
+write_hold_set_stamp() {  # <task-id> <shown-body> <timestamp> <preserve-existing-0-or-1> [<due-date>] [<option-lines>]
+  local id=$1 body=$2 hold_set=$3 preserve=$4 due=${5:-} options=${6:-} existing existing_due='' existing_options='' new_body tmp
   body=$(decode_shown_value "$body") \
     || fail "could not decode the existing body for $id"
   existing=$(body_hold_set_timestamp "$body")
@@ -796,16 +813,25 @@ write_hold_set_stamp() {  # <task-id> <shown-body> <timestamp> <preserve-existin
     if [ -n "$existing_due" ]; then
       body=$(trim_leading_newlines "${body#"Captain hold due: $existing_due"}")
     fi
+    existing_options=$(body_hold_option_lines "$body")
+    if [ -n "$existing_options" ]; then
+      body=$(trim_leading_newlines "${body#"$existing_options"}")
+    fi
   fi
   if [ "$preserve" = 1 ] && [ -n "$existing" ]; then
-    # An active lifecycle keeps its timestamp, and its due date unless replaced.
+    # An active lifecycle keeps its timestamp, and its due date and options
+    # unless replaced.
     [ -n "$due" ] || due=$existing_due
-    [ "$due" != "$existing_due" ] || return 0
+    [ -n "$options" ] || options=$existing_options
+    [ "$due" != "$existing_due" ] || [ "$options" != "$existing_options" ] || return 0
     hold_set=$existing
   fi
   new_body=$(printf 'Captain hold set: %s' "$hold_set")
   if [ -n "$due" ]; then
     new_body=$(printf '%s\nCaptain hold due: %s' "$new_body" "$due")
+  fi
+  if [ -n "$options" ]; then
+    new_body=$(printf '%s\n%s' "$new_body" "$options")
   fi
   if [ -n "$body" ]; then
     new_body=$(printf '%s\n\n%s' "$new_body" "$body")
@@ -841,9 +867,43 @@ verify_entry_durable() {  # <origin-or-empty> <entry>; prints "<id> <how>"
   verify_hold_durable "${resolved%% *}"
 }
 
+# Validate every --option spec and print its `Captain hold option: <json>`
+# line, in the order given; the header above owns the rules.
+hold_option_lines() {  # <recommend-value-or-empty> <spec>...
+  local recommend=$1 spec value label hint lines='' seen=' ' found=0
+  shift
+  [ "$#" -gt 0 ] || fail "--recommend needs at least one --option"
+  [ "$#" -le 11 ] || fail "a call may record at most 11 options"
+  for spec in "$@"; do
+    validate_one_line option "$spec"
+    case "$spec" in *'|'*) : ;; *) fail "--option must be <value>|<label>[|<hint>]: $spec" ;; esac
+    value=${spec%%|*}
+    label=${spec#*|}
+    hint=''
+    case "$label" in *'|'*) hint=${label#*|}; label=${label%%|*} ;; esac
+    validate_slug "option value" "$value"
+    [ "${#value}" -le 128 ] || fail "option value must be at most 128 characters: $value"
+    case "$value" in later|reconcile) fail "option value $value is reserved" ;; esac
+    case "$seen" in *" $value "*) fail "option value $value is repeated" ;; esac
+    seen="$seen$value "
+    [ -n "$label" ] || fail "option $value needs a label"
+    [ "$(printf '%s' "$label" | jq -Rrs 'length')" -le 120 ] \
+      || fail "option $value label must be at most 120 characters"
+    [ "$(printf '%s' "$hint" | jq -Rrs 'length')" -le 400 ] \
+      || fail "option $value hint must be at most 400 characters"
+    [ "$value" != "$recommend" ] || found=1
+    lines="$lines$(jq -rn --arg v "$value" --arg l "$label" --arg h "$hint" --arg r "$recommend" \
+      '{value:$v, label:$l} + (if $h == "" then {} else {hint:$h} end) + {recommended:($v == $r)}
+       | "Captain hold option: " + tojson')"$'\n'
+  done
+  [ -z "$recommend" ] || [ "$found" = 1 ] || fail "--recommend names no --option: $recommend"
+  printf '%s' "${lines%$'\n'}"
+}
+
 command_hold() {
   local id=${1:-} title='' reason='' repo='' origin='' until='' due='' show state existing_title body='' hold_kind hold_set occurrence
-  local existing_hold_kind='' existing_held='' preserve_hold_set=0
+  local existing_hold_kind='' existing_held='' preserve_hold_set=0 recommend='' options=''
+  local -a option_specs=()
   [ "$#" -ge 1 ] || { usage >&2; exit 2; }
   shift
   while [ "$#" -gt 0 ]; do
@@ -854,6 +914,8 @@ command_hold() {
       --origin) shift; origin=${1:-} ;;
       --until) shift; until=${1:-} ;;
       --due) shift; due=${1:-} ;;
+      --option) shift; option_specs+=("${1:-}") ;;
+      --recommend) shift; recommend=${1:-} ;;
       *) usage >&2; exit 2 ;;
     esac
     shift
@@ -877,6 +939,9 @@ command_hold() {
     esac
     jq -en --arg d "$due" '($d + "T00:00:00Z") | fromdateiso8601 | todate[:10] == $d' >/dev/null 2>&1 \
       || fail "--due must be a real calendar date: $due"
+  fi
+  if [ "${#option_specs[@]}" -gt 0 ] || [ -n "$recommend" ]; then
+    options=$(hold_option_lines "$recommend" "${option_specs[@]+"${option_specs[@]}"}")
   fi
   hold_set=${FM_CAPTAIN_HOLD_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
   case "$hold_set" in
@@ -925,7 +990,7 @@ command_hold() {
   # snapshot may see the harmless stamp by itself, but can never see a newly
   # held task without the timestamp that defines this hold lifecycle's age.
   task_show_or_fail "$id" "task $id disappeared before recording its hold-set stamp"
-  write_hold_set_stamp "$id" "$(show_field "$show" body)" "$hold_set" "$preserve_hold_set" "$due"
+  write_hold_set_stamp "$id" "$(show_field "$show" body)" "$hold_set" "$preserve_hold_set" "$due" "$options"
   task_show_or_fail "$id" "task $id disappeared while recording its hold-set stamp"
   [ -n "$(body_hold_set_timestamp "$(show_field_value "$show" body)")" ] \
     || fail "task $id did not retain its hold-set stamp"

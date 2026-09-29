@@ -65,6 +65,9 @@ Repeat and edge cases:
 - `--due` stores the date the call must be settled by as a `Captain hold due:` line directly under the hold-set stamp, because tasks-axi has no deadline field.
   Repeating an active hold keeps its due date unless `--due` replaces it, and a new hold lifecycle starts without one.
   An answer moves the line below its resolution block, where it is inert history.
+- `--option '<value>|<label>[|<hint>]'`, repeatable, with an optional `--recommend <value>`, stores the call's structured answer options as `Captain hold option:` lines under the stamps, in order, so the Today card offers them before its standard `reconcile` option.
+  They follow the due date's lifecycle: kept on repeat, replaced by a new `--option`, and dropped by a new lifecycle; a hold without them stays prose-only.
+  The script header owns the value and length rules.
 
 ### Answering a call (`answer`)
 
@@ -532,6 +535,7 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 - Interrupted answer closure retains the stamp until close and restores resolution-first ordering on retry.
 - Deferral through `--until` leaves `captain_actionable` false until due.
 - A `--due` date is stamped under the hold-set stamp, kept on repeat, replaced by a new `--due`, dropped by a new lifecycle, and puts an aged call back on Captain's Call seven days ahead.
+- `--option` lines are stamped under the stamps, kept on repeat, replaced by a new `--option`, refused when malformed or reserved, dropped by a new lifecycle, and carried to Bearings' JSON only; a hold without them is unchanged.
 
 ### Legacy paths
 
