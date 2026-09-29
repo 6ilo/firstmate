@@ -1,0 +1,18 @@
+lab FM_HOME=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.Zk2siu  NM_HOME=/private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab.Zk2siu/nm-home
+pool in run copy RUNDONE/pkg: 32467 32468  ; pool in existing but unreadable run copy RUNUNREAD: 32473 32474 
+32467     1 node (vitest 1)   
+32468     1 node (vitest 2)   
+32473     1 node (vitest 1)   
+32474     1 node (vitest 2)   
+== run ends: no-mistakes removes its copy (rm -rf RUNDONE) ==
+== start the firstmate watcher on the lab home (FM_NM_RUN_ORPHAN_REAP_SECS=2) ==
+after ~3s of watcher running:
+32467 GONE
+32468 GONE
+32473 alive
+32474 alive
+-rw-r--r--@ 1 anwulikaanigbodesktop  staff  0 Sep 29 00:05 /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.Zk2siu/state/.nm-run-orphan-reap-tick
+watcher still running (pid 33736)
+/tmp/fm-live3.sh: line 28: 33736 Terminated: 15          env -u NO_MISTAKES_GATE -u FM_GATE_REFUSE_BYPASS -u FM_ROOT_OVERRIDE -u FM_STATE_OVERRIDE -u FM_DATA_OVERRIDE -u FM_CONFIG_OVERRIDE -u FM_PROJECTS_OVERRIDE -u TMUX TMUX_TMPDIR="$LAB/tmux" FM_HOME="$LAB" NM_HOME="$NMH" FM_NM_RUN_ORPHAN_REAP_SECS=2 bin/fm-watch.sh > "$LAB/watch.out" 2>&1
+watcher output (head):
+lab removed

@@ -1,0 +1,9 @@
+ok - --dry-run reports the candidate and signals nothing
+ok - an orphan at parent 1 in a run copy past its test step is reaped
+ok - the same orphan while its run is in the test step is left alone
+ok - a process with a live parent in a run copy is left alone
+ok - a process outside any run copy is left alone
+ok - an orphan in a run whose status cannot be read is left alone
+ok - a fixing round or an approval gate keeps the run's orphans
+ok - a terminal run's orphans are reaped
+ok - an orphan whose run copy was removed is reaped

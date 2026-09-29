@@ -1,0 +1,21 @@
+== fixture workers: real node forked pool (process.title 'node (vitest N)'), launcher exited ==
+98087     1 node (vitest 1)    n/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3NQXXYJ4211WTNBZB2DREF4
+98113     1 node (vitest 2)    n/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3NQXXYJ4211WTNBZB2DREF4
+98452     1 node (vitest 1)    n/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3NA1DSAND2KVTBCBZ8HS6Z9
+98458     1 node (vitest 2)    n/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3NA1DSAND2KVTBCBZ8HS6Z9
+98931     1 node (vitest 1)    n/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3NQJ7RXWS8XNDY3HB1TEZ4E
+98944     1 node (vitest 2)    n/Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3NQJ7RXWS8XNDY3HB1TEZ4E
+in-test run   01M3NQXX (real status: test running):        98087 98113 
+past-test run 01M3NA1D (real status: test completed, ci running): 98452 98458 
+fixing run    01M3NQJ7 (real status: review fix_review):   98931 98944 
+== bin/fm-nm-reap-run-orphans.sh --dry-run (real NM_HOME, real no-mistakes CLI) ==
+would reap orphaned no-mistakes run process 98452 (run copy /Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3NA1DSAND2KVTBCBZ8HS6Z9)
+would reap orphaned no-mistakes run process 98458 (run copy /Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3NA1DSAND2KVTBCBZ8HS6Z9)
+exit=0
+== liveness after dry run (nothing signalled) ==
+98087 alive
+98113 alive
+98452 alive
+98458 alive
+98931 alive
+98944 alive

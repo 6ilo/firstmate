@@ -1,0 +1,15 @@
+== bin/fm-nm-reap-run-orphans.sh (real sweep, real NM_HOME, real no-mistakes CLI) ==
+reaped orphaned no-mistakes run process 98452 (run copy /Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3NA1DSAND2KVTBCBZ8HS6Z9)
+reaped orphaned no-mistakes run process 98458 (run copy /Users/anwulikaanigbodesktop/.no-mistakes/worktrees/ba7143190a89/01M3NA1DSAND2KVTBCBZ8HS6Z9)
+exit=0
+== liveness after real sweep ==
+98087 node (vitest 1)   
+ -> alive (01M3NQXXYJ4211WTNBZB2DREF4)
+98113 node (vitest 2)   
+ -> alive (01M3NQXXYJ4211WTNBZB2DREF4)
+98452  -> GONE
+98458  -> GONE
+98931 node (vitest 1)   
+ -> alive (01M3NQJ7RXWS8XNDY3HB1TEZ4E)
+98944 node (vitest 2)   
+ -> alive (01M3NQJ7RXWS8XNDY3HB1TEZ4E)
