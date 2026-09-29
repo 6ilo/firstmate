@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Behavior tests for fm-check-unregister.sh: refuse empty-variable retirement,
+# Behavior tests for fm-check-unregister.sh: refuse empty-id or bad-state retirement,
+# treat an empty FM_STATE_OVERRIDE like register does,
 # and remove only the two named custom-check files on the happy path.
 set -u
 
@@ -120,16 +121,15 @@ test_empty_id_and_empty_state_refuse_without_stray_rm() {
   : > "$log"
   PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_STATE_OVERRIDE='' \
     "$UNREGISTER" override-empty >"$out" 2>"$err" || status=$?
-  expect_code 1 "$status" "unregister with explicitly empty state override"
-  assert_contains "$(cat "$err")" "state directory is unavailable" \
-    "empty state override refusal used the wrong stderr"
-  assert_present "$home/state/override-empty.check.sh" \
-    "empty state override deleted the home state check"
-  assert_present "$home/state/override-empty.check-trust" \
-    "empty state override deleted the home state trust binding"
-  assert_rm_not_invoked "$log"
+  expect_code 0 "$status" "unregister with explicitly empty state override"
+  assert_absent "$home/state/override-empty.check.sh" \
+    "empty state override did not fall back to the home state check"
+  assert_absent "$home/state/override-empty.check-trust" \
+    "empty state override did not fall back to the home state trust binding"
+  assert_present "$canary_empty_id" "empty state override deleted state/.check.sh"
+  assert_present "$canary_sibling" "empty state override deleted a sibling"
 
-  pass "empty id or missing state dir refuses loudly and never rms a stray path"
+  pass "missing state dir refuses without stray rm; empty override falls back to FM_HOME/state"
 }
 
 test_happy_path_removes_only_check_and_trust() {
