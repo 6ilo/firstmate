@@ -19,6 +19,7 @@
   "properties": {
     "schema": { "const": "fm-today-card.v1" },
     "task_id": { "$ref": "#/$defs/task_id" },
+    "owner": { "$ref": "#/$defs/owner" },
     "kind": { "enum": ["decision", "merge", "credential", "go"] },
     "title": { "type": "string", "minLength": 1, "maxLength": 200 },
     "question": { "type": "string", "minLength": 1, "maxLength": 4000 },
@@ -73,6 +74,11 @@
   ],
   "$defs": {
     "task_id": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "owner": {
+      "description": "The home that owns the call: (main) for the home the bridge runs in, otherwise the second mate's registered id. Absent means (main).",
+      "type": "string",
+      "pattern": "^(\\(main\\)|[A-Za-z0-9._-]{1,128})$"
+    },
     "option_value": {
       "type": "string",
       "pattern": "^[A-Za-z0-9._-]{1,128}$",

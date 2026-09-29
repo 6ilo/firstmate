@@ -1,0 +1,8 @@
+{
+  "schema": "fm-today-receipt.v1",
+  "answer_id": "ans-mate-rail-order-01",
+  "task_id": "portal-rail-order",
+  "owner": "relay-platform",
+  "outcome": "applied",
+  "recorded_at": "2026-09-28T14:10:40Z"
+}

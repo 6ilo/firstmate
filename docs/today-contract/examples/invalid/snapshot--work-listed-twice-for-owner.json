@@ -164,6 +164,14 @@
         "repo": "MMEG-PIT/relay-platform",
         "owner": "relay-platform",
         "pr_url": "https://github.com/MMEG-PIT/relay-platform/pull/240"
+      },
+      {
+        "id": "heavy-slots",
+        "title": "Machine-wide heavy validation slots",
+        "kind": "ship",
+        "state": "working",
+        "doing": "Writing the lease",
+        "repo": "6ilo/firstmate"
       }
     ],
     "charted_next": [

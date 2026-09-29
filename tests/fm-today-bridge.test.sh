@@ -5,7 +5,8 @@
 # POST /api/fleet/bridge/snapshot: a valid push carries the right header and gets the
 # portal's heard_at, an invalid snapshot is refused before anything is sent, a
 # call tripping each text-check rule family goes out withheld, every card and
-# work row names its repo or null, the portal's vendored schemas match ours and
+# work row names its repo or null and its owning home, second mates' calls and
+# work travel under their own owner, the portal's vendored schemas match ours and
 # its ajv accepts the snapshot when a portal checkout is named, the day comes
 # from the day file or is empty for today, and the token never reaches output.
 set -u
@@ -175,6 +176,75 @@ test_every_row_carries_repo() {
   jq -e '.sections.charted_next[] | select(.id == "live-gate") | has("repo") and .repo == null' "$snap" >/dev/null \
     || fail "work whose clone is absent did not carry repo null: $(jq -c .sections.charted_next "$snap")"
   pass "every card and work row carries repo, null when no repository is found"
+}
+
+test_every_row_carries_its_owner() {
+  local snap=$TMP_ROOT/snap.json
+  jq -e '[.sections.calls[], .sections.underway[], .sections.charted_next[], .sections.landed[]]
+          | length > 0 and all(.owner == "(main)")' "$snap" >/dev/null \
+    || fail "a main-home card or work row did not carry owner (main): $(jq -c '[.sections[] | arrays | .[] | {id, task_id, owner}]' "$snap")"
+  pass "every main-home card and work row carries owner (main)"
+}
+
+# Second mates' calls and work come from the bearings snapshot as `mate/task`
+# ids with the mate as owner. A copy of the bridge whose bearings snapshot is a
+# fixed document stands in for a fleet with a second mate: its calls go out
+# under their owner with the bare task id, the same task id in two homes is
+# two calls and two pieces of work, and owner is part of each card_hash.
+test_second_mate_calls_and_work_travel() {
+  local tree=$TMP_ROOT/mate-tree snap card
+  mkdir -p "$tree/tests" "$tree/docs"
+  cp -R "$ROOT/bin" "$tree/bin"
+  cp "$ROOT/tests/fm-today-contract-check.py" "$tree/tests/"
+  cp -R "$ROOT/docs/today-contract" "$tree/docs/today-contract"
+  cat > "$tree/bin/fm-bearings-snapshot.sh" <<'EOF'
+#!/usr/bin/env bash
+cat <<'JSON'
+{"home": "firstmate",
+ "decisions_open": [
+  {"id": "rail-order", "key": "rail-order", "verb": "captain-hold", "summary": "Choose the rail order", "owner": "(main)"},
+  {"id": "portal-mate/rail-order", "key": "rail-order", "verb": "captain-hold", "summary": "Choose the rail order", "owner": "portal-mate"},
+  {"id": "portal-mate/kit-order", "key": "kit-order", "verb": "captain-hold", "summary": "Choose the kit order", "owner": "portal-mate"},
+  {"id": "bad mate/odd-call", "key": "odd-call", "verb": "captain-hold", "summary": "Odd", "owner": "bad mate"}],
+ "in_flight": [
+  {"id": "ship-task", "kind": "ship", "state": "working", "repo": null, "name": "Ship the thing", "doing": "building"},
+  {"id": "portal-mate/ship-task", "kind": "ship", "state": "working", "repo": null, "name": "Ship the kit", "doing": "building"}],
+ "gates": [
+  {"id": "live-gate", "title": "Main queued work", "blocked_by": "-", "reason": "-", "owner": "(main)", "filed": null},
+  {"id": "live-gate", "title": "Mate queued work", "blocked_by": "-", "reason": "-", "owner": "portal-mate", "filed": null}],
+ "landed": [
+  {"id": "done-a", "what": "Main landed", "artifact": "-", "owner": "(main)"},
+  {"id": "done-a", "what": "Mate landed", "artifact": "-", "owner": "portal-mate"}]}
+JSON
+EOF
+  chmod +x "$tree/bin/fm-bearings-snapshot.sh"
+  run_n=$((run_n + 1))
+  OUT="$OUTPUTS/$run_n.out"
+  ERR="$OUTPUTS/$run_n.err"
+  CODE=0
+  FM_HOME="$HOME_A" "$tree/bin/fm-today-bridge.sh" snapshot > "$OUT" 2> "$ERR" || CODE=$?
+  [ "$CODE" -eq 0 ] || fail "snapshot with a second mate exited $CODE: $(cat "$ERR")"
+  snap=$OUT
+  "${CHECK[@]}" "$snap" >/dev/null || fail "snapshot with a second mate fails the contract: $("${CHECK[@]}" "$snap")"
+  [ "$(jq -c '[.sections.calls[] | [.owner, .task_id]]' "$snap")" \
+    = '[["(main)","rail-order"],["portal-mate","rail-order"],["portal-mate","kit-order"]]' ] \
+    || fail "calls did not travel under their owners: $(jq -c '[.sections.calls[] | [.owner, .task_id]]' "$snap")"
+  grep -q 'call "bad mate/odd-call": id the contract cannot carry' "$ERR" \
+    || fail "a call whose owner the contract cannot carry was not named on stderr: $(cat "$ERR")"
+  jq -e '[.sections.calls[] | select(.task_id == "rail-order") | .card_hash] | length == 2 and .[0] != .[1]' \
+    "$snap" >/dev/null || fail "the same call text in two homes shares one card_hash"
+  card=$TMP_ROOT/mate-card.json
+  jq '.sections.calls[1]' "$snap" > "$card"
+  [ "$(jq -r .card_hash "$card")" = "$(python3 "$ROOT/tests/fm-today-contract-check.py" hash "$card")" ] \
+    || fail "a second mate's card_hash does not recompute"
+  for section in underway charted_next landed; do
+    [ "$(jq -c --arg s "$section" '[.sections[$s][] | [.owner, .id]] | sort' "$snap")" \
+      = "$(jq -cn --arg s "$section" '{underway: "ship-task", charted_next: "live-gate", landed: "done-a"}[$s] as $id
+            | [["(main)", $id], ["portal-mate", $id]]')" ] \
+      || fail "$section work did not travel under both owners: $(jq -c --arg s "$section" '.sections[$s]' "$snap")"
+  done
+  ! grep -q 'already listed' "$ERR" || fail "work sharing an id with another home was left out: $(cat "$ERR")"
+  pass "second mates' calls and work travel under their owner, keyed with the task id, owner hashed"
 }
 
 # The portal validates with ajv over its vendored copy of these schemas, which
@@ -492,6 +562,8 @@ test_snapshot_is_valid_and_withholds_each_rule_family
 test_snapshot_carries_the_fleet
 test_card_hash_recomputes
 test_every_row_carries_repo
+test_every_row_carries_its_owner
+test_second_mate_calls_and_work_travel
 test_snapshot_passes_the_portal_validator
 test_cut_text_loses_its_partial_word
 test_cut_after_a_number_is_withheld

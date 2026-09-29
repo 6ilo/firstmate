@@ -51,6 +51,8 @@ card--extra-field additionalProperties: body
 card--later-as-option $.options[1].value: not:
 card--merge-without-pr-url required: missing pr_url
 card--missing-repo required: missing repo
+card--owner-not-hashed $.card_hash: card_hash
+card--owner-qualified $.owner: pattern
 card--stale-hash $.card_hash: card_hash
 card--two-recommended $.options: maxContains
 card--unknown-kind $.kind: enum
@@ -59,6 +61,7 @@ receipt--refused-without-reason required: missing reason
 receipt--set-aside-without-current-hash required: missing current_card_hash
 receipt--unknown-outcome $.outcome: enum
 snapshot--board-title $.sections.boards[0]: additionalProperties: title
+snapshot--call-listed-twice-for-owner $.sections.calls: task_id: a call appears twice
 snapshot--call-stale-hash $.sections.calls[0].card_hash: card_hash
 snapshot--day-attendees $.sections.day.blocks[0]: additionalProperties: attendees
 snapshot--day-block-ends-before-start $.sections.day.blocks[1]: ends_at: ends before it starts
@@ -68,6 +71,7 @@ snapshot--missing-day $.sections: required: missing day
 snapshot--underway-extra-field $.sections.underway[0]: additionalProperties: body
 snapshot--urgency-out-of-range $.sections.charted_next[0].urgency: maximum
 snapshot--work-listed-twice $.sections: id: a piece of work appears twice
+snapshot--work-listed-twice-for-owner $.sections: id: a piece of work appears twice
 EOF
 )
   for f in "$CONTRACT"/examples/invalid/*.json; do
@@ -119,11 +123,28 @@ EOF
   want=$(printf '%s' "$canonical" | sha256_hex)
   got=$("${CHECK[@]}" hash "$card") || fail "hash refused the fixture card"
   [ "$got" = "$want" ] || fail "card_hash $got does not match the published definition $want"
-  pass "card_hash matches SHA-256 of the hand-written canonical serialization"
+  # An owner is hashed in its sorted place; a card without one hashes as above.
+  jq '. + {owner: "relay-platform"}' "$card" > "$card.owned"
+  canonical='{"due":"2026-10-01","kind":"decision","options":[{"label":"Yes","recommended":true,"value":"yes"},{"hint":"Hold","label":"No","recommended":false,"value":"no"}],"owner":"relay-platform","question":"Ship it?\nSay “yes”.","repo":null,"schema":"fm-today-card.v1","task_id":"t-1","title":"Ship"}'
+  want=$(printf '%s' "$canonical" | sha256_hex)
+  got=$("${CHECK[@]}" hash "$card.owned") || fail "hash refused the owned fixture card"
+  [ "$got" = "$want" ] || fail "owned card_hash $got does not match the published definition $want"
+  pass "card_hash matches SHA-256 of the hand-written canonical serialization, with and without an owner"
+}
+
+# The card example a call or answer names: same task_id and same owner, an
+# absent owner read as (main).
+card_example_for() {  # <owner> <task_id>
+  local f
+  for f in "$CONTRACT"/examples/valid/card-*.json; do
+    jq -e --arg o "$1" --arg t "$2" '(.owner // "(main)") == $o and .task_id == $t' "$f" >/dev/null \
+      && { printf '%s\n' "$f"; return 0; }
+  done
+  return 1
 }
 
 test_example_hashes_recompute() {
-  local f stored got card_file task n=0
+  local f stored got card_file task owner n=0
   for f in "$CONTRACT"/examples/valid/card-*.json; do
     stored=$(jq -r .card_hash "$f")
     got=$("${CHECK[@]}" hash "$f") || fail "hash refused $(basename "$f")"
@@ -131,19 +152,19 @@ test_example_hashes_recompute() {
     n=$((n + 1))
   done
   # Each call in the snapshot is the same card a card example publishes.
-  while IFS= read -r task; do
-    card_file=$(grep -l "\"task_id\": \"$task\"" "$CONTRACT"/examples/valid/card-*.json | head -1)
-    [ -n "$card_file" ] || fail "snapshot call $task has no card example"
-    jq -e --arg t "$task" --slurpfile c "$card_file" \
-      '.sections.calls[] | select(.task_id == $t) | . == $c[0]' \
+  while IFS=$'\t' read -r owner task; do
+    card_file=$(card_example_for "$owner" "$task") || fail "snapshot call $owner $task has no card example"
+    jq -e --arg o "$owner" --arg t "$task" --slurpfile c "$card_file" \
+      '.sections.calls[] | select((.owner // "(main)") == $o and .task_id == $t) | . == $c[0]' \
       "$CONTRACT/examples/valid/snapshot.json" >/dev/null \
-      || fail "snapshot call $task differs from $(basename "$card_file")"
-  done < <(jq -r '.sections.calls[].task_id' "$CONTRACT/examples/valid/snapshot.json")
+      || fail "snapshot call $owner $task differs from $(basename "$card_file")"
+  done < <(jq -r '.sections.calls[] | [(.owner // "(main)"), .task_id] | @tsv' "$CONTRACT/examples/valid/snapshot.json")
   # Each answer carries the hash of the card it answers, as shown.
   for f in "$CONTRACT"/examples/valid/answer-*.json; do
     task=$(jq -r .task_id "$f")
-    card_file=$(grep -l "\"task_id\": \"$task\"" "$CONTRACT"/examples/valid/card-*.json | head -1)
-    [ -n "$card_file" ] || fail "$(basename "$f") answers $task, which has no card example"
+    owner=$(jq -r '.owner // "(main)"' "$f")
+    card_file=$(card_example_for "$owner" "$task") \
+      || fail "$(basename "$f") answers $owner $task, which has no card example"
     [ "$(jq -r .card_hash "$f")" = "$(jq -r .card_hash "$card_file")" ] \
       || fail "$(basename "$f") carries a card_hash other than $(basename "$card_file")'s"
     [ "$(jq -r .kind "$f")" = "$(jq -r .kind "$card_file")" ] \

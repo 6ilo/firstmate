@@ -77,7 +77,10 @@ Where a fact already exists in the bearings snapshot (`bin/fm-bearings-snapshot.
 | `day` | `date`, `ends_at`, `blocks[]` of `id`, `title`, `starts_at`, `ends_at` | The captain's calendar for one day, as the board's Today lane: `ends_at` is the instant the day is over in the captain's own time zone, each block's `id` is stable across snapshots, and its times are instants with an explicit UTC offset, ending at or after they start; at most 200 blocks. |
 
 `repo` is always present, as `owner/name`, or `null` when the work genuinely has no repository.
-Every work `id` appears once across `underway`, `charted_next`, and `landed`, and the three hold at most 1000 rows together.
+`owner` is the home that holds a card or a piece of work: `(main)` for the home the bridge runs in, otherwise the second mate's registered id, and its absence means `(main)`.
+The bridge sends `owner` on every card and work row, and an `id` or `task_id` is always the bare id in that home, so a second mate's `mate/task` travels as owner `mate` and id `task`.
+A work `id` is unique only within its home: each `owner` and `id` pair appears once across `underway`, `charted_next`, and `landed`, and the three hold at most 1000 rows together.
+A work or call id named in `waits_on` or `blocked_by` is in the row's own home.
 Every other timestamp in the contract is UTC with a `Z` suffix.
 A board's `link` opens only where the captain's private network reaches the captain's machine.
 
@@ -99,7 +102,8 @@ Firstmate composes every card; the portal renders it and never edits it.
 
 | Field | Meaning |
 | --- | --- |
-| `task_id` | The held task's id; the key of the call. |
+| `task_id` | The held task's id in its owning home. |
+| `owner` | The home that holds the call, as defined under the snapshot; `owner` and `task_id` together are the key of the call. |
 | `kind` | `decision`, `merge`, `credential`, or `go`. |
 | `title`, `question` | The call's heading and its full question; `question` may span lines. |
 | `options` | Up to 12 `{value, label, hint?, recommended}`, in the order shown; at most one is recommended, values are unique, and none is `later`. |
@@ -114,7 +118,7 @@ Every card carries at least one option except a `credential` card, which carries
 A decision card may carry a `reconcile` option, meaning "already settled, re-check", with the meaning [`captain-hold-lifecycle.md`](captain-hold-lifecycle.md) gives it.
 
 **`card_hash`.**
-Take the card's `schema`, `task_id`, `kind`, `title`, `question`, `options`, `repo`, `pr_url`, and `due` fields, leaving out any optional field the card does not carry.
+Take the card's `schema`, `task_id`, `owner`, `kind`, `title`, `question`, `options`, `repo`, `pr_url`, and `due` fields, leaving out any optional field the card does not carry.
 `repo` is always carried, so a call with no repository hashes `"repo":null`.
 Serialize that object with the JSON Canonicalization Scheme, RFC 8785: keys sorted, no whitespace, strings in UTF-8 with only the escapes RFC 8785 requires.
 `card_hash` is the SHA-256 of those bytes, as 64 lowercase hex characters.
@@ -128,7 +132,7 @@ An answer is what the portal sends back for one card.
 | Field | Meaning |
 | --- | --- |
 | `answer_id` | The portal's id for this answer, 8 to 64 of `A-Z a-z 0-9 _ -`; the key for receipts and duplicates. |
-| `task_id`, `kind` | Copied from the card answered. |
+| `task_id`, `owner`, `kind` | Copied from the card answered; `owner` is left out when the card carries none. |
 | `value` | One option value from the card, or `later`; on a `credential` card, `seen` or `later`. |
 | `later_until` | Required with `later` and allowed only with it: when to ask again, UTC. |
 | `note` | Optional words, up to 512 characters; firstmate also refuses more than 512 UTF-8 bytes. |
@@ -142,6 +146,7 @@ Join these seven strings with a single line feed, with no trailing line feed: th
 The WebAuthn challenge is the 32-byte SHA-256 of that UTF-8 text, so the signature binds this answer, this option, and this card as shown.
 None of those fields can contain a line feed, so the joined text is unambiguous.
 The `note` is not signed.
+The owner is not joined separately: it is bound through `card_hash`, so an answer re-pointed at another home's call with the same `task_id` no longer matches that call's hash.
 
 **The passkey assertion.**
 `passkey` carries `credential_id`, `authenticator_data`, `client_data_json`, and `signature`, each base64url without padding, exactly as the browser's assertion returned them.
@@ -163,15 +168,16 @@ Firstmate sends one receipt per answer, through the next answers call.
 | `refused` | The answer was not taken, and `reason` says why, such as a call that is no longer open, a value the card did not offer, or a signature that did not verify. |
 | `duplicate` | This `answer_id` was already received; nothing further happened. |
 
-Every receipt also carries `answer_id`, `task_id`, and `recorded_at`.
+Every receipt also carries `answer_id`, `task_id`, and `recorded_at`, and the answer's `owner` when it carried one.
 
 ## Rules the schemas cannot state
 
 The reference checker enforces these beside the schemas:
 
 - Every `card_hash` recomputes from its card.
-- Option values are unique within a card, and a call appears once in a snapshot.
-- A work id appears once across the three work sections, which hold at most 1000 rows together.
+- Option values are unique within a card, and a call appears once in a snapshot for each `owner` and `task_id` pair.
+- A work id appears once per `owner` across the three work sections, which hold at most 1000 rows together.
+- An absent `owner` counts as `(main)` in both keys.
 - Each day block's `id` is unique, its `starts_at` and `ends_at` name real instants (not, say, February 30), and its `ends_at` is at or after its `starts_at`.
 - A passkey assertion's `client_data_json` carries the challenge derived from its answer.
 
@@ -208,6 +214,7 @@ These differences are deliberate:
 | Tighter limits | Wider limits | Task ids are at most 128 characters without `:` or `/`, titles at most 200, and timestamps outside the day are UTC; each still fits the draft's limit. |
 | An `event` wait requires `label` | Optional | An unnamed outside event tells the captain nothing. |
 | `repo` required on every card and work row, `null` for none | Optional | The captain's standing rule: every row names its repository explicitly, and `null` means genuinely none. |
+| Card `owner`, and calls and work keyed by `owner` with the id | - | Today shows the whole fleet's work, and task ids are unique only within one home. |
 | Answers, receipts, and `POST /api/fleet/answers` | - | The draft covers the snapshot only. |
 
 ## Versioning
@@ -216,6 +223,8 @@ This is version 1, and every schema constant ends in `.v1`.
 An additive change keeps v1: a new optional field whose absence keeps today's meaning.
 Because the shapes are closed, the receiving side adopts the new schema before the sending side starts sending the field.
 Anything else is v2: a new required field, a removed or renamed field, a new enum value, a changed type, pattern, or meaning, or any change to how `card_hash` or the passkey challenge is computed.
+Two exceptions keep v1: a new optional field joining `card_hash`'s field list, because a card that lacks it hashes exactly as before, and a uniqueness rule relaxed so that every snapshot it accepted before it still accepts.
+The card `owner` is both, and it stays optional in v1 because a new required field is v2; a v2 would make it required.
 A v2 shape gets new `.v2` schema constants beside the v1 files, and both sides accept both versions until the change is complete.
 The required, nullable `repo` stays v1 because the portal's copy of v1 already required it and no v1 snapshot had been accepted before the two copies were made identical.
 The portal vendors the snapshot and card schema files byte-for-byte from this repository, so a change to either reaches the portal only as a fresh copy of both.
