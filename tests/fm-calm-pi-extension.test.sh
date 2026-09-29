@@ -4387,12 +4387,20 @@ const dom = require("node:fs").readFileSync(process.argv[2], "utf8");
 const messages = dom.match(/<div id="messages">([\s\S]*?)<\/main>/)?.[1];
 const tree = dom.match(/<div[^>]*id="tree-container"[^>]*>([\s\S]*?)<div[^>]*id="tree-status"/)?.[1];
 if (!messages || !tree) process.exit(1);
-if (!/<div class="user-message"[^>]*>[\s\S]*Show a deterministic tool example\./.test(messages)) process.exit(1);
-if (!/<div class="assistant-message"[^>]*>[\s\S]*The deterministic tool example is complete\./.test(messages)) process.exit(1);
-if (messages.includes('<div class="hook-message"')) process.exit(1);
-if (messages.includes("[firstmate-synthetic-input]")) process.exit(1);
+// Since Pi 0.99.0 the export keeps custom messages marked display:false in the
+// conversation as rows hidden by default behind a reader toggle, where older
+// Pi omitted them. The boundary is what a reader sees by default, so judge
+// only the rows the export shows while that toggle is off.
+const body = dom.match(/<body([^>]*)>/)?.[1];
+if (body === undefined || body.includes("show-hidden-messages")) process.exit(1);
+const rows = messages.split(/(?=<div class="[^"]*" id="entry-)/);
+const shown = rows.filter((row) => !/^<div class="[^"]*\bhook-message-hidden\b/.test(row)).join("");
+if (!/<div class="user-message"[^>]*>[\s\S]*Show a deterministic tool example\./.test(shown)) process.exit(1);
+if (!/<div class="assistant-message"[^>]*>[\s\S]*The deterministic tool example is complete\./.test(shown)) process.exit(1);
+if (/<div class="hook-message\b/.test(shown)) process.exit(1);
+if (shown.includes("[firstmate-synthetic-input]")) process.exit(1);
 for (const current of ["CURRENT_WATCHER_E2E", "CURRENT_TURN_END_E2E", "CURRENT_AWAY_E2E", "CURRENT_FROM_FIRSTMATE_E2E", "CURRENT_LAUNCH_BRIEF_E2E"]) {
-  if (!messages.includes(current)) process.exit(1);
+  if (!shown.includes(current)) process.exit(1);
 }
 if (!tree.includes("firstmate-synthetic-input") || !tree.includes("/tmp/probe.status")) process.exit(1);
 JS

@@ -2146,6 +2146,57 @@ ${context.command}
     return shell;
   };
 
+  // Pi owns the call line a tool without a call renderer shows, and 0.99.0
+  // changed it from the bare title to the title plus the call's arguments.
+  // Rendering it through a probe row of the installed Pi keeps the Calm-off
+  // shell stock on every release instead of copying one release's formatter.
+  const stockCallLine = (
+    toolName: string,
+    args: unknown,
+    theme: Parameters<NonNullable<ToolDefinition["renderCall"]>>[1],
+    expanded: boolean,
+  ): Text => {
+    const cache = new Map<number, string[]>();
+    // The bare title is what an older Pi shows, and the fallback if the probe fails.
+    const line = new Text(theme.fg("toolTitle", theme.bold(toolName)), 0, 0);
+    line.render = (width: number): string[] => {
+      const cached = cache.get(width);
+      if (cached) return cached;
+      const probeDefinition: ToolDefinition = {
+        name: toolName,
+        label: toolName,
+        description: toolName,
+        parameters: Type.Object({}),
+        renderShell: "self",
+        execute: async () => ({ content: [], details: undefined }),
+      };
+      let lines: string[];
+      try {
+        const probe = new ToolExecutionComponent(
+          toolName,
+          "fm-stock-call-probe",
+          args,
+          { showImages: false },
+          probeDefinition,
+          { requestRender() {} } as ConstructorParameters<typeof ToolExecutionComponent>[5],
+          root,
+        );
+        probe.setExpanded(expanded);
+        // A self-shell row renders one leading spacer line before its content.
+        lines = probe.render(width).slice(1);
+      } catch {
+        lines = Text.prototype.render.call(line, width);
+      }
+      cache.set(width, lines);
+      return lines;
+    };
+    line.invalidate = () => {
+      cache.clear();
+      Text.prototype.invalidate.call(line);
+    };
+    return line;
+  };
+
   registerFirstmateTool(pi, {
     name: "fm_branch_outcomes",
     label: "Read supervision branch outcomes",
@@ -2156,11 +2207,11 @@ ${context.command}
       recent: Type.Optional(Type.Number({ description: "How many most-recent outcomes to read (default 20)" })),
     }),
     renderShell: "self",
-    renderCall: (_args, theme, context) => {
+    renderCall: (args, theme, context) => {
       if (calmPresentation.stockExportRendering) throw new Error("Use Pi stock export rendering");
       if (calmHides("assistant-tool-call")) return new Container();
       const shellState = context.state as OutcomesToolShellState;
-      shellState.call = new Text(theme.fg("toolTitle", theme.bold("fm_branch_outcomes")), 0, 0);
+      shellState.call = stockCallLine("fm_branch_outcomes", args, theme, context.expanded);
       return refreshOutcomesToolShell(shellState, theme, context);
     },
     renderResult: (result, options, theme, context) => {
@@ -2218,11 +2269,11 @@ ${context.command}
       through: Type.Number({ description: "The highest outcome sequence number this conversation has processed" }),
     }),
     renderShell: "self",
-    renderCall: (_args, theme, context) => {
+    renderCall: (args, theme, context) => {
       if (calmPresentation.stockExportRendering) throw new Error("Use Pi stock export rendering");
       if (calmHides("assistant-tool-call")) return new Container();
       const shellState = context.state as OutcomesToolShellState;
-      shellState.call = new Text(theme.fg("toolTitle", theme.bold("fm_branch_processed")), 0, 0);
+      shellState.call = stockCallLine("fm_branch_processed", args, theme, context.expanded);
       return refreshOutcomesToolShell(shellState, theme, context);
     },
     renderResult: (result, _options, theme, context) => {
