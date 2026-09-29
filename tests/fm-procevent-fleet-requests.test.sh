@@ -77,7 +77,8 @@ stub_at_least() { [ "$(stub_count "$1" "$2")" -ge "$3" ]; }
 source_gone() { [ ! -e "$1/state/procevent/fleet-requests.source" ]; }
 
 # The stub portal: a queue in <dir>/queue.json whose items are served as-is
-# with a lease added (an item with _withdraw_on_pull is withdrawn right after it
+# with a lease added (an item with _ack_code has its ack answered with that
+# code; an item with _withdraw_on_pull is withdrawn right after it
 # is served, so its ack is refused with state withdrawn); <dir>/mode is ok or 401; <dir>/withdrawn.json is the
 # withdrawal feed returned when ?since= is present. Every call is logged as
 # "<METHOD> <path> <auth>" to <dir>/log.
@@ -146,6 +147,8 @@ class H(http.server.BaseHTTPRequestHandler):
         queue = load("queue.json")
         for item in queue:
             if item.get("id") == parts[4] and parts[5] == "ack":
+                if item.get("_ack_code"):
+                    return self.reply(item["_ack_code"], {"error": "unavailable"})
                 if item.get("_state") == "submitted" and item.get("_lease") == body.get("lease_id"):
                     item["_state"] = "pulled"
                     save("queue.json", queue)
@@ -274,8 +277,26 @@ fr "$H" read "$R4"
 assert_equals "$(jq -r '.requests[0].request.id' "$OUT")" "$ID3" "the request is delivered"
 assert_equals "$(jq -r '.requests[0].validity' "$OUT")" valid "the request is valid"
 assert_equals "$(jq -r '.requests[0].ack' "$OUT")" withdrawn "the refused ack is recorded as withdrawn"
-FM_HOME="$H" "$ADAPTER" retire >/dev/null 2>&1
 pass "a request withdrawn before its ack records the ack as withdrawn"
+
+# --- a failed ack leaves the request filable, never withdrawn ----------------
+ID4=44444444-4444-4444-8444-444444444444
+jq --argjson r "$(request_json "$ID4" | jq -c '. + {_ack_code: 503}')" '. + [$r]' "$STUB/queue.json" > "$STUB/q.tmp" \
+  && mv "$STUB/q.tmp" "$STUB/queue.json"
+wait_until 150 reconciled_has_results "$H" 5 || fail "the request with a failed ack was not captured"
+wait_until 150 stub_at_least "$STUB" "POST /api/fleet/requests/$ID4/ack" 1 || fail "the request was never acked"
+R5=$(results "$H" | sort -t. -k2 -n | tail -1)
+ack_is_refused() { fr "$H" read "$R5"; [ "$(jq -r '.requests[0].ack' "$OUT")" = "refused: 503" ]; }
+wait_until 150 ack_is_refused || fail "the failed ack was not recorded as refused: 503"
+assert_equals "$(jq -r '.requests[0].request.id' "$OUT")" "$ID4" "the request is delivered"
+assert_equals "$(jq -r '.requests[0].validity' "$OUT")" valid "a failed ack leaves the request valid"
+FM_HOME="$H" "$ADAPTER" retire >/dev/null 2>&1
+H_PENDING=$TMP_ROOT/h-pending
+mkdir -p "$H_PENDING/state"
+fr "$H_PENDING" read "$R5"
+assert_equals "$(jq -r '.requests[0].ack' "$OUT")" pending "a result read before its ack reads as pending"
+assert_equals "$(jq -r '.requests[0].validity' "$OUT")" valid "a pending ack leaves the request valid"
+pass "a failed or pending ack leaves the request valid and not withdrawn"
 
 # --- 401 reports plainly and sends nothing else ------------------------------
 STUB401="$TMP_ROOT/stub401"

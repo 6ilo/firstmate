@@ -1605,7 +1605,7 @@ The token reaches `curl` only through a private header file, never a command lin
 - `bin/fm-procevent-fleet-requests.sh arm` checks the settings and registers the `fleet-requests` source; a missing or unsafe setting exits 2 and registers nothing.
 - Each delivery is one captured result carrying every request not captured before and every withdrawal not reported before; the source stays armed and keeps pulling.
 - After capture, the adapter acks each request's lease, so the portal moves it to `pulled` and never hands it out again.
-- A request staff withdrew before its ack is recorded with the ack outcome `withdrawn`, and firstmate files nothing for it.
+- A request staff withdrew before its ack is recorded with the ack outcome `withdrawn`, and firstmate files nothing for it; firstmate still files a valid request whose ack is pending, unreachable, or otherwise refused.
 - A request that fails the schema is captured and marked invalid rather than dropped.
 - A refused token, an unreachable portal, or a response that does not match the seam is captured as an error result that sends nothing further and retires the source; arm it again once the cause is fixed.
 - Its private pull cursor and captured ledger live under `state/fleet-requests/`, which `retire` keeps so arming again never re-delivers a captured request.
