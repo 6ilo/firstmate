@@ -28,7 +28,8 @@
 #     fixing round, an approval gate, or any status word this sweep does not
 #     know keeps the run's processes untouched.
 # A run whose copy still exists but whose status cannot be read, or reads
-# ambiguously, is left alone.
+# ambiguously, is left alone. FM_NM_REAP_STATUS_TIMEOUT bounds each status read
+# in seconds (default 10).
 # Process age is never evidence.
 #
 # This process, its own process group, and every ancestor are never signalled.
