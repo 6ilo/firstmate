@@ -1,0 +1,9 @@
+run 1 exit 0
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv
+run 2 exit 0
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv
+run 3 exit 0
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv

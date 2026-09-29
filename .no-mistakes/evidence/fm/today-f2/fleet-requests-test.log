@@ -1,0 +1,10 @@
+ok - arm refuses missing or unsafe settings
+ok - a new request is captured, acked, and wakes firstmate once
+ok - a repeat poll does not re-deliver an acknowledged request
+ok - a withdrawal is reported once
+ok - a schema-invalid request is captured as invalid evidence
+ok - a request withdrawn before its ack records the ack as withdrawn
+ok - a failed or pending ack leaves the request valid and not withdrawn
+ok - a 401 reports plainly and sends nothing else
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv

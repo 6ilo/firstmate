@@ -1,0 +1,26 @@
+$ bin/fm-procevent-fleet-requests.sh arm --interval 2
+registered: fleet-requests (fleet-requests)
+armed: fleet-requests
+portal: http://127.0.0.1:60716
+interval: 2s
+exit 0
+$ ls state/procevent-inbox
+fleet-requests.1.adapter
+fleet-requests.1.result
+$ cat state/.wake-queue
+1790647174	1	check	procevent:fleet-requests:1	check: procevent fleet-requests fleet-requests 1
+$ stub portal log (auth header redacted)
+GET /api/fleet/requests?limit=10 Bearer <redacted>
+POST /api/fleet/requests/aaaaaaaa-1111-4111-8111-111111111111/ack Bearer <redacted>
+POST /api/fleet/requests/bbbbbbbb-2222-4222-8222-222222222222/ack Bearer <redacted>
+POST /api/fleet/requests/cccccccc-3333-4333-8333-333333333333/ack Bearer <redacted>
+$ bin/fm-procevent-fleet-requests.sh classify <result>
+requests
+$ bin/fm-procevent-fleet-requests.sh read <result> | jq (id, validity, ack, errors)
+{"id":"aaaaaaaa-1111-4111-8111-111111111111","validity":"valid","ack":"accepted","errors":[]}
+{"id":"bbbbbbbb-2222-4222-8222-222222222222","validity":"valid","ack":"withdrawn","errors":[]}
+{"id":"cccccccc-3333-4333-8333-333333333333","validity":"invalid","ack":"accepted","errors":["$.kind: not an allowed value"]}
+$ portal queue state after
+{"id":"aaaaaaaa-1111-4111-8111-111111111111","_state":"pulled"}
+{"id":"bbbbbbbb-2222-4222-8222-222222222222","_state":"withdrawn"}
+{"id":"cccccccc-3333-4333-8333-333333333333","_state":"pulled"}

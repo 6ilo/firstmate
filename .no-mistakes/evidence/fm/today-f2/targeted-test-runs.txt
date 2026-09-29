@@ -1,0 +1,113 @@
+== run 1
+ok - arm refuses missing or unsafe settings
+ok - a new request is captured, acked, and wakes firstmate once
+ok - a repeat poll does not re-deliver an acknowledged request
+ok - a withdrawal is reported once
+ok - a schema-invalid request is captured as invalid evidence
+ok - a request withdrawn before its ack records the ack as withdrawn
+ok - a failed or pending ack leaves the request valid and not withdrawn
+ok - a 401 reports plainly and sends nothing else
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv
+exit 
+== run 2
+ok - arm refuses missing or unsafe settings
+ok - a new request is captured, acked, and wakes firstmate once
+ok - a repeat poll does not re-deliver an acknowledged request
+ok - a withdrawal is reported once
+ok - a schema-invalid request is captured as invalid evidence
+ok - a request withdrawn before its ack records the ack as withdrawn
+ok - a failed or pending ack leaves the request valid and not withdrawn
+ok - a 401 reports plainly and sends nothing else
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv
+exit 
+== run 3
+    return loads(fp.read(),
+        cls=cls, object_hook=object_hook,
+        parse_float=parse_float, parse_int=parse_int,
+        parse_constant=parse_constant, object_pairs_hook=object_pairs_hook, **kw)
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/__init__.py", line 352, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+----------------------------------------
+not ok - the result classifies as withdrawn (expected 'error', got 'withdrawn')
+exit 
+== run 1 (after atomic stub writes)
+ok - arm refuses missing or unsafe settings
+ok - a new request is captured, acked, and wakes firstmate once
+ok - a repeat poll does not re-deliver an acknowledged request
+ok - a withdrawal is reported once
+ok - a schema-invalid request is captured as invalid evidence
+ok - a request withdrawn before its ack records the ack as withdrawn
+ok - a failed or pending ack leaves the request valid and not withdrawn
+ok - a 401 reports plainly and sends nothing else
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv
+exit 0
+== run 2 (after atomic stub writes)
+ok - arm refuses missing or unsafe settings
+ok - a new request is captured, acked, and wakes firstmate once
+ok - a repeat poll does not re-deliver an acknowledged request
+ok - a withdrawal is reported once
+ok - a schema-invalid request is captured as invalid evidence
+ok - a request withdrawn before its ack records the ack as withdrawn
+ok - a failed or pending ack leaves the request valid and not withdrawn
+ok - a 401 reports plainly and sends nothing else
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv
+exit 0
+== run 3 (after atomic stub writes)
+ok - arm refuses missing or unsafe settings
+ok - a new request is captured, acked, and wakes firstmate once
+ok - a repeat poll does not re-deliver an acknowledged request
+ok - a withdrawal is reported once
+ok - a schema-invalid request is captured as invalid evidence
+ok - a request withdrawn before its ack records the ack as withdrawn
+ok - a failed or pending ack leaves the request valid and not withdrawn
+ok - a 401 reports plainly and sends nothing else
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv
+exit 0
+== run 4 (after atomic stub writes)
+ok - arm refuses missing or unsafe settings
+ok - a new request is captured, acked, and wakes firstmate once
+ok - a repeat poll does not re-deliver an acknowledged request
+ok - a withdrawal is reported once
+ok - a schema-invalid request is captured as invalid evidence
+ok - a request withdrawn before its ack records the ack as withdrawn
+ok - a failed or pending ack leaves the request valid and not withdrawn
+ok - a 401 reports plainly and sends nothing else
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv
+exit 0
+== run 5 (after atomic stub writes)
+ok - arm refuses missing or unsafe settings
+ok - a new request is captured, acked, and wakes firstmate once
+ok - a repeat poll does not re-deliver an acknowledged request
+ok - a withdrawal is reported once
+ok - a schema-invalid request is captured as invalid evidence
+ok - a request withdrawn before its ack records the ack as withdrawn
+ok - a failed or pending ack leaves the request valid and not withdrawn
+ok - a 401 reports plainly and sends nothing else
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv
+exit 0
+== run 6 (after atomic stub writes)
+ok - arm refuses missing or unsafe settings
+ok - a new request is captured, acked, and wakes firstmate once
+ok - a repeat poll does not re-deliver an acknowledged request
+ok - a withdrawal is reported once
+ok - a schema-invalid request is captured as invalid evidence
+ok - a request withdrawn before its ack records the ack as withdrawn
+ok - a failed or pending ack leaves the request valid and not withdrawn
+ok - a 401 reports plainly and sends nothing else
+ok - network failure reports plainly
+ok - the token never appears in output, state, or curl argv
+exit 0
