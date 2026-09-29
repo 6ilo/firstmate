@@ -95,8 +95,10 @@ def load(name):
     with open(os.path.join(d, name)) as fh:
         return json.load(fh)
 def save(name, value):
-    with open(os.path.join(d, name), "w") as fh:
+    # Atomic, so a test reading the queue never sees a half-written file.
+    with open(os.path.join(d, name + ".stub-tmp"), "w") as fh:
         json.dump(value, fh)
+    os.replace(os.path.join(d, name + ".stub-tmp"), os.path.join(d, name))
 class H(http.server.BaseHTTPRequestHandler):
     def reply(self, code, obj):
         data = json.dumps(obj).encode()
@@ -240,7 +242,8 @@ grep -q 'since=' "$STUB/log" || fail "later pulls pass the since cursor"
 pass "a repeat poll does not re-deliver an acknowledged request"
 
 # --- a withdrawal of a captured request is reported once ---------------------
-jq -nc --arg id "$ID1" '[{id: $id, withdrawn_at: 1790000001000}]' > "$STUB/withdrawn.json"
+# Replace stub files atomically: the stub may read them mid-write.
+jq -nc --arg id "$ID1" '[{id: $id, withdrawn_at: 1790000001000}]' > "$STUB/w.tmp" && mv "$STUB/w.tmp" "$STUB/withdrawn.json"
 wait_until 150 has_results "$H" 2 || fail "the withdrawal was not captured"
 R2=$(results "$H" | sort -t. -k2 -n | tail -1)
 fr "$H" classify "$R2"
@@ -253,7 +256,7 @@ assert_equals "$(result_count "$H")" 2 "a repeated withdrawal is not re-reported
 pass "a withdrawal is reported once"
 
 # --- a schema-invalid request is captured as invalid evidence ----------------
-jq -n '[]' > "$STUB/withdrawn.json"
+jq -n '[]' > "$STUB/w.tmp" && mv "$STUB/w.tmp" "$STUB/withdrawn.json"
 jq --argjson r "$(request_json "$ID2" bogus-kind)" '. + [$r]' "$STUB/queue.json" > "$STUB/q.tmp" \
   && mv "$STUB/q.tmp" "$STUB/queue.json"
 wait_until 150 has_results "$H" 3 || fail "the invalid request was dropped"
