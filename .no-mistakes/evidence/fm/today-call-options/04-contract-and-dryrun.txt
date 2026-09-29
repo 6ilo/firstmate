@@ -1,0 +1,12 @@
+$ python3 tests/fm-today-contract-check.py check docs/today-contract 03-today-snapshot.json
+ok
+exit=0
+$ fm-today-contract-check.py hash <launch-week card> vs card_hash
+672b8ff3b62de1af22c253e1d1781ac1683742eb790185d5d38b1e291ed409fa
+672b8ff3b62de1af22c253e1d1781ac1683742eb790185d5d38b1e291ed409fa
+$ bin/fm-today-bridge.sh push --dry-run out.json
+ok
+dry-run: wrote /Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3QB9HSSPZDZEKCAA7Y6FYZ6/04-push-dryrun.json; nothing was sent
+exit=0
+{"task_id":"launch-week","values":["week-1","week-2","reconcile"]}
+{"task_id":"pick-venue","values":["reconcile"]}

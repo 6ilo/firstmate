@@ -1,0 +1,2 @@
+fm-today-bridge: left out call pick-venue option "later": a value the card cannot carry
+fm-today-bridge: left out call pick-venue option "hall": a value the card cannot carry

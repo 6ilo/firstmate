@@ -1,0 +1,13 @@
+--- hand-edited pick-venue body ---
+- [ ] pick-venue - Pick a venue (repo: firstmate) (kind: captain) (since 2026-09-29) (hold: captain venue choice) (hold-kind: captain)
+  Captain hold set: 2026-09-29T19:48:50Z
+  Captain hold option: {"value":"hall","label":"Town hall","recommended":true}
+  Captain hold option: {"value":"later","label":"Reserved","recommended":false}
+  Captain hold option: {"value":"hall","label":"Repeat","recommended":false}
+  Captain hold option: not json
+snapshot exit=0
+--- stderr ---
+fm-today-bridge: left out call pick-venue option "later": a value the card cannot carry
+fm-today-bridge: left out call pick-venue option "hall": a value the card cannot carry
+[{"value":"hall","label":"Town hall","recommended":true},{"value":"reconcile","label":"Reconcile","hint":"Re-check the latest state, then close this with evidence or keep it open with a note","recommended":false}]
+ok

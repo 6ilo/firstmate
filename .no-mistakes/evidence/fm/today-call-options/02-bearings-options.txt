@@ -1,0 +1,37 @@
+$ bin/fm-bearings-snapshot.sh --json --all-decisions | jq .decisions_open
+[
+  {
+    "id": "launch-week",
+    "key": "launch-week",
+    "verb": "captain-hold",
+    "summary": "Choose the launch week: due 2026-10-05: which week should we launch",
+    "owner": "(main)",
+    "options": [
+      {
+        "value": "week-1",
+        "label": "First week",
+        "hint": "Ships before the review",
+        "recommended": true
+      },
+      {
+        "value": "week-2",
+        "label": "Second week",
+        "recommended": false
+      }
+    ]
+  },
+  {
+    "id": "pick-venue",
+    "key": "pick-venue",
+    "verb": "captain-hold",
+    "summary": "Pick a venue: captain venue choice",
+    "owner": "(main)"
+  }
+]
+exit=
+$ bin/fm-bearings-snapshot.sh --all-decisions   (TOON; options must not appear)
+decisions_open[2]{id,key,verb,summary,owner}:
+  launch-week,launch-week,captain-hold,"Choose the launch week: due 2026-10-05: which week should we launch",(main)
+  pick-venue,pick-venue,captain-hold,"Pick a venue: captain venue choice",(main)
+landed: []
+grep week-1 in TOON count: 0

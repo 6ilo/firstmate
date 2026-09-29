@@ -1,0 +1,40 @@
+$ hold pick-supplier --option "north|North depot|Write to jo.smith@example.org" --option "south|South depot" --recommend south
+pick-supplier
+exit=0
+snapshot exit=0
+{
+  "schema": "fm-today-card.v1",
+  "task_id": "pick-supplier",
+  "kind": "decision",
+  "title": "A call is waiting on the machine",
+  "question": "This call's text stays on the machine. Read it there.",
+  "options": [
+    {
+      "value": "north",
+      "label": "Option 1",
+      "recommended": false,
+      "hint": "Text kept on the machine"
+    },
+    {
+      "value": "south",
+      "label": "Option 2",
+      "recommended": true
+    },
+    {
+      "value": "reconcile",
+      "label": "Reconcile",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ],
+  "repo": null,
+  "text_check": {
+    "verdict": "withheld",
+    "checker": "fm-today-text-check@1.0.0",
+    "checked_at": "2026-09-29T19:49:39Z"
+  },
+  "card_hash": "bec0a9babd3f770e895bfd352379f9c4969ece8cb70ce7853a91a5a84df43767"
+}
+occurrences of 'depot' or 'jo.smith' in snapshot: 0
+ok
+contract exit=0

@@ -1,0 +1,18 @@
+$ bin/fm-captain-hold.sh hold launch-week --title "Choose the launch week" --reason "which week should we launch" --repo firstmate --due 2026-10-05 --option "week-1|First week|Ships before the review" --option "week-2|Second week" --recommend week-1
+launch-week
+exit=0
+$ bin/fm-captain-hold.sh hold pick-venue --title "Pick a venue" --reason "captain venue choice" --repo firstmate
+pick-venue
+exit=0
+--- backlog.md ---
+## In flight
+
+## Queued
+- [ ] launch-week - Choose the launch week (repo: firstmate) (kind: captain) (since 2026-09-29) (hold: which week should we launch) (hold-kind: captain)
+  Captain hold set: 2026-09-29T19:48:49Z
+  Captain hold due: 2026-10-05
+  Captain hold option: {"value":"week-1","label":"First week","hint":"Ships before the review","recommended":true}
+  Captain hold option: {"value":"week-2","label":"Second week","recommended":false}
+- [ ] pick-venue - Pick a venue (repo: firstmate) (kind: captain) (since 2026-09-29) (hold: captain venue choice) (hold-kind: captain)
+  Captain hold set: 2026-09-29T19:48:50Z
+## Done

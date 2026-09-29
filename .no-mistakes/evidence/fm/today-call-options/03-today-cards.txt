@@ -1,0 +1,78 @@
+$ bin/fm-today-bridge.sh snapshot | jq .sections.calls
+exit=0
+[
+  {
+    "schema": "fm-today-card.v1",
+    "task_id": "launch-week",
+    "kind": "decision",
+    "title": "Choose the launch week: due 2026-10-05: which week should we launch",
+    "question": "Choose the launch week: due 2026-10-05: which week should we launch",
+    "options": [
+      {
+        "value": "week-1",
+        "label": "First week",
+        "hint": "Ships before the review",
+        "recommended": true
+      },
+      {
+        "value": "week-2",
+        "label": "Second week",
+        "recommended": false
+      },
+      {
+        "value": "reconcile",
+        "label": "Reconcile",
+        "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+        "recommended": false
+      }
+    ],
+    "repo": null,
+    "text_check": {
+      "verdict": "pass",
+      "checker": "fm-today-text-check@1.0.0",
+      "checked_at": "2026-09-29T19:49:01Z"
+    },
+    "card_hash": "672b8ff3b62de1af22c253e1d1781ac1683742eb790185d5d38b1e291ed409fa"
+  },
+  {
+    "schema": "fm-today-card.v1",
+    "task_id": "pick-venue",
+    "kind": "decision",
+    "title": "Pick a venue: captain venue choice",
+    "question": "Pick a venue: captain venue choice",
+    "options": [
+      {
+        "value": "reconcile",
+        "label": "Reconcile",
+        "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+        "recommended": false
+      }
+    ],
+    "repo": null,
+    "text_check": {
+      "verdict": "pass",
+      "checker": "fm-today-text-check@1.0.0",
+      "checked_at": "2026-09-29T19:49:01Z"
+    },
+    "card_hash": "6aeae4501f920d952c4abadf8e4a3723cc00add7d0db6df46aaa1361ee98cf2a"
+  }
+]
+$ python3 tests/fm-today-contract-check.py (contract reference checker)
+Check Today contract documents against docs/today-contract/*.schema.json.
+
+Standard library only, so the check runs anywhere python3 does, CI included.
+It implements the subset of JSON Schema draft 2020-12 the Today schemas use and
+refuses any keyword it does not implement, so a schema can never be checked
+more loosely than it reads.
+Beyond the schema, it recomputes every card_hash and every passkey challenge
+exactly as docs/today-contract.md defines them.
+
+Usage:
+  fm-today-contract-check.py check <schema-dir> <document.json>
+      Print "ok" and exit 0, or print one "error: <where>: <why>" line per
+      failure and exit 1.
+  fm-today-contract-check.py hash <card.json>
+      Print the card_hash the card's shown fields produce.
+  fm-today-contract-check.py challenge <answer.json>
+      Print the base64url WebAuthn challenge the answer's fields produce.
+check exit=2
