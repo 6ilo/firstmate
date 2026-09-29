@@ -2242,6 +2242,27 @@ ok - under the away-posture record the wake carries the verbatim read-back tail,
 
 The merge suite and the security suite dominate the wall time.
 
+### 2026-09-29 Pi 0.99.1 SDK compatibility refresh
+
+The credential-free live guard and strict typecheck were rerun against an isolated npm install of `@earendil-works/pi-coding-agent` 0.99.1 selected with `FM_PI_PACKAGE_DIR`, on Darwin 24.6.0 arm64 and Node v25.9.0, with no provider call.
+
+```sh
+FM_PI_PACKAGE_DIR=<pi 0.99.1> bash tests/fm-pi-primary-types.test.sh
+FM_PI_BRANCH_LIVE_E2E=1 FM_PI_PACKAGE_DIR=<pi 0.99.1> PATH=<pi 0.99.1 bin>:$PATH bash tests/fm-pi-branch-live-e2e.test.sh
+```
+
+```text
+ok - tracked Pi extensions pass strict no-emit typecheck against Pi 0.99.1
+ok - real Pi SDK 0.99.1 accepts the branch session construction and preserves an unpromptable wake
+ok - real Pi SDK 0.99.1 rejects a post-construction 429 to watcher-owned main delivery without losing its durable row
+ok - real Pi SDK 0.99.1 applies an explicit branch model on create and over a reopened session's recorded model
+ok - real Pi SDK 0.99.1 reports its own supported effort levels and applies an explicit branch effort over a reopened session's recorded level
+ok - real Pi SDK 0.99.1 immediately renders appendEntry in the active transcript, persists it across reopen, and excludes it from model context
+ok - real Pi SDK 0.99.1 queues a streaming-time watcher wake without before_agent_start, keeps the successor chain, and surfaces consumption of both follow-ups
+```
+
+Pi 0.99.0 changed the stock tool call line and the HTML export's hidden custom-message rows; [`calm-mode-feasibility.md`](../calm-mode-feasibility.md#2026-09-29-pi-0991-call-line-and-hidden-export-row-verification) owns that version-scoped renderer and export evidence.
+
 ## Native Codex through Pi
 
 Verified on 2026-09-08 with Pi 0.85.1 and the installed `pi-codex-native` 0.2.1 adapter.

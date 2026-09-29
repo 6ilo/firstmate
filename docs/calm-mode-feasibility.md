@@ -299,7 +299,7 @@ The same real-Pi reproduction then delivered the notification exactly once in a 
 
 ## Regression coverage
 
-`tests/fm-calm-pi-extension.test.sh` compares wrapped and stock renderers and verifies all seven built-ins plus `fm_watch_arm_pi`; `tests/fm-pi-branch-extension.test.sh` verifies `fm_branch_outcomes` Calm toggling, capability-probed all-line versus collapsed stock output, exact expanded output, and export rendering.
+`tests/fm-calm-pi-extension.test.sh` compares wrapped and stock renderers and verifies all seven built-ins plus `fm_watch_arm_pi`; `tests/fm-pi-branch-extension.test.sh` verifies `fm_branch_outcomes` Calm toggling, the stock call line rendered through the installed Pi, capability-probed all-line versus collapsed stock output, exact expanded output, and export rendering.
 Together they exercise redraw of already-rendered tool, thinking, current operational-user, and legacy synthetic rows, and cover every policy class.
 It covers persisted preference restoration across every session-start reason and a real restart, proves the working-ship presentation and Calm-off stock `Working...` row through a delayed deterministic provider, asserts no Calm status row, verifies operational messages remain exact ordinary user-role session entries and complete exports, and drives genuine 100 by 44, 160 by 36, and 180 by 44 terminal fixtures.
 A native deterministic `/skill:ahoy` turn produces thinking, tool-call, and tool-result blocks, asserts that the collapsed skill-to-final gap equals the two-row visible-only baseline, expands and re-collapses original thinking, restores Calm-off rendering, verifies persisted hidden history, and repeats the geometry assertion after restart with `terminal.clearOnShrink` explicitly off.
@@ -670,6 +670,47 @@ not ok - Pi 0.87.1 lacks the queue-retention capability Calm needs to hide queue
 ```
 
 With the queued-row adapter left uninstalled, the real-Pi Escape case failed on the listed notification, `Pi Calm listed a queued Firstmate notification`.
+
+## 2026-09-29 Pi 0.99.1 call-line and hidden-export-row verification
+
+Pi 0.99.0 changed two stock surfaces Calm is compared against, both intended upstream per its changelog.
+A tool without a call renderer now shows its arguments: `key=value` pairs on the title line when collapsed, and one `key: value` line per argument when expanded.
+The HTML export now keeps custom messages marked `display: false` in the conversation as `hook-message hook-message-hidden` rows labeled `Hidden in terminal`, hidden by default and revealed by a reader toggle (`H`), where older Pi omitted them.
+
+The `fm_branch_outcomes` and `fm_branch_processed` self-shell renderers now draw their Calm-off call line through a probe `ToolExecutionComponent` of the installed Pi instead of a copied bare title, so Calm-off matches stock on 0.87.1 and 0.99.1 alike, and the bare title remains the fallback if the probe fails.
+The rendered-export-DOM boundary in `tests/fm-calm-pi-extension.test.sh` now judges the rows the export shows while the reveal toggle is off: the page body must not start with hidden messages revealed, and no shown row may carry `[firstmate-synthetic-input]` or be a custom-message row.
+Calm itself does not alter the export, which still carries every hidden Firstmate input as [`calm.md`](calm.md) requires.
+
+Both cases ran on Darwin 24.6.0 arm64, Node v25.9.0, tmux 3.7c, and Google Chrome, against the globally installed `@earendil-works/pi-coding-agent` 0.87.1 and an isolated npm install of 0.99.1 selected with `FM_PI_PACKAGE_DIR` and `PATH`, with TypeScript 7.0.2 installed only for the typecheck.
+No provider call was made and the globally installed Pi was not changed.
+
+```sh
+FM_PI_PACKAGE_DIR=<pi 0.99.1> bash tests/fm-pi-branch-extension.test.sh
+FM_PI_PACKAGE_DIR=<pi 0.99.1> PATH=<pi 0.99.1 bin>:$PATH bash tests/fm-calm-pi-extension.test.sh
+FM_PI_PACKAGE_DIR=<pi 0.99.1> bash tests/fm-pi-primary-types.test.sh
+bash tests/fm-pi-branch-extension.test.sh
+bash tests/fm-calm-pi-extension.test.sh
+bash tests/fm-pi-primary-types.test.sh
+```
+
+Before the change, against 0.99.1:
+
+```text
+not ok - Pi outcomes rendering consumers must preserve stock behavior: ...
+Error: Calm-off ToolExecutionComponent rendering differs from Pi stock
+not ok - rendered export DOM violated the Calm conversation boundary
+```
+
+After the change, against 0.99.1 and then 0.87.1, every case in both suites passed, including:
+
+```text
+ok - fm_branch_outcomes hides through ToolExecutionComponent while Calm-off and HTML export stay stock
+ok - Pi calm native E2E replaces the stock working row with a moving, resize-clamped working ship that freezes and resumes across two working periods in one Pi session, clears on abort, keeps captain turns visible, hides exact operational user rows without changing persistence, restores stock rendering Calm-off, survives restart, and preserves export plus Ctrl+O behavior
+ok - tracked Pi extensions pass strict no-emit typecheck against Pi 0.99.1
+ok - tracked Pi extensions pass strict no-emit typecheck against Pi 0.87.1
+```
+
+Against the real 0.99.1 export DOM, the boundary check failed as designed when the synthetic row's `hook-message-hidden` class was removed, and when the page body started with `show-hidden-messages`.
 
 ## 2026-09-15 Claude Code 2.1.272 mods feasibility and the shipped mod
 
