@@ -277,6 +277,12 @@
 #     root still exists, so the account's healthy LaunchAgent worker and every
 #     live remote secondmate worker are out of scope. Best effort: a sweep
 #     failure never blocks this teardown.
+#   Fix 4 - reap orphaned no-mistakes run processes. A test step's worker pool
+#     (vitest's, observed) can outlive the step at parent 1 inside the run's
+#     own copy, which Fix 2 never sees. bin/fm-nm-reap-run-orphans.sh owns that
+#     sweep and its safety rule; teardown runs the same sweep the watcher runs
+#     on its own cadence. Best effort: a sweep failure never blocks this
+#     teardown.
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -3542,6 +3548,10 @@ fi
 # Fix 3 (see script header): sweep remote job workers abandoned by an already
 # pruned code root. Best effort - a sweep failure never blocks this teardown.
 "$SCRIPT_DIR/fm-remote-job-reap-orphans.sh" >&2 || true
+
+# Fix 4 (see script header): reap processes no-mistakes runs left orphaned in
+# their run copies. Best effort - never blocks this teardown.
+"$SCRIPT_DIR/fm-nm-reap-run-orphans.sh" >&2 || true
 
 # Best-effort: drop the local task branch so the shared repo does not accumulate refs.
 if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then

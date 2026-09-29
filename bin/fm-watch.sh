@@ -351,6 +351,9 @@ case "$SECONDMATE_WAKE_STALL_SECS" in ''|*[!0-9]*|0) SECONDMATE_WAKE_STALL_SECS=
 # relaunch wake cannot restart the probe into a tight loop.
 SECONDMATE_LIVENESS_SECS=${FM_SECONDMATE_LIVENESS_SECS:-}
 case "$SECONDMATE_LIVENESS_SECS" in ''|*[!0-9]*|0) SECONDMATE_LIVENESS_SECS=60 ;; esac
+# Orphaned no-mistakes run processes (bin/fm-nm-reap-run-orphans.sh owns the rule) are swept detached on this cadence, off the beacon's path.
+NM_RUN_ORPHAN_REAP_SECS=${FM_NM_RUN_ORPHAN_REAP_SECS:-}
+case "$NM_RUN_ORPHAN_REAP_SECS" in ''|*[!0-9]*|0) NM_RUN_ORPHAN_REAP_SECS=300 ;; esac
 # Per-relaunch wall-clock bound, so a wedged spawn cannot stall the poll.
 SECONDMATE_LIVENESS_TIMEOUT=${FM_SECONDMATE_LIVENESS_TIMEOUT:-}
 case "$SECONDMATE_LIVENESS_TIMEOUT" in ''|*[!0-9]*|0) SECONDMATE_LIVENESS_TIMEOUT=120 ;; esac
@@ -2532,6 +2535,22 @@ home_summary_refresh_detached() {
   HOME_SUMMARY_PID=$!
 }
 
+NM_RUN_ORPHAN_REAP_PID=
+nm_run_orphan_reap_detached() {
+  local tick_marker="$STATE/.nm-run-orphan-reap-tick"
+  if [ -n "$NM_RUN_ORPHAN_REAP_PID" ]; then
+    if kill -0 "$NM_RUN_ORPHAN_REAP_PID" 2>/dev/null; then
+      return 0
+    fi
+    wait "$NM_RUN_ORPHAN_REAP_PID" 2>/dev/null || true
+    NM_RUN_ORPHAN_REAP_PID=
+  fi
+  [ "$(age_of "$tick_marker")" -ge "$NM_RUN_ORPHAN_REAP_SECS" ] || return 0
+  touch "$tick_marker" 2>/dev/null || return 0
+  "$SCRIPT_DIR/fm-nm-reap-run-orphans.sh" </dev/null >/dev/null 2>&1 &
+  NM_RUN_ORPHAN_REAP_PID=$!
+}
+
 RECONCILE_REQUEST_PID=
 reconcile_requests_pending() {
   local request
@@ -2728,6 +2747,8 @@ while :; do
   # repost after grace, and escalate once if the recovery turn is also missed.
   # No conversation scraping; unresolved records are never silently expired.
   fm_pending_reply_tick "$STATE" || true
+
+  nm_run_orphan_reap_detached
 
   # Endpoint liveness runs before queue observation: a positively dead or
   # missing secondmate endpoint is relaunched here on a bounded cadence, which
