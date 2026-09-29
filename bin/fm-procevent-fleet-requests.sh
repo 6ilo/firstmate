@@ -9,7 +9,6 @@
 #   fm-procevent-fleet-requests.sh classify <result-file>
 #   fm-procevent-fleet-requests.sh terminal <result-file>
 #   fm-procevent-fleet-requests.sh autohandle <source-id> <sequence> <result-file>
-#   fm-procevent-fleet-requests.sh validate <definition> [<json-file>]
 #   fm-procevent-fleet-requests.sh source-id
 #   fm-procevent-fleet-requests.sh retire
 #
@@ -24,7 +23,9 @@
 #            first failure. An empty pull advances the `since` cursor and sleeps.
 # read       Print the captured result as one JSON document: status, detail,
 #            server_time, requests (each with validity, schema errors, the
-#            portal's request, and this home's ack outcome), and withdrawn.
+#            portal's request, and this home's ack outcome: accepted, pending,
+#            withdrawn when the portal refused the ack because staff withdrew
+#            the request, portal unreachable, or refused: <code>), and withdrawn.
 # classify   Print requests, withdrawn, error, or unknown.
 # terminal   Exit 0 for an error result, which retires the source; a delivery
 #            keeps it armed so the runner pulls again.
@@ -34,8 +35,6 @@
 #            `pulled` and never hands it out again, and records the ack outcome.
 #            It always exits 1: taking the lease is not handling the request,
 #            so the wake stays for firstmate.
-# validate   Check a JSON document (stdin by default) against one `$defs` entry
-#            of the vendored seam schema; print each error and exit 1 on any.
 # source-id  Print the canonical source id, `fleet-requests`.
 # retire     Stop polling and drop the registration. The captured ledger is
 #            kept, so re-arming never re-delivers a request already captured.
@@ -51,9 +50,13 @@
 # from relay-platform's docs/seams/ (which owns it and its fleet-requests.md).
 # Settings (docs/configuration.md "Fleet request queue"), environment first,
 # then this home's gitignored $FM_HOME/.env:
-#   FM_FLEET_REQUESTS_TOKEN  the fleet's bearer token; the portal keeps only its
-#                            SHA-256 digest in FLEET_REQUESTS_TOKEN_SHA256
-#   FM_FLEET_REQUESTS_URL    the portal's origin; FM_TODAY_PORTAL_URL when unset
+#   FM_FLEET_REQUESTS_TOKEN     the fleet's bearer token; the portal keeps only
+#                               its SHA-256 digest in FLEET_REQUESTS_TOKEN_SHA256
+#   FM_FLEET_REQUESTS_ENV_FILE  optional env file, read as data and never
+#                               sourced, holding FLEET_REQUESTS_TOKEN (used when
+#                               FM_FLEET_REQUESTS_TOKEN is unset) and
+#                               FLEET_REQUESTS_URL (the portal's origin,
+#                               FM_TODAY_PORTAL_URL when unset)
 # The URL must be https://, or http:// only to 127.0.0.1 or localhost. The
 # token reaches curl only through a private header file, never argv, and is
 # never printed.
@@ -156,13 +159,22 @@ TOKEN=''
 CONFIG_ERROR=''
 # load_config: set URL and TOKEN, or set CONFIG_ERROR to why not and return 1.
 load_config() {
-  local missing=''
+  local missing='' env_file
   CONFIG_ERROR=''
-  URL=$(config_value FM_FLEET_REQUESTS_URL)
-  [ -n "$URL" ] || URL=$(config_value FM_TODAY_PORTAL_URL)
+  URL=''
   TOKEN=$(config_value FM_FLEET_REQUESTS_TOKEN)
-  [ -n "$URL" ] || missing="FM_FLEET_REQUESTS_URL (or FM_TODAY_PORTAL_URL)"
-  [ -n "$TOKEN" ] || missing="${missing:+$missing and }FM_FLEET_REQUESTS_TOKEN"
+  env_file=$(config_value FM_FLEET_REQUESTS_ENV_FILE)
+  if [ -n "$env_file" ]; then
+    if [ ! -f "$env_file" ] || [ ! -r "$env_file" ]; then
+      CONFIG_ERROR="FM_FLEET_REQUESTS_ENV_FILE names a file that does not exist or cannot be read: $env_file; nothing was sent"
+      return 1
+    fi
+    [ -n "$TOKEN" ] || TOKEN=$(fmx_env_get FLEET_REQUESTS_TOKEN "$env_file")
+    URL=$(fmx_env_get FLEET_REQUESTS_URL "$env_file")
+  fi
+  [ -n "$URL" ] || URL=$(config_value FM_TODAY_PORTAL_URL)
+  [ -n "$URL" ] || missing="the portal URL (FLEET_REQUESTS_URL in FM_FLEET_REQUESTS_ENV_FILE, or FM_TODAY_PORTAL_URL)"
+  [ -n "$TOKEN" ] || missing="${missing:+$missing and }the fleet token (FM_FLEET_REQUESTS_TOKEN, or FLEET_REQUESTS_TOKEN in FM_FLEET_REQUESTS_ENV_FILE)"
   if [ -n "$missing" ]; then
     CONFIG_ERROR="missing $missing; nothing was sent"
     return 1
@@ -172,7 +184,7 @@ load_config() {
     return 1
   fi
   case "$TOKEN" in
-    *[[:space:]]*) CONFIG_ERROR="FM_FLEET_REQUESTS_TOKEN must not contain whitespace; nothing was sent"; return 1 ;;
+    *[[:space:]]*) CONFIG_ERROR="the fleet token must not contain whitespace; nothing was sent"; return 1 ;;
   esac
   URL=${URL%/}
 }
@@ -226,13 +238,17 @@ ledger_last() {
   awk -F '\t' -v k="$1" -v key="$2" '$2 == k && $3 == key { v = $4 } END { if (v != "") print v }' "$LEDGER"
 }
 
-# ack <id> <lease-id>: take the request's lease and record the outcome.
+# ack <id> <lease-id>: take the request's lease and record the outcome, or
+# `withdrawn` when the portal refuses it because staff withdrew the request.
 ack() {
   local id=$1 lease=$2 body code
   make_tmp
   body="$TMP_DIR/ack-body.json"
   jq -nc --arg l "$lease" '{lease_id: $l}' > "$TMP_DIR/ack.json"
   code=$(portal POST "/api/fleet/requests/$id/ack" "$body" "$TMP_DIR/ack.json")
+  if [ "$code" = 409 ] && [ "$(jq -r '.state? // empty' "$body" 2>/dev/null)" = withdrawn ]; then
+    code=withdrawn
+  fi
   ledger_append ack "$id" "$code"
 }
 
@@ -416,6 +432,7 @@ cmd_read() {
       | if ($id | type) != "string" or ($r.request.lease_id | type) != "string" then "not sent: no usable id or lease"
         elif $acks[$id] == null then "pending"
         elif $acks[$id] == "200" then "accepted"
+        elif $acks[$id] == "withdrawn" then "withdrawn"
         elif $acks[$id] == "000" then "portal unreachable"
         else "refused: " + $acks[$id] end;
     ($body | split("\n")) as $lines
@@ -428,15 +445,6 @@ cmd_read() {
       }'
 }
 
-cmd_validate() {
-  local def=${1-} file=${2:-/dev/stdin}
-  [ -n "$def" ] || usage
-  jq -e --arg d "$def" '.["$defs"] | has($d)' "$SCHEMA" >/dev/null || die "no such definition: $def" 2
-  make_tmp
-  cat -- "$file" > "$TMP_DIR/doc.json" || die "cannot read $file"
-  validate_json "$def" "$TMP_DIR/doc.json"
-}
-
 case "${1-}" in
   arm)        shift; cmd_arm "$@" ;;
   poll)       shift; cmd_poll "$@" ;;
@@ -444,7 +452,6 @@ case "${1-}" in
   classify)   shift; cmd_classify "$@" ;;
   terminal)   shift; cmd_terminal "$@" ;;
   autohandle) shift; cmd_autohandle "$@" ;;
-  validate)   shift; cmd_validate "$@" ;;
   source-id)  printf '%s\n' "$SOURCE_ID" ;;
   retire)     "$SCRIPT_DIR/fm-procevent.sh" retire "$SOURCE_ID" ;;
   ''|-h|--help|help) usage ;;

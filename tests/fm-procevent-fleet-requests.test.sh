@@ -21,7 +21,7 @@ ADAPTER="$ROOT/bin/fm-procevent-fleet-requests.sh"
 TMP_ROOT=$(fm_test_tmproot fm-procevent-fleet-requests)
 export FM_PROCEVENT_CLAIM_ROOT="$TMP_ROOT/claims"
 TOKEN="fleet-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')"
-unset FM_FLEET_REQUESTS_URL FM_FLEET_REQUESTS_TOKEN FM_TODAY_PORTAL_URL
+unset FM_FLEET_REQUESTS_ENV_FILE FM_FLEET_REQUESTS_TOKEN FM_TODAY_PORTAL_URL
 
 # curl shim: log argv, then run the real curl.
 REAL_CURL=$(command -v curl)
@@ -52,7 +52,8 @@ new_home() {  # <name> <url>; prints the home
   local home=$TMP_ROOT/$1
   mkdir -p "$home/state"
   fm_test_track_procevent_home "$home"
-  printf 'FM_FLEET_REQUESTS_URL=%s\nFM_FLEET_REQUESTS_TOKEN=%s\n' "$2" "$TOKEN" > "$home/.env"
+  printf 'FLEET_REQUESTS_URL=%s\nFLEET_REQUESTS_TOKEN=%s\n' "$2" "$TOKEN" > "$home/fleet.env"
+  printf 'FM_FLEET_REQUESTS_ENV_FILE=%s\n' "$home/fleet.env" > "$home/.env"
   printf '%s\n' "$home"
 }
 
@@ -76,7 +77,8 @@ stub_at_least() { [ "$(stub_count "$1" "$2")" -ge "$3" ]; }
 source_gone() { [ ! -e "$1/state/procevent/fleet-requests.source" ]; }
 
 # The stub portal: a queue in <dir>/queue.json whose items are served as-is
-# with a lease added; <dir>/mode is ok or 401; <dir>/withdrawn.json is the
+# with a lease added (an item with _withdraw_on_pull is withdrawn right after it
+# is served, so its ack is refused with state withdrawn); <dir>/mode is ok or 401; <dir>/withdrawn.json is the
 # withdrawal feed returned when ?since= is present. Every call is logged as
 # "<METHOD> <path> <auth>" to <dir>/log.
 start_stub() {  # <dir>
@@ -130,6 +132,8 @@ class H(http.server.BaseHTTPRequestHandler):
             shown["lease_id"] = item["_lease"]
             shown["lease_expires_at"] = item["_lease_until"]
             out.append(shown)
+            if item.get("_withdraw_on_pull"):
+                item["_state"] = "withdrawn"
         save("queue.json", queue)
         self.reply(200, {"seam_version": "1.0.0", "server_time": now, "requests": out,
                          "withdrawn": load("withdrawn.json") if "since" in q else []})
@@ -180,10 +184,20 @@ fr "$H" arm
 assert_equals "$CODE" 2 "arm without settings exits 2"
 assert_grep 'FM_FLEET_REQUESTS_TOKEN' "$OUT" "the refusal names the missing token"
 assert_absent "$H/state/procevent/fleet-requests.source" "nothing is registered without settings"
-printf 'FM_FLEET_REQUESTS_URL=http://portal.example\nFM_FLEET_REQUESTS_TOKEN=%s\n' "$TOKEN" > "$H/.env"
+printf 'FM_TODAY_PORTAL_URL=http://portal.example\nFM_FLEET_REQUESTS_TOKEN=%s\n' "$TOKEN" > "$H/.env"
 fr "$H" arm
 assert_equals "$CODE" 2 "a plain http URL off loopback is refused"
 assert_absent "$H/state/procevent/fleet-requests.source" "nothing is registered for an unsafe URL"
+printf 'FM_FLEET_REQUESTS_ENV_FILE=%s\n' "$H/no-such.env" > "$H/.env"
+fr "$H" arm
+assert_equals "$CODE" 2 "a missing env file is refused"
+assert_grep 'FM_FLEET_REQUESTS_ENV_FILE' "$OUT" "the refusal names the missing env file"
+assert_absent "$H/state/procevent/fleet-requests.source" "nothing is registered for a missing env file"
+printf 'FLEET_REQUESTS_TOKEN=%s\n' "$TOKEN" > "$H/fleet.env"
+printf 'FM_FLEET_REQUESTS_ENV_FILE=%s\nFM_TODAY_PORTAL_URL=http://portal.example\n' "$H/fleet.env" > "$H/.env"
+fr "$H" arm
+assert_equals "$CODE" 2 "the env file's token with an unsafe FM_TODAY_PORTAL_URL is refused"
+assert_grep 'must be https' "$OUT" "the fallback origin is checked by the same https rule"
 pass "arm refuses missing or unsafe settings"
 
 # --- a new request is captured and wakes firstmate once ----------------------
@@ -246,8 +260,22 @@ assert_contains "$(jq -r '.requests[0].errors[]' "$OUT")" '$.kind' "the schema e
 assert_equals "$(jq -r '.requests[0].request.id' "$OUT")" "$ID2" "the invalid request is kept whole as evidence"
 wakes_at_least() { [ "$(wake_count "$1")" -ge "$2" ]; }
 wait_until 150 wakes_at_least "$H" 3 || fail "the invalid request did not wake firstmate"
-FM_HOME="$H" "$ADAPTER" retire >/dev/null 2>&1
 pass "a schema-invalid request is captured as invalid evidence"
+
+# --- a request withdrawn before its ack records the ack as withdrawn ---------
+ID3=33333333-3333-4333-8333-333333333333
+jq --argjson r "$(request_json "$ID3" | jq -c '. + {_withdraw_on_pull: true}')" '. + [$r]' "$STUB/queue.json" > "$STUB/q.tmp" \
+  && mv "$STUB/q.tmp" "$STUB/queue.json"
+reconciled_has_results() { pe "$1" reconcile >/dev/null 2>&1; has_results "$1" "$2"; }
+wait_until 150 reconciled_has_results "$H" 4 || fail "the request withdrawn at ack was not captured"
+wait_until 150 stub_at_least "$STUB" "POST /api/fleet/requests/$ID3/ack" 1 || fail "the withdrawn request was never acked"
+R4=$(results "$H" | sort -t. -k2 -n | tail -1)
+fr "$H" read "$R4"
+assert_equals "$(jq -r '.requests[0].request.id' "$OUT")" "$ID3" "the request is delivered"
+assert_equals "$(jq -r '.requests[0].validity' "$OUT")" valid "the request is valid"
+assert_equals "$(jq -r '.requests[0].ack' "$OUT")" withdrawn "the refused ack is recorded as withdrawn"
+FM_HOME="$H" "$ADAPTER" retire >/dev/null 2>&1
+pass "a request withdrawn before its ack records the ack as withdrawn"
 
 # --- 401 reports plainly and sends nothing else ------------------------------
 STUB401="$TMP_ROOT/stub401"
