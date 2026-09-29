@@ -44,6 +44,7 @@ answer--malformed-card-hash $.card_hash: pattern
 answer--merge-without-passkey required: missing passkey
 answer--note-too-long $.note: maxLength
 answer--passkey-on-decision $: not:
+answer--reconcile-on-merge $.value: reconcile: answers only a decision card
 answer--signed-for-another-value $.passkey.client_data_json: challenge
 card--credential-with-options $.options: maxItems
 card--duplicate-option-value $.options: value: an option value appears twice
@@ -53,6 +54,8 @@ card--merge-without-pr-url required: missing pr_url
 card--missing-repo required: missing repo
 card--owner-not-hashed $.card_hash: card_hash
 card--owner-qualified $.owner: pattern
+card--reconcile-not-last $.options[0].value: reconcile: only a decision card's final option
+card--reconcile-on-go $.options[2].value: reconcile: only a decision card's final option
 card--stale-hash $.card_hash: card_hash
 card--two-recommended $.options: maxContains
 card--unknown-kind $.kind: enum
@@ -169,8 +172,13 @@ test_example_hashes_recompute() {
       || fail "$(basename "$f") carries a card_hash other than $(basename "$card_file")'s"
     [ "$(jq -r .kind "$f")" = "$(jq -r .kind "$card_file")" ] \
       || fail "$(basename "$f") carries a kind other than $(basename "$card_file")'s"
+    # The value is one the card offers, or a reserved later or credential seen.
+    jq -e --slurpfile c "$card_file" \
+      '.value as $v | $v == "later" or ($c[0].kind == "credential" and $v == "seen")
+        or any($c[0].options[]; .value == $v)' "$f" >/dev/null \
+      || fail "$(basename "$f") answers $(jq -r .value "$f"), which $(basename "$card_file") does not offer"
   done
-  pass "all $n example card hashes recompute, and snapshot calls and answers carry them"
+  pass "all $n example card hashes recompute, and snapshot calls and answers carry them and their offered values"
 }
 
 # The passkey challenge is SHA-256 over the LF-joined answer fields, and the

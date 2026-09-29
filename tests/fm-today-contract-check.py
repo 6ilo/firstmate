@@ -37,6 +37,7 @@ ASSERTIONS = {
 CARD_HASH_FIELDS = ("schema", "task_id", "owner", "kind", "title", "question",
                     "options", "repo", "pr_url", "due")
 MAIN = "(main)"
+RECONCILE = "reconcile"
 PASSKEY_DOMAIN = "fm-today-passkey.v1"
 WORK_LIMIT = 1000
 
@@ -203,7 +204,7 @@ def json_equal(a, b):
 
 
 def contract_errors(inst):
-    """The rules JSON Schema cannot state: hashes, the challenge, uniqueness, order."""
+    """The rules JSON Schema cannot state: hashes, the challenge, uniqueness, order, reconcile."""
     out = []
     cards = []
     if inst.get("schema") == "fm-today-card.v1":
@@ -238,6 +239,13 @@ def contract_errors(inst):
         values = [o["value"] for o in card["options"]]
         if len(values) != len(set(values)):
             out.append("%s.options: value: an option value appears twice" % where)
+        # reconcile is only ever a decision card's own final option.
+        for i, value in enumerate(values):
+            if value == RECONCILE and (card["kind"] != "decision" or i != len(values) - 1):
+                out.append("%s.options[%d].value: reconcile: only a decision card's final option" % (where, i))
+    if (inst.get("schema") == "fm-today-answer.v1" and inst["value"] == RECONCILE
+            and inst["kind"] != "decision"):
+        out.append("$.value: reconcile: answers only a decision card")
     if inst.get("schema") == "fm-today-answer.v1" and "passkey" in inst:
         try:
             client = json.loads(b64url_decode(inst["passkey"]["client_data_json"]))
