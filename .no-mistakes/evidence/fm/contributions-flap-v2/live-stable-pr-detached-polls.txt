@@ -1,0 +1,17 @@
+=== detached watcher-style run 1 at 06:44:35 ===
+rc=0 stdout/stderr: []
+{"url":"https://github.com/cli/cli/pull/14543","checked_at":"2026-09-29T06:44:35Z","failures":0,"error":null,"head":"2c354efe48616041586de6d5f16bc15f94fc659a","state":"open"}
+=== detached watcher-style run 2 at 06:44:41 ===
+rc=0 stdout/stderr: []
+{"url":"https://github.com/cli/cli/pull/14543","checked_at":"2026-09-29T06:44:41Z","failures":0,"error":null,"head":"2c354efe48616041586de6d5f16bc15f94fc659a","state":"open"}
+=== detached watcher-style run 3 at 06:44:46 ===
+rc=0 stdout/stderr: []
+{"url":"https://github.com/cli/cli/pull/14543","checked_at":"2026-09-29T06:44:46Z","failures":0,"error":null,"head":"2c354efe48616041586de6d5f16bc15f94fc659a","state":"open"}
+=== detached watcher-style run 4 at 06:44:53 ===
+rc=0 stdout/stderr: []
+{"url":"https://github.com/cli/cli/pull/14543","checked_at":"2026-09-29T06:44:53Z","failures":0,"error":null,"head":"2c354efe48616041586de6d5f16bc15f94fc659a","state":"open"}
+=== detached watcher-style run 5 at 06:44:59 ===
+rc=0 stdout/stderr: []
+{"url":"https://github.com/cli/cli/pull/14543","checked_at":"2026-09-29T06:44:59Z","failures":0,"error":null,"head":"2c354efe48616041586de6d5f16bc15f94fc659a","state":"open"}
+=== bearings projection ===
+{"known":1,"checked":1,"complete":true,"counts":{"captain":0,"fleet":0,"maintainer":1,"nobody":0}}

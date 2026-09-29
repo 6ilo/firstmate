@@ -1,0 +1,16 @@
+=== detached run 1 against a real 404 PR at 06:45:13 ===
+rc=0 output: []
+{"url":"https://github.com/cli/cli/pull/99999999","checked_at":"2026-09-29T06:45:13Z","failures":1,"error":null}
+bearings: {"known":2,"checked":1,"complete":false}
+=== detached run 2 against a real 404 PR at 06:45:20 ===
+rc=0 output: []
+{"url":"https://github.com/cli/cli/pull/99999999","checked_at":"2026-09-29T06:45:20Z","failures":2,"error":null}
+bearings: {"known":2,"checked":1,"complete":false}
+=== detached run 3 against a real 404 PR at 06:45:26 ===
+rc=0 output: [contributions: observation unavailable for https://github.com/cli/cli/pull/99999999]
+{"url":"https://github.com/cli/cli/pull/99999999","checked_at":"2026-09-29T06:45:26Z","failures":3,"error":"forge observation unavailable or changed during read"}
+bearings: {"known":2,"checked":1,"complete":false}
+=== detached run 4 against a real 404 PR at 06:45:33 ===
+rc=0 output: []
+{"url":"https://github.com/cli/cli/pull/99999999","checked_at":"2026-09-29T06:45:33Z","failures":4,"error":"forge observation unavailable or changed during read"}
+bearings: {"known":2,"checked":1,"complete":false}
