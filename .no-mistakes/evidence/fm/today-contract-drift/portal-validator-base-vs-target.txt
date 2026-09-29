@@ -1,0 +1,4 @@
+== portal validateSnapshot on base bridge snapshot ==
+{"ok":false,"issues":[{"path":"/sections/calls/0","rule":"required"}]}
+== portal validateSnapshot on target bridge snapshot ==
+{"ok":false,"issues":[{"path":"/sections/underway/0","rule":"required"}]}

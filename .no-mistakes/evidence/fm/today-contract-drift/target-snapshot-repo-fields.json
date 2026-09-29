@@ -1,0 +1,30 @@
+{
+  "calls": [
+    {
+      "task_id": "call-clean",
+      "repo": null
+    },
+    {
+      "task_id": "call-email",
+      "repo": null
+    }
+  ],
+  "underway": [
+    {
+      "id": "ship-task",
+      "repo": "acme/widget"
+    }
+  ],
+  "charted_next": [
+    {
+      "id": "live-gate",
+      "repo": null
+    }
+  ],
+  "landed": [
+    {
+      "id": "done-a",
+      "repo": "acme/widget"
+    }
+  ]
+}

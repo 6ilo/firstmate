@@ -1,0 +1,19 @@
+### Stub portal running relay-platform main's validateSnapshot (current portal schemas)
+-- base bridge (c08829d) push:
+ok
+fm-today-bridge: the portal answered 400 (invalid_snapshot)
+exit=3
+-- target bridge (e3639e2) push:
+ok
+fm-today-bridge: the portal answered 400 (invalid_snapshot)
+exit=3
+
+### Stub portal running validateSnapshot with the fleet's schemas vendored byte-for-byte (the paired relay-platform PR)
+-- base bridge (c08829d) push:
+ok
+fm-today-bridge: the portal answered 400 (invalid_snapshot)
+exit=3
+-- target bridge (e3639e2) push:
+ok
+heard_at: 2026-09-29T07:00:00Z
+exit=0

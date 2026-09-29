@@ -1,0 +1,6 @@
+ok - all 15 valid examples pass their schema and the contract rules
+ok - all 31 invalid examples fail for their stated reason
+ok - card_hash matches SHA-256 of the hand-written canonical serialization
+ok - all 5 example card hashes recompute, and snapshot calls and answers carry them
+ok - the passkey challenge matches the published derivation and the example clientDataJSON
+all fm-today-contract tests passed

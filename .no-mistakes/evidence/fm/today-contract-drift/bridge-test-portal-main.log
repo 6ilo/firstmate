@@ -1,0 +1,5 @@
+ok - the snapshot passes the contract and each rule family's call is withheld whole
+ok - the snapshot carries underway, charted, and landed work from bearings
+ok - every card carries the contract's card_hash
+ok - every card and work row carries repo, null when no repository is found
+not ok - portal schema /Users/anwulikaanigbodesktop/relay-migrate/src/lib/fleet/today-contract/fm-today-card.v1.schema.json is not byte-identical to docs/today-contract/fm-today-card.v1.schema.json
