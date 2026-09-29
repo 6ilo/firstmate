@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://relay-api.mmeg.us/schemas/fleet-requests.v1.schema.json",
+  "title": "Relay fleet request queue, seam v1",
+  "description": "Wire shapes of the fleet request queue (docs/seams/fleet-requests.md). relay-platform owns this contract; the fleet's adapter (F2) and publisher (F3) build against it. src/lib/fleet/constants.ts is the server-side boundary and tests/fleet-requests.test.ts pins the two together.",
+  "version": "1.0.0",
+  "$defs": {
+    "RequestKind": {
+      "enum": ["product", "part", "joint", "motion_path", "archetype", "change"]
+    },
+    "TargetRepo": {
+      "enum": ["relay-platform", "MMEG-mono", "relay-lhs"]
+    },
+    "ProvenanceTier": {
+      "description": "MMEG-mono PROVENANCE_TIERS, lowest first, less shop-confirmed (only the corpus's promote() writes that tier).",
+      "enum": ["representative", "archetype-inherited", "design-authored", "published-spec", "shop-reported", "model-verified"]
+    },
+    "RequestState": {
+      "enum": ["submitted", "pulled", "planning", "awaiting_go", "building", "pr_open", "landed", "declined", "withdrawn"]
+    },
+    "FleetState": {
+      "description": "The states only the fleet's status publisher may set.",
+      "enum": ["planning", "awaiting_go", "building", "pr_open", "landed", "declined"]
+    },
+    "EpochMs": { "type": "integer", "minimum": 0 },
+    "Uuid": { "type": "string", "format": "uuid" },
+    "TaskKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$" },
+    "StatusLink": {
+      "description": "An https URL on github.com, a *.vercel.app preview, or mmeg.us and its subdomains. No userinfo.",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 500
+    },
+    "LeasedRequest": {
+      "description": "One request as the pull hands it out.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "target_repo", "product", "title", "brief", "sources", "provenance_tier", "requested_by", "created_at", "lease_id", "lease_expires_at"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "kind": { "$ref": "#/$defs/RequestKind" },
+        "target_repo": { "$ref": "#/$defs/TargetRepo" },
+        "product": { "type": ["string", "null"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "brief": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "sources": { "type": "array", "maxItems": 20, "items": { "type": "string", "minLength": 1, "maxLength": 500 } },
+        "provenance_tier": { "oneOf": [{ "$ref": "#/$defs/ProvenanceTier" }, { "type": "null" }] },
+        "requested_by": { "type": "string", "description": "The staff email that confirmed the brief. A staff member's request is not the captain's word." },
+        "created_at": { "$ref": "#/$defs/EpochMs" },
+        "lease_id": { "$ref": "#/$defs/Uuid" },
+        "lease_expires_at": { "$ref": "#/$defs/EpochMs" }
+      }
+    },
+    "PullResponse": {
+      "description": "200 body of GET /api/fleet/requests.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seam_version", "server_time", "requests", "withdrawn"],
+      "properties": {
+        "seam_version": { "const": "1.0.0" },
+        "server_time": { "$ref": "#/$defs/EpochMs", "description": "Pass back as ?since= on the next pull." },
+        "requests": { "type": "array", "items": { "$ref": "#/$defs/LeasedRequest" } },
+        "withdrawn": {
+          "description": "Requests the fleet already pulled that staff withdrew after ?since= less a 5-minute overlap. An id can repeat across pulls; dedupe by id.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "withdrawn_at"],
+            "properties": { "id": { "$ref": "#/$defs/Uuid" }, "withdrawn_at": { "$ref": "#/$defs/EpochMs" } }
+          }
+        }
+      }
+    },
+    "AckBody": {
+      "description": "Body of POST /api/fleet/requests/{id}/ack.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lease_id"],
+      "properties": { "lease_id": { "$ref": "#/$defs/Uuid" } }
+    },
+    "StatusEvent": {
+      "description": "Body of POST /api/fleet/requests/{id}/status: a state, a key, a link. Never free text.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": { "$ref": "#/$defs/FleetState" },
+        "key": { "oneOf": [{ "$ref": "#/$defs/TaskKey" }, { "type": "null" }] },
+        "link": { "oneOf": [{ "$ref": "#/$defs/StatusLink" }, { "type": "null" }] }
+      }
+    },
+    "TransitionResponse": {
+      "description": "200 body of the ack and status routes. recorded is false when a status event repeated the latest one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "state"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "state": { "$ref": "#/$defs/RequestState" },
+        "recorded": { "type": "boolean" }
+      }
+    },
+    "RequestCreate": {
+      "description": "Body of the staff route POST /api/admin/fleet/requests (the portal's confirmed brief). No field holds learner, family, fee or legal detail, and none names a state. Content kinds (product, part, joint, motion_path, archetype) must target MMEG-mono, name a provenance tier and cite a source; all but archetype name a product.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "target_repo", "title", "brief", "sources"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/RequestKind" },
+        "target_repo": { "$ref": "#/$defs/TargetRepo" },
+        "product": { "oneOf": [{ "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,79}$" }, { "type": "null" }] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "brief": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "sources": { "type": "array", "maxItems": 20, "items": { "type": "string", "minLength": 1, "maxLength": 500 } },
+        "provenance_tier": { "oneOf": [{ "$ref": "#/$defs/ProvenanceTier" }, { "type": "null" }] }
+      }
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "error": { "type": "string" },
+        "message": { "type": "string" },
+        "state": { "$ref": "#/$defs/RequestState" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["error"]
+    }
+  }
+}
