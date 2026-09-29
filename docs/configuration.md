@@ -14,6 +14,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
 | The admin portal's Today page | [Today bridge](#today-bridge-env) |
+| Staff requests from the admin portal | [Fleet request queue](#fleet-request-queue-env) |
 | Work lanes and machine-wide heavy runs | [Heavy validation slots](#heavy-validation-slots-configlanesjson) and [work lanes](#work-lanes-configlanesjson) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
 
@@ -1578,6 +1579,38 @@ Wherever a field was cut, marked by `…` at its end or mid-text (bearings' cuts
 A cut field is then withheld, as if it tripped, when any of the five words before a cut contains a digit, so a house number or phone number split at the cut cannot leave in part.
 The check leans toward withholding, so ordinary words such as "parent" or "minor" in a technical call also keep that call's text on the machine.
 
+## Fleet request queue (.env)
+
+`bin/fm-procevent-fleet-requests.sh` is a process-event adapter that pulls staff requests from the admin portal's fleet request queue and hands each to firstmate as evidence.
+relay-platform owns the queue's contract in its `docs/seams/fleet-requests.md`; the adapter validates against a byte-identical copy of that seam's JSON Schema at [`fleet-requests/fleet-requests.v1.schema.json`](fleet-requests/fleet-requests.v1.schema.json).
+It only ever opens connections outward, to the portal; nothing calls in to the machine, and it never posts status back.
+Firstmate's handling of a captured request, including that building waits for the captain's go, is owned by the `process-event-sources` skill.
+
+### Settings
+
+The adapter reads the home's gitignored `.env`; a value set in the environment wins over the `.env` line.
+
+| Name | Meaning |
+| --- | --- |
+| `FM_FLEET_REQUESTS_TOKEN` | The fleet's bearer token, separate from the Today bridge token; the portal keeps only its SHA-256 digest in `FLEET_REQUESTS_TOKEN_SHA256` |
+| `FM_FLEET_REQUESTS_ENV_FILE` | Optional path to an env file holding `FLEET_REQUESTS_TOKEN` and `FLEET_REQUESTS_URL`; it is read as data and never sourced |
+
+The token is `FM_FLEET_REQUESTS_TOKEN` when set, else the env file's `FLEET_REQUESTS_TOKEN`.
+The portal origin is the env file's `FLEET_REQUESTS_URL` when set, else `FM_TODAY_PORTAL_URL`; it must be `https://`, or `http://` only to `127.0.0.1` or `localhost`.
+A named env file that does not exist is a setting error.
+The token reaches `curl` only through a private header file, never a command line, and is never printed, copied, or rewritten.
+
+### Run it
+
+- `bin/fm-procevent-fleet-requests.sh arm` checks the settings and registers the `fleet-requests` source; a missing or unsafe setting exits 2 and registers nothing.
+- Each delivery is one captured result carrying every request not captured before and every withdrawal not reported before; the source stays armed and keeps pulling.
+- After capture, the adapter acks each request's lease, so the portal moves it to `pulled` and never hands it out again.
+- A request staff withdrew before its ack is recorded with the ack outcome `withdrawn`, and firstmate files nothing for it; firstmate still files a valid request whose ack is pending, unreachable, or otherwise refused.
+- A request that fails the schema is captured and marked invalid rather than dropped.
+- A refused token, an unreachable portal, or a response that does not match the seam is captured as an error result that sends nothing further and retires the source; arm it again once the cause is fixed.
+- Its private pull cursor and captured ledger live under `state/fleet-requests/`, which `retire` keeps so arming again never re-delivers a captured request.
+- `bin/fm-procevent-fleet-requests.sh read <result-file>` prints a result as one JSON document with each request's validity, schema errors, and ack outcome.
+
 ## Relay (.env)
 
 Relay lets a firstmate instance answer public mentions and act on normal reversible mention requests through firstmate's normal lifecycle.
@@ -2456,6 +2489,8 @@ FM_SMTP_PORT=465   # mail-plane SMTP server port
 FM_TODAY_PORTAL_URL=     # admin portal origin the Today bridge posts to, from .env or environment (docs/configuration.md "Today bridge")
 FM_TODAY_BRIDGE_TOKEN=   # Today bridge bearer token, from the main home's .env or environment
 FM_TODAY_DAY_FILE=~/.local/state/firstmate/calendar-day.json   # calendar day file the Today bridge reads
+FM_FLEET_REQUESTS_TOKEN= # fleet request queue bearer token, from .env or environment (docs/configuration.md "Fleet request queue")
+FM_FLEET_REQUESTS_ENV_FILE= # optional env file read as data for FLEET_REQUESTS_TOKEN and FLEET_REQUESTS_URL; origin falls back to FM_TODAY_PORTAL_URL
 FMX_PAIRING_TOKEN=      # Relay pairing token; .env opt-in authorizes replies and eligible lifecycle actions
 FMX_RELAY_URL=https://myfirstmate.io   # optional Relay endpoint override, mainly for local relay development
 FMX_ENV_FILE=           # optional alternate .env file for direct Relay client invocations; bootstrap still checks $FM_HOME/.env

@@ -412,6 +412,7 @@ family_for_basename() {
     fm-extension-binding.test.sh|fm-gitignore-config.test.sh|\
     fm-no-mistakes-required.test.sh|fm-peek-remote.test.sh|\
     fm-pending-reply.test.sh|fm-pi-branch-extension.test.sh|\
+    fm-procevent-fleet-requests.test.sh|\
     fm-procevent-quota.test.sh|fm-procevent-when.test.sh|fm-procevent.test.sh|\
     fm-live-gate.test.sh|\
     fm-project-origin.test.sh|fm-public-followup.test.sh|fm-quota-choose.test.sh|\
@@ -773,6 +774,7 @@ tests/fm-pr-check-security.test.sh 226546
 tests/fm-pr-reviewers.test.sh 273
 tests/fm-pr-state-live-e2e.test.sh 45
 tests/fm-pr-state.test.sh 531
+tests/fm-procevent-fleet-requests.test.sh 11000
 tests/fm-procevent-quota.test.sh 1900
 tests/fm-procevent-when.test.sh 23805
 tests/fm-procevent.test.sh 221745
@@ -1465,6 +1467,9 @@ families_for_changed_path() {
       ;;
     bin/fm-procevent-quota.sh)
       printf '%s\n' "__script__:fm-procevent-quota.test.sh"
+      ;;
+    bin/fm-procevent-fleet-requests.sh|docs/fleet-requests/*)
+      printf '%s\n' "__script__:fm-procevent-fleet-requests.test.sh"
       ;;
     bin/fm-quota-choose.sh)
       printf '%s\n' "__script__:fm-quota-choose.test.sh"
