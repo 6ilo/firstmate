@@ -93,17 +93,18 @@ start_orphan() {
   ( cd "$1" && { perl -e 'setpgrp(0, 0); exec @ARGV' sleep "$2" </dev/null >/dev/null 2>&1 & echo $!; } )
 }
 
-mkdir -p "$WT_ROOT/RUNPAST/node_modules" "$WT_ROOT/RUNTEST" "$WT_ROOT/RUNGONE"
+mkdir -p "$WT_ROOT/RUNPAST/node_modules" "$WT_ROOT/RUNTEST" "$WT_ROOT/RUNGONE" "$WT_ROOT/RUNDEL/pkg"
 write_status RUNPAST running fm/a "${PAST_TEST[@]}"
 write_status RUNTEST running fm/b "${IN_TEST[@]}"
-# RUNGONE deliberately has no status fixture: its run cannot be read.
+# RUNGONE and RUNDEL deliberately have no status fixture: their runs cannot be read.
 
 PAST=$(start_orphan "$WT_ROOT/RUNPAST/node_modules" 3001)
 INTEST=$(start_orphan "$WT_ROOT/RUNTEST" 3002)
 GONE=$(start_orphan "$WT_ROOT/RUNGONE" 3003)
 OUTSIDE=$(start_orphan "$TMP_ROOT/elsewhere" 3004)
-TRACKED_PIDS+=("$PAST" "$INTEST" "$GONE" "$OUTSIDE")
-for pid in "$PAST" "$INTEST" "$GONE" "$OUTSIDE"; do
+DELETED=$(start_orphan "$WT_ROOT/RUNDEL/pkg" 3006)
+TRACKED_PIDS+=("$PAST" "$INTEST" "$GONE" "$OUTSIDE" "$DELETED")
+for pid in "$PAST" "$INTEST" "$GONE" "$OUTSIDE" "$DELETED"; do
   if ! wait_ppid1 "$pid" 5; then
     # A host whose orphans go to a subreaper rather than init cannot build the
     # parent-1 shape this sweep targets.
@@ -124,14 +125,10 @@ TRACKED_PIDS+=("$PARENTED")
 
 out=$("$REAPER" --dry-run 2>&1) || fail "dry run failed: $out"
 assert_contains "$out" "would reap orphaned no-mistakes run process $PAST " "dry run did not report the past-test orphan"
-for pid in "$PAST" "$INTEST" "$GONE" "$OUTSIDE" "$PARENTED"; do
+for pid in "$PAST" "$INTEST" "$GONE" "$OUTSIDE" "$DELETED" "$PARENTED"; do
   alive "$pid" || fail "--dry-run signalled process $pid"
 done
 pass "--dry-run reports the candidate and signals nothing"
-
-out=$("$REAPER" --branch fm/other 2>&1) || fail "branch-scoped sweep failed: $out"
-alive "$PAST" || fail "a sweep scoped to another branch reaped the run's orphan"
-pass "--branch leaves runs on other branches alone"
 
 out=$("$REAPER" 2>&1) || fail "sweep failed: $out"
 wait_gone "$PAST" 5 || fail "the orphan in a run past its test step survived: $out"
@@ -149,6 +146,7 @@ alive "$OUTSIDE" || fail "a process outside every run copy was reaped"
 pass "a process outside any run copy is left alone"
 
 alive "$GONE" || fail "an orphan in an unreadable run was reaped"
+alive "$DELETED" || fail "an orphan in an unreadable run was reaped"
 pass "an orphan in a run whose status cannot be read is left alone"
 
 # Fixing, gates, and unknown status words keep a run's processes untouched even
@@ -161,8 +159,15 @@ write_status RUNTEST awaiting_approval fm/b intent,completed review,completed te
 alive "$INTEST" || fail "an orphan in a run parked at an approval gate was reaped"
 pass "a fixing round or an approval gate keeps the run's orphans"
 
-# A terminal run is past every test step, and the branch scope teardown uses matches it.
+# A terminal run is past every test step.
 write_status RUNTEST cancelled fm/b intent,completed test,running
-"$REAPER" --branch fm/b >/dev/null 2>&1 || fail "branch sweep failed on a cancelled run"
-wait_gone "$INTEST" 5 || fail "the orphan of a cancelled run on the named branch survived"
-pass "a terminal run's orphans are reaped by a sweep scoped to its branch"
+"$REAPER" >/dev/null 2>&1 || fail "sweep failed on a cancelled run"
+wait_gone "$INTEST" 5 || fail "the orphan of a cancelled run survived"
+pass "a terminal run's orphans are reaped"
+
+# no-mistakes removes a run's copy when the run ends; its orphans are then reaped.
+rm -rf "$WT_ROOT/RUNDEL"
+out=$("$REAPER" 2>&1) || fail "sweep failed on a removed run copy: $out"
+wait_gone "$DELETED" 5 || fail "the orphan of a finished run whose copy was removed survived: $out"
+assert_contains "$out" "reaped orphaned no-mistakes run process $DELETED " "the removed-copy reap was not reported"
+pass "an orphan whose run copy was removed is reaped"

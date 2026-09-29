@@ -280,9 +280,9 @@
 #   Fix 4 - reap orphaned no-mistakes run processes. A test step's worker pool
 #     (vitest's, observed) can outlive the step at parent 1 inside the run's
 #     own copy, which Fix 2 never sees. bin/fm-nm-reap-run-orphans.sh owns that
-#     sweep and its safety rule; teardown scopes it to runs on this task's
-#     branch, and the watcher runs it fleet-wide on its own cadence. Best
-#     effort: a sweep failure never blocks this teardown.
+#     sweep and its safety rule; teardown runs the same sweep the watcher runs
+#     on its own cadence. Best effort: a sweep failure never blocks this
+#     teardown.
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -3549,14 +3549,9 @@ fi
 # pruned code root. Best effort - a sweep failure never blocks this teardown.
 "$SCRIPT_DIR/fm-remote-job-reap-orphans.sh" >&2 || true
 
-# Fix 4 (see script header): reap processes this task's own no-mistakes runs
-# left orphaned in their run copies. Best effort - never blocks this teardown.
-if [ "$KIND" = ship ] && [ -d "$WT" ]; then
-  nm_reap_branch=$(git -C "$WT" symbolic-ref --quiet --short HEAD 2>/dev/null || true)
-  if [ -n "$nm_reap_branch" ]; then
-    "$SCRIPT_DIR/fm-nm-reap-run-orphans.sh" --branch "$nm_reap_branch" >&2 || true
-  fi
-fi
+# Fix 4 (see script header): reap processes no-mistakes runs left orphaned in
+# their run copies. Best effort - never blocks this teardown.
+"$SCRIPT_DIR/fm-nm-reap-run-orphans.sh" >&2 || true
 
 # Best-effort: drop the local task branch so the shared repo does not accumulate refs.
 if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then

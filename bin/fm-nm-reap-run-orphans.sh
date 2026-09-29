@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # Reap orphaned processes a no-mistakes run left behind in its own run copy.
 #
-# Usage: fm-nm-reap-run-orphans.sh [--dry-run] [--branch <name>]
-#   --dry-run        reports what would be reaped and signals nothing.
-#   --branch <name>  only considers runs whose structured status names this
-#                    branch (teardown passes the task's own branch).
+# Usage: fm-nm-reap-run-orphans.sh [--dry-run]
+#   --dry-run  reports what would be reaped and signals nothing.
 #
 # A no-mistakes test step runs the project's suite inside the run's per-run
 # copy (<NM_HOME>/worktrees/<repo id>/<run id>, NM_HOME defaulting to
@@ -20,14 +18,17 @@
 #     live parent is somebody's current work, never a candidate);
 #   - its current working directory is inside a run copy under
 #     <NM_HOME>/worktrees/<repo id>/<run id>;
-#   - that run's structured status (`no-mistakes axi status --run <id>`, read
-#     from inside the run copy, bounded) reports that same run id and shows it
-#     past every step that runs tests or fixes: the run is terminal (completed,
-#     failed, cancelled), or it is running with its test step completed or
-#     skipped, every step completed or skipped except push, pr, or ci, and those
-#     only pending or running - a fixing round, an approval gate, or any status
-#     word this sweep does not know keeps the run's processes untouched.
-# A run whose status cannot be read, or reads ambiguously, is left alone.
+#   - that run copy no longer exists (no-mistakes removes a run's copy when the
+#     run ends, so the run is finished), or the run's structured status
+#     (`no-mistakes axi status --run <id>`, read from inside the run copy,
+#     bounded) reports that same run id and shows it past every step that runs
+#     tests or fixes: the run is terminal (completed, failed, cancelled), or it
+#     is running with its test step completed or skipped, every step completed
+#     or skipped except push, pr, or ci, and those only pending or running - a
+#     fixing round, an approval gate, or any status word this sweep does not
+#     know keeps the run's processes untouched.
+# A run whose copy still exists but whose status cannot be read, or reads
+# ambiguously, is left alone.
 # Process age is never evidence.
 #
 # This process, its own process group, and every ancestor are never signalled.
@@ -46,7 +47,6 @@ SCRIPT_DIR=$(CDPATH='' cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 . "$SCRIPT_DIR/fm-nm-run-lib.sh"
 
 DRY_RUN=0
-ONLY_BRANCH=
 STATUS_TIMEOUT=${FM_NM_REAP_STATUS_TIMEOUT:-10}
 case "$STATUS_TIMEOUT" in ''|*[!0-9]*|0) STATUS_TIMEOUT=10 ;; esac
 KILL_GRACE_SECS=2
@@ -55,13 +55,13 @@ reap_die() { printf 'fm-nm-reap-run-orphans: %s\n' "$1" >&2; exit 2; }
 
 reap_usage() {
   cat <<'TXT'
-Usage: fm-nm-reap-run-orphans.sh [--dry-run] [--branch <name>]
+Usage: fm-nm-reap-run-orphans.sh [--dry-run]
 
 Stop orphaned processes (parent 1) whose working directory is inside a
-no-mistakes run copy, only when that run's structured status shows it past
-every step that runs tests or fixes. A run that cannot be read is left alone.
---dry-run reports the candidates and signals nothing; --branch limits the
-sweep to runs on that branch. Read this script's header for the full rule.
+no-mistakes run copy, only when that run copy is gone or the run's structured
+status shows it past every step that runs tests or fixes. A run copy that
+exists but cannot be read is left alone. --dry-run reports the candidates and
+signals nothing. Read this script's header for the full rule.
 TXT
 }
 
@@ -112,6 +112,7 @@ EOF
   fi
   for pid in "$@"; do
     line=$(readlink "/proc/$pid/cwd" 2>/dev/null) || continue
+    line=${line% (deleted)}
     printf '%s\t%s\n' "$pid" "$line"
   done
 }
@@ -133,13 +134,9 @@ reap_run_copy_of() { # <worktrees-root> <cwd>
 # 0 when captured `axi status` output $1 for run $2 shows the run past every
 # step that runs tests or fixes; see the header for the exact rule.
 reap_run_is_past_tests() { # <toon-output> <run-id>
-  local out=$1 run_id=$2 id status branch
+  local out=$1 run_id=$2 id status
   id=$(fm_nm_strip_quotes "$(fm_nm_field "$out" id)")
   [ "$id" = "$run_id" ] || return 1
-  if [ -n "$ONLY_BRANCH" ]; then
-    branch=$(fm_nm_strip_quotes "$(fm_nm_field "$out" branch)")
-    [ "$branch" = "$ONLY_BRANCH" ] || return 1
-  fi
   status=$(fm_nm_strip_quotes "$(fm_nm_field "$out" status)")
   case "$status" in
     completed|failed|cancelled) return 0 ;;
@@ -185,7 +182,9 @@ reap_run_allows() { # <run-copy-dir>
   esac
   run_id=${dir##*/}
   verdict=no
-  if [ -d "$dir" ] && out=$(fm_nm_run_checked "$dir" "$STATUS_TIMEOUT" axi status --run "$run_id") \
+  if [ ! -e "$dir" ]; then
+    verdict=yes
+  elif [ -d "$dir" ] && out=$(fm_nm_run_checked "$dir" "$STATUS_TIMEOUT" axi status --run "$run_id") \
      && reap_run_is_past_tests "$out" "$run_id"; then
     verdict=yes
   fi
@@ -274,11 +273,6 @@ EOF
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
-    --branch)
-      [ "$#" -ge 2 ] && [ -n "$2" ] || reap_die "--branch needs a branch name"
-      ONLY_BRANCH=$2
-      shift
-      ;;
     -h|--help) reap_usage; exit 0 ;;
     *) reap_die "unexpected argument: $1" ;;
   esac
