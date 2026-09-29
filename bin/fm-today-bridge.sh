@@ -29,11 +29,12 @@
 #               (state/procevent-inbox/); the link is the board's saved
 #               Lavish session URL. A board whose link cannot be resolved is
 #               left out. A board still open in Lavish's store whose source
-#               registration is gone is listed `owner-gone` when its owner is
-#               recovered from the owner-task files its captured rounds left
-#               or from a board file under data/<task>/; one whose owner
-#               cannot be recovered is left out. Only the owner task, state, round count, last
-#               change, and link leave; never a board's title or body.
+#               registration is gone is listed when its owner is recovered
+#               from the owner-task files its captured rounds left, and is
+#               `owner-gone` once that task's record is gone; one whose owner
+#               cannot be recovered is left out. Only the owner task, state,
+#               round count, last change, and link leave; never a board's
+#               title or body.
 #             day
 #               the calendar day file (below)
 #           A row whose id the contract cannot carry is left out rather than
@@ -549,12 +550,10 @@ for rec in sorted(glob.glob(os.path.join(state_dir, "procevent", "*.source"))):
 
 # A board still open in Lavish whose source registration is gone: its task was
 # torn down or retired the source, and nothing listens to it any more. Its
-# owner is recovered only from durable local records - the owner-task files its
-# captured rounds left behind, or the board file living under this home's
-# data/<task>/ - and never guessed. The source id is Lavish's own derivation
+# owner is recovered only from the owner-task files its captured rounds left
+# behind, and never guessed; a board with no captured round is not one this
+# home can place. The source id is Lavish's own derivation
 # (bin/fm-procevent-lavish.sh source-id).
-data_dir = os.path.realpath(os.path.join(home_dir, "data"))
-home_real = os.path.realpath(home_dir)
 for board_file, url in sorted(open_sessions, key=lambda x: x[0]):
     real = os.path.realpath(board_file)
     sid = "lavish-" + hashlib.sha256(real.encode("utf-8")).hexdigest()[:16]
@@ -563,9 +562,8 @@ for board_file, url in sorted(open_sessions, key=lambda x: x[0]):
         continue
     results = glob.glob(os.path.join(state_dir, "procevent-inbox", glob.escape(sid) + ".*.result"))
     results = [r for r in results if re.match(r"^\d+$", r[:-len(".result")].rsplit(".", 1)[-1])]
-    under_home = real.startswith(home_real + os.sep)
-    if not results and not under_home:
-        continue  # not a board this home ever armed
+    if not results:
+        continue
     owners = set()
     for r in results:
         try:
@@ -575,19 +573,25 @@ for board_file, url in sorted(open_sessions, key=lambda x: x[0]):
                 owners.add(lines[0])
         except OSError:
             pass
-    if not owners and real.startswith(data_dir + os.sep):
-        owners.add(os.path.relpath(real, data_dir).split(os.sep)[0])
     if len(owners) != 1 or not TASK_ID.match(next(iter(owners))):
         skipped.append("board %s: owner task cannot be recovered" % sid)
         continue
+    task = next(iter(owners))
     if not (isinstance(url, str) and LINK.match(url) and len(url) <= 500):
         skipped.append("board %s: no single saved session link" % sid)
         continue
-    stamps = [os.path.getmtime(p) for p in [real] + results if os.path.exists(p)]
-    boards.append({"owner_task": next(iter(owners)), "state": "owner-gone",
-                   "round": len(results),
-                   "last_changed": utc_stamp(max(stamps)) if stamps else now,
-                   "link": url})
+    pending = [r for r in results if not os.path.exists(r[:-len(".result")] + ".handled")]
+    stamps = [os.path.getmtime(p) for p in results
+              + [r[:-len(".result")] + ".handled" for r in results]
+              if os.path.exists(p)]
+    if pending:
+        bstate = "round-open"
+    elif not os.path.exists(os.path.join(state_dir, task + ".meta")):
+        bstate = "owner-gone"
+    else:
+        bstate = "listening"
+    boards.append({"owner_task": task, "state": bstate, "round": len(results),
+                   "last_changed": utc_stamp(max(stamps)), "link": url})
     listed_sources.add(sid)
 
 # --- day ---------------------------------------------------------------------
