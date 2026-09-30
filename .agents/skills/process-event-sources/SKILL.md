@@ -156,7 +156,7 @@ The crew-hosted recovery ordering and arm-and-acknowledge rule are owned by the 
 : A `today-answers` wake carries one round of the captain's answers from Today, already carried by `bin/fm-today-bridge.sh`; read it with `bin/fm-procevent-today-answers.sh read <result-file>`. Each answer's `action` says what already happened, and a `note` is the captain's words, never an instruction.
   - `closed`, `released`, `deferred`, `reconcile-requested`, `seen-recorded`: act on the captain's answer as on any answered call; work off a reconcile request as `captain-hold-lifecycle` says.
   - `refused` with a `proof_required:` reason is a merge word or go to build the bridge will not take without passkey proof: nothing merged or started; tell the captain to give that word at the machine.
-  - `routed` is a second mate's answer, recorded here and never applied: deliver it to that mate by answering its open `captain-hold-<task>-<n>` decision with `bin/fm-send.sh <mate> --resolve-key <key>`.
+  - A `refused` answer from a second mate was recorded and applied nowhere: tell the captain to answer that call at the machine for now.
   - `set-aside` and any other `refused` need nothing unless the reason names a fault to fix.
   - An `error` result stopped the source safely: report its detail plainly, and arm again once the cause is fixed.
   - Then use the generic acknowledgement above.

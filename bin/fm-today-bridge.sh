@@ -116,15 +116,18 @@
 #      anything; it is recorded and receipted, and the captain gives that word
 #      at the machine.
 #   2. Any other answer must pass the answer schema, or it is refused.
-#   3. A call no longer in the snapshot is refused; a card_hash that is not
+#   3. A second mate's answer is recorded and refused with the fixed reason
+#      MATE_REFUSAL; nothing is applied in this home or the mate's, and the
+#      captain answers a second mate's call at the machine for now.
+#   4. A call no longer in the snapshot is refused; a card_hash that is not
 #      the current card's is `set-aside` with `current_card_hash`, and the call
 #      is asked again in the next snapshot. A value the card did not offer, or
 #      a note over 512 bytes, is refused.
-#   4. A second mate's answer is never applied in this home: it is recorded,
-#      receipted `applied` with a reason naming the mate, and reported so
-#      firstmate routes it to that home through the parent channel's open
-#      captain-hold decision (bin/fm-send.sh --resolve-key).
-#   5. `later` re-holds the call with bin/fm-captain-hold.sh hold --until the
+#   5. Nothing is applied in this home unless its bridge source id
+#      `today-bridge` is bound (bin/fm-captain-hold.sh bind, which
+#      bin/fm-procevent-today-answers.sh arm does before arming); an unbound
+#      home refuses the answer.
+#   6. `later` re-holds the call with bin/fm-captain-hold.sh hold --until the
 #      captain's local date of later_until; `seen` on a credential card is
 #      recorded and the call stays open; `reconcile` files a reconcile request
 #      through bin/fm-captain-hold.sh reconcile-requests under the bound
@@ -930,6 +933,8 @@ PROOF_KINDS = ("merge", "go")
 PROOF_REFUSAL = ("proof_required: a merge or go answer needs the captain's passkey signature, "
                  "which firstmate cannot check yet; nothing was merged, released, or started. "
                  "Give this word at the machine.")
+# Slice 0 applies no second mate's answer anywhere: it is recorded and refused.
+MATE_REFUSAL = "answer a second mate's call at the machine for now; nothing was applied"
 
 
 def now():
@@ -1031,6 +1036,8 @@ def carry(answer, cards, closes):
     card = cards.get((owner, task))
     if answer["kind"] in PROOF_KINDS or (card and card["kind"] in PROOF_KINDS):
         return "refused", PROOF_REFUSAL, None, "refused"
+    if owner != MAIN:
+        return "refused", MATE_REFUSAL, None, "refused"
     if card is None:
         return "refused", "the call is no longer open", None, "refused"
     if answer["card_hash"] != card["card_hash"]:
@@ -1041,9 +1048,10 @@ def carry(answer, cards, closes):
         return "refused", "the card did not offer %s" % value, None, "refused"
     if len((answer.get("note") or "").encode("utf-8")) > 512:
         return "refused", "the note is over 512 bytes", None, "refused"
-    if owner != MAIN:
-        return ("applied", "recorded here; a second mate's call is applied in its own home, "
-                "so firstmate routes it to %s" % owner, None, "routed")
+    rc, _out, _err = run([HOLD, "binding", os.environ["FM_TODAY_RECONCILE_SOURCE"]])
+    if rc != 0:
+        return ("refused", "the Today source is not bound in this home; nothing was applied",
+                None, "refused")
     source = "Today answer %s on device %s" % (answer["answer_id"], answer["device"])
     if value == "later":
         until = later_date(answer["later_until"])

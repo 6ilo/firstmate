@@ -13,8 +13,9 @@
 # held merge, go, and credential calls become cards of that kind; decision
 # answers close through bin/fm-captain-hold.sh's intake; merge and go answers
 # are refused for proof with every merging script a tripwire; stale cards are
-# set aside; later, reconcile, and seen never close; a second mate's answer is
-# routed, not applied; receipts survive a failed call; repeats are duplicates;
+# set aside; later, reconcile, and seen never close; an unbound home and a
+# second mate's answer apply nothing; receipts survive a failed call; repeats
+# are duplicates;
 # and poll reports one round bin/fm-procevent-today-answers.sh reads.
 set -u
 
@@ -837,6 +838,32 @@ test_answers_decision_closes_and_work_resumes() {
   pass "a decision answer closes its question through the intake, held work resumes, and one receipt each follows"
 }
 
+# An unbound home applies nothing: the Today source feeds the hold lifecycle
+# only once its source id is bound, as every captured-answer source does.
+test_answers_unbound_home_applies_nothing() {
+  local tree=$TMP_ROOT/answers-tree home portal=$TMP_ROOT/portal-unbound before s id
+  home=$(make_answers_home answers-home-unbound)
+  FM_HOME="$home" "$ROOT/bin/fm-captain-hold.sh" unbind today-bridge >/dev/null \
+    || fail "could not unbind the bridge's source"
+  before=$(cat "$home/data/backlog.md")
+  start_portal "$portal"
+  jq -s . <(answer ans_ub_pick_01 q-pick decision east "$(hash_of "$tree" "$home" q-pick)") \
+    <(answer ans_ub_later_01 q-later decision later "$(hash_of "$tree" "$home" q-later)" '{"later_until":"2026-10-04T15:00:00Z"}') \
+    <(answer ans_ub_recon_01 q-recon decision reconcile "$(hash_of "$tree" "$home" q-recon)") > "$portal/answers.json"
+  abridge "$tree" "$home" answers once
+  [ "$CODE" -eq 0 ] || fail "answers once exited $CODE: $(cat "$ERR")"
+  for id in ans_ub_pick_01 ans_ub_later_01 ans_ub_recon_01; do
+    s=$(summary_of "$id")
+    [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "refused refused" ] || fail "an unbound home applied $id: $s"
+    jq -r .reason <<< "$s" | grep -q 'not bound' || fail "the refusal does not say the source is unbound: $s"
+  done
+  [ "$(cat "$home/data/backlog.md")" = "$before" ] || fail "an unbound home changed the backlog"
+  [ ! -d "$home/state/reconcile-requests" ] || [ -z "$(ls -A "$home/state/reconcile-requests")" ] \
+    || fail "an unbound home filed a reconcile request"
+  stop_portal
+  pass "a home whose Today source is not bound refuses every answer and applies nothing"
+}
+
 # Until firstmate checks the captain's passkey itself, a merge or go answer is
 # refused however well-formed, and nothing that could merge, release, start,
 # or close is ever run: this copy's hold, merge, spawn, send, and control
@@ -942,28 +969,41 @@ test_answers_later_reconcile_and_seen_never_close() {
   pass "later defers the call, reconcile files a request, and seen is recorded; none closes it"
 }
 
-test_answers_second_mate_answer_is_routed_not_applied() {
-  local tree=$TMP_ROOT/answers-tree home portal=$TMP_ROOT/portal-mate before s
+test_answers_second_mate_answer_is_refused_in_every_home() {
+  local tree=$TMP_ROOT/answers-tree home mate portal=$TMP_ROOT/portal-mate before mate_before s id
   home=$(make_answers_home answers-home-mate)
+  mate=$(make_answers_home answers-mate-home)
+  printf 'mate\n' > "$mate/.fm-secondmate-home"
+  printf -- '- mate - fixture domain (home: %s; scope: fixture work; projects: firstmate; added 2026-09-20)\n' \
+    "$mate" > "$home/data/secondmates.md"
   start_portal "$portal"
   jq -s . <(answer ans_mate_0001 q-pick decision reconcile "$(hash_of "$tree" "$home" q-pick mate)" \
-    '{"owner":"mate","note":"re-check it"}') > "$portal/answers.json"
-  before=$(cat "$home/data/backlog.md")
+    '{"owner":"mate","note":"re-check it"}') \
+    <(answer ans_mate_0002 q-pick decision east "$(hash_of "$tree" "$home" q-pick mate)" '{"owner":"mate"}') \
+    > "$portal/answers.json"
+  before=$(cd "$home" && find data state -type f ! -path 'state/today-answers/*' -exec cksum {} + | sort)
+  mate_before=$(cd "$mate" && find . -type f -exec cksum {} + | sort)
   abridge "$tree" "$home" answers once
   [ "$CODE" -eq 0 ] || fail "answers once exited $CODE: $(cat "$ERR")"
-  s=$(summary_of ans_mate_0001)
-  [ "$(jq -r '.owner + " " + .outcome + " " + .action' <<< "$s")" = "mate applied routed" ] \
-    || fail "a second mate's answer was not routed: $s"
-  jq -e '.reason | contains("routes it to mate")' <<< "$s" >/dev/null || fail "the route does not name the mate: $s"
-  [ "$(cat "$home/data/backlog.md")" = "$before" ] || fail "a second mate's answer changed this home's backlog"
-  [ ! -d "$home/state/reconcile-requests" ] || fail "a second mate's reconcile filed a request in this home"
-  [ "$(jq -r '.task_id + " " + .owner' "$home/state/today-answers/answers/ans_mate_0001.json")" = "q-pick mate" ] \
-    || fail "the second mate's answer was not recorded"
+  for id in ans_mate_0001 ans_mate_0002; do
+    s=$(summary_of "$id")
+    [ "$(jq -r '.owner + " " + .outcome + " " + .action' <<< "$s")" = "mate refused refused" ] \
+      || fail "a second mate's answer was not refused: $s"
+    [ "$(jq -r .reason <<< "$s")" = "answer a second mate's call at the machine for now; nothing was applied" ] \
+      || fail "the refusal does not carry the fixed reason: $s"
+    [ "$(jq -r '.task_id + " " + .owner' "$home/state/today-answers/answers/$id.json")" = "q-pick mate" ] \
+      || fail "the second mate's answer was not recorded"
+  done
+  [ "$(cd "$home" && find data state -type f ! -path 'state/today-answers/*' -exec cksum {} + | sort)" = "$before" ] \
+    || fail "a second mate's answer changed this home"
+  [ "$(cd "$mate" && find . -type f -exec cksum {} + | sort)" = "$mate_before" ] \
+    || fail "a second mate's answer changed the mate's home"
   abridge "$tree" "$home" answers once
-  jq -e '.body.receipts[] | select(.answer_id == "ans_mate_0001") | .owner == "mate"' "$portal/req-1.json" >/dev/null \
-    || fail "the receipt does not carry the answer's owner: $(jq -c .body.receipts "$portal/req-1.json")"
+  [ "$(jq -c '[.body.receipts[] | select(.owner == "mate") | [.answer_id, .outcome]] | sort' "$portal/req-1.json")" \
+    = '[["ans_mate_0001","refused"],["ans_mate_0002","refused"]]' ] \
+    || fail "the refusals did not go out with the answer's owner: $(jq -c .body.receipts "$portal/req-1.json")"
   stop_portal
-  pass "a second mate's answer is recorded and routed, never applied in the main home"
+  pass "a second mate's answer, reconcile included, is recorded and refused, and changes nothing in either home"
 }
 
 # The receipt is written before the next call, so a failed call re-sends it and
@@ -1111,10 +1151,11 @@ test_held_calls_raise_merge_go_and_credential_cards
 make_answers_tree "$TMP_ROOT/answers-tree"
 test_recorded_options_lead_a_decision_card
 test_answers_decision_closes_and_work_resumes
+test_answers_unbound_home_applies_nothing
 test_answers_merge_and_go_are_refused_without_proof
 test_answers_that_do_not_fit_the_call_are_set_aside_or_refused
 test_answers_later_reconcile_and_seen_never_close
-test_answers_second_mate_answer_is_routed_not_applied
+test_answers_second_mate_answer_is_refused_in_every_home
 test_answers_receipts_survive_a_failed_call_and_repeats_are_duplicates
 test_answers_poll_reports_through_the_process_event_adapter
 test_answers_refuse_bad_settings
