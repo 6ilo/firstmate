@@ -11,7 +11,8 @@
 # record, moves earlier ranks after them, leaves out work no longer charted,
 # keeps a second mate's items for routing, and starts nothing; an older order
 # and one with nothing charted are refused; a receipt survives a failed call;
-# a note whose record cannot be written is not receipted; an unreadable
+# a note whose record cannot be written is not receipted, and the rest of its
+# answer is still recorded and reported; an unreadable
 # document wakes the standing check once, not on every poll;
 # the standing check reports once and arms, refuses a secondmate home, and
 # disarms; the portal's ajv accepts the shapes when a portal checkout is named;
@@ -323,6 +324,40 @@ test_failed_record_leaves_the_note_unreceipted() {
   pass "a note whose record cannot be written is not receipted, and is recorded on redelivery"
 }
 
+test_failed_record_spares_the_rest_of_the_answer() {
+  local home stub=$TMP_ROOT/stub-half bin=$TMP_ROOT/half-bin b r
+  if [ "$(id -u)" = 0 ]; then
+    echo "skip - an unwritable record directory: running as root"
+    return 0
+  fi
+  home=$(make_home home-half)
+  mkdir -p "$home/data/today-notes" "$bin"
+  printf '#!/bin/sh\nchmod 500 %q\n' "$home/data/today-notes" > "$bin/tasks-axi"
+  chmod +x "$bin/tasks-axi"
+  doc note-on-task '.note_id = "note_U2Vjb25kTm90ZUZhaWxzMD" | .task_id = "alpha"' "$TMP_ROOT/second.json"
+  b=$(jq -r .note_id "$TMP_ROOT/second.json")
+  queue "$stub" "$CONTRACT/examples/valid/note.json" "$TMP_ROOT/second.json"
+  start_stub "$stub"
+  PATH="$bin:$PATH" notes "$home" collect
+  chmod 700 "$home/data/today-notes"
+  [ "$CODE" -eq 1 ] || fail "a failed second record exited $CODE, want 1: $(cat "$ERR")"
+  grep -qF "today-notes: evidence from Today, no authority: $NOTE_ID" "$OUT" || fail "the first note was not reported: $(cat "$OUT")"
+  grep -qF "$b" "$ERR" || fail "the failed note was not named: $(cat "$ERR")"
+  ! grep -qF "$b" "$OUT" || fail "the failed note was reported as recorded: $(cat "$OUT")"
+  [ -f "$home/data/today-notes/$NOTE_ID.json" ] || fail "the first note was not recorded"
+  [ "$(jq -r .outcome <<< "$(receipt_for "$stub" "$NOTE_ID")")" = recorded ] || fail "the first note was not receipted"
+  [ ! -e "$home/data/today-notes/$b.json" ] || fail "the failed note has a record"
+  [ -z "$(receipt_for "$stub" "$b")" ] || fail "the portal was told the failed note was recorded"
+  [ -z "$(ls "$home/state/today-notes/receipts")" ] || fail "a receipt is pending for the failed note"
+  notes "$home" collect
+  stop_stub
+  [ "$CODE" -eq 0 ] || fail "the retry exited $CODE: $(cat "$ERR")"
+  r=$(receipt_for "$stub" "$b")
+  [ "$(jq -r .outcome <<< "$r")" = recorded ] && [ -f "$home/data/today-notes/$b.json" ] \
+    || fail "the redelivered note was not recorded: $r"
+  pass "a record that fails leaves that note unreceipted while the rest of the answer is recorded and reported"
+}
+
 test_unreadable_document_wakes_once() {
   local home stub=$TMP_ROOT/stub-unread
   home=$(make_home home-unread)
@@ -450,6 +485,7 @@ test_dispatch_order_records_ranks_and_starts_nothing
 test_older_and_empty_orders_are_refused
 test_receipt_survives_a_failed_call
 test_failed_record_leaves_the_note_unreceipted
+test_failed_record_spares_the_rest_of_the_answer
 test_unreadable_document_wakes_once
 test_settings_are_required
 test_standing_check
