@@ -3286,6 +3286,17 @@ fm_backend_herdr_composer_content() {  # <target> [lines]
   fm_composer_extract_selected_content "$caps" "$cap"
 }
 
+# fm_backend_herdr_proof_normalize_var: the comparison form every composer
+# read-back proof uses - Unicode spaces mapped, then all whitespace and U+2063
+# removed - so wrapping and the invisible operational mark never decide a match.
+fm_backend_herdr_proof_normalize_var() {  # <varname>
+  local __fmhp_name=$1 __fmhp_text=${!1}
+  fm_composer_normalize_spaces_var __fmhp_text
+  __fmhp_text=${__fmhp_text//[$' \t\r\n\v\f']/}
+  __fmhp_text=${__fmhp_text//$'\xE2\x81\xA3'/}
+  printf -v "$__fmhp_name" '%s' "$__fmhp_text"
+}
+
 # fm_backend_herdr_composer_payload_shown: 0 when <after>, read from a
 # composer that was empty before the send, shows <text>.
 # Literal equality ignores whitespace, the same comparison zellij uses, so a
@@ -3300,12 +3311,8 @@ fm_backend_herdr_composer_content() {  # <target> [lines]
 # remainder, is the head-truncation shape and is not proof.
 fm_backend_herdr_composer_payload_shown() {  # <text> <after>
   local text=$1 after=$2 literal
-  fm_composer_normalize_spaces_var text
-  fm_composer_normalize_spaces_var after
-  text=${text//[$' \t\r\n\v\f']/}
-  text=${text//$'\xE2\x81\xA3'/}
-  after=${after//[$' \t\r\n\v\f']/}
-  after=${after//$'\xE2\x81\xA3'/}
+  fm_backend_herdr_proof_normalize_var text
+  fm_backend_herdr_proof_normalize_var after
   [ -n "$text" ] && [ -n "$after" ] || return 1
   [ "$after" = "$text" ] && return 0
   literal=$after
@@ -3321,17 +3328,67 @@ fm_backend_herdr_composer_payload_shown() {  # <text> <after>
 # is not used because it interrupts a running turn. Live Claude deletes one
 # wrapped screen row per press, so a single-line leftover can need several
 # presses. The press count is bounded by the rows the proof capture covers.
-# 0 only when the composer is verified empty again.
+# 0 only when the composer is verified empty again, by both the shared
+# classifier and the same proof-sized read that found the text, and still
+# empty after FM_BACKEND_HERDR_CLEAR_SETTLE seconds: a draft Claude renders
+# late, or one the small classifier window cannot see, must not be reported
+# cleared while it still sits in the composer.
 fm_backend_herdr_composer_clear() {  # <target> <text>
-  local target=$1 text=$2 presses i=0
+  local target=$1 text=$2 presses lines i=0
   presses=$(fm_backend_herdr_proof_lines "$text")
+  lines=$presses
   while [ "$i" -lt "$presses" ]; do
     fm_backend_herdr_send_key "$target" C-u || return 1
     i=$((i + 1))
-    [ "$(fm_backend_herdr_composer_state "$target")" = empty ] && return 0
+    if fm_backend_herdr_composer_is_clear "$target" "$lines"; then
+      sleep "$FM_BACKEND_HERDR_CLEAR_SETTLE"
+      fm_backend_herdr_composer_is_clear "$target" "$lines" && return 0
+    fi
   done
   return 1
 }
+
+FM_BACKEND_HERDR_CLEAR_SETTLE=${FM_BACKEND_HERDR_CLEAR_SETTLE:-0.3}
+
+fm_backend_herdr_composer_is_clear() {  # <target> <lines>
+  local content
+  [ "$(fm_backend_herdr_composer_state "$1")" = empty ] || return 1
+  content=$(fm_backend_herdr_composer_content "$1" "$2") || return 1
+  [ -z "${content//[$' \t\r\n\v\f']/}" ]
+}
+
+# fm_backend_herdr_composer_clear_own: remove what is left of <typed>, text
+# this caller typed earlier and could not submit, without touching anything
+# else in the composer. The composer's visible text counts as ours only when,
+# in the proof comparison form, it is at least
+# FM_BACKEND_HERDR_OWN_MIN_CHARS characters long and appears inside <typed>:
+# the shape a refused or swallowed send leaves (the whole payload, a tail, or
+# a tail partly deleted by an interrupted clear). Anything else - a person's
+# draft, our text with a person's typing added, or a paste placeholder whose
+# contents cannot be read - is foreign and is never cleared.
+# Echoes empty (nothing left), cleared (ours, verified removed), foreign
+# (left alone), or unknown (unreadable, or the clear could not be verified).
+fm_backend_herdr_composer_clear_own() {  # <target> <typed>
+  local target=$1 typed=$2 lines content
+  fm_backend_herdr_parse_target "$target" || { printf 'unknown'; return 0; }
+  lines=$(fm_backend_herdr_proof_lines "$typed")
+  content=$(fm_backend_herdr_composer_content "$target" "$lines") || { printf 'unknown'; return 0; }
+  fm_backend_herdr_proof_normalize_var content
+  fm_backend_herdr_proof_normalize_var typed
+  if [ -z "$content" ]; then
+    printf 'empty'
+  elif [ "${#content}" -ge "$FM_BACKEND_HERDR_OWN_MIN_CHARS" ] && [[ $typed == *"$content"* ]]; then
+    if fm_backend_herdr_composer_clear "$target" "$2"; then
+      printf 'cleared'
+    else
+      printf 'unknown'
+    fi
+  else
+    printf 'foreign'
+  fi
+}
+
+FM_BACKEND_HERDR_OWN_MIN_CHARS=${FM_BACKEND_HERDR_OWN_MIN_CHARS:-32}
 
 fm_backend_herdr_send_text_submit() {  # <target> <text> <retries> <enter-sleep> <settle>
   local target=$1 text=$2 retries=$3 sleep_s=$4 settle=$5 i=0 verdict baseline confirm_sleep

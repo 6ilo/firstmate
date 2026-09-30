@@ -143,6 +143,7 @@ herdr - both literal, non-submitting sends), then submitted with Enter and
 **verified** through the selected backend's submit primitive.
 Enter is retried (Enter only, never a retype) until the backend confirms the
 submit landed.
+When an attempt that typed its digest could not confirm the submit, the next attempt first removes exactly what is left of that text on backends that can prove it (herdr), and leaves any other composer text alone.
 A failed delivery is logged with its stage (initial send or Enter delivery, where no confirmation retry ran and the text may already be typed on backends such as herdr whose Enter could not be sent, or Enter confirmation), the payload's byte count, and the transport's own error output.
 For tmux that confirmation is normally a proven cleared composer from the shared classifier; an idle baseline transitioning to busy across this submit's own Enter also confirms that the turn started when a working harness hides its composer.
 Without that baseline, busy state never converts an `unknown` composer into confirmation.
@@ -158,7 +159,7 @@ The daemon still clears its buffer only on the backend's `empty` success verdict
 The daemon wraps `fm-watch.sh`, runs the watcher as a child, presents every durable wake after each actionable watcher close, classifies each presented record in bash, and acknowledges the presented generation only after routing completes.
 It self-handles the routine majority without consuming a firstmate turn.
 Captain-relevant events, plus a bounded recheck of a declared external wait that is still declared, escalate to firstmate's context as one pre-read, single-line, batched digest.
-The digest is byte-bounded so every transport can carry it; when it cuts an event or omits events past its budget, it names a `state/.subsuper-digests/` file that holds every buffered event verbatim, so read that file before acting on a cut event.
+The digest is byte-bounded so the supervisor's composer keeps it whole, and it leads with events that need a decision, are blocked, or failed; when it cuts an event or omits events past its budget, it names a `state/.subsuper-digests/` file that holds every buffered event verbatim, so read that file before acting on a cut event.
 The captain-relevant verb set, declared-wait vocabulary, status-span classifier, and presentation-marker contract live in shared `bin/fm-classify-lib.sh`, while each supervisor owns its routing and fleet scan as a consumer of that policy.
 While `state/.afk` exists the daemon owns the watcher, so the watcher reverts to one-shot and lets the daemon do the triage - the two never run their triage at the same time.
 

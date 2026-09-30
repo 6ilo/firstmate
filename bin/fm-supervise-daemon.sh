@@ -221,6 +221,9 @@ WEDGE_ALARM_NOTIFIER_PID=
 INJECT_LAST_FAILURE=
 # 1 once the latest delivery attempt reached the submit primitive.
 INJECT_SUBMIT_ATTEMPTED=0
+# The exact text of the latest attempt that reached the submit primitive
+# without a confirmed submit; inject_msg clears what is left of it.
+INJECT_TYPED_TEXT=
 # The captain-relevant verb set and the status classifiers (last_status_line,
 # status_is_captain_relevant, window_to_task, and the status-span reader) now
 # live in bin/fm-classify-lib.sh, shared with the always-on watcher.
@@ -764,45 +767,94 @@ _utf8_prefix() {  # <text> <max-bytes> <out-var>
   printf -v "$3" '%s' "$s"
 }
 
-# The injected digest is bounded so it always fits one transport argument:
-# tmux refuses an oversized `send-keys -l` command, and Linux refuses to exec
-# any single argument above 131,071 bytes (MAX_ARG_STRLEN), which is how the
-# herdr, zellij, orca, and cmux adapters pass text. Each item is cut to
-# ESCALATE_ITEM_BYTES at a UTF-8 boundary with an omitted-bytes marker, the
-# joined items stop at ESCALATE_DIGEST_BYTES with a "+K more event(s)" tail,
-# and a bounded digest names a full-text file under ESCALATE_FULL_DIR that
-# keeps every buffered item verbatim.
-ESCALATE_DIGEST_BYTES=8192
-ESCALATE_ITEM_BYTES=2048
-ESCALATE_ITEM_MIN_BYTES=128
+# The injected digest is bounded by what the supervisor's composer keeps whole
+# from one literal send, which is far below any transport ceiling: live Claude
+# keeps only a fragment of an unbracketed send of 1024 bytes or more, and the
+# herdr submit proof then refuses every attempt, which is how an 8 KiB digest
+# stayed undelivered all night (docs/verification/supervision.md "Away digest
+# size"). ESCALATE_INJECT_BYTES caps the whole encoded message, envelope and
+# full-text path included, with margin below that measured limit. Items that
+# need a decision, are blocked, or failed are placed first; each item is cut to
+# ESCALATE_ITEM_BYTES at a UTF-8 boundary with an omitted-bytes marker, items
+# past the budget are counted in an "and K more event(s)" tail, and a bounded
+# digest names a full-text file under ESCALATE_FULL_DIR that keeps every
+# buffered item verbatim. The injected copy shows `|` and box-drawing glyphs as
+# `¦`, shows `+` as `＋`, and uses ` ¦ ` as its separator, because the shared
+# composer classifier reads a wrapped row that starts or ends with any of them
+# as a box edge and would stop reading the composer there. An item is urgent
+# when its status verb, at the start or after `: `, is one of
+# ESCALATE_URGENT_RE's verbs.
+ESCALATE_INJECT_BYTES=768
+ESCALATE_ITEM_BYTES=240
+ESCALATE_ITEM_MIN_BYTES=64
 ESCALATE_FULL_DIR=.subsuper-digests
+ESCALATE_URGENT_RE='(^|: )(needs-decision|blocked|failed)( \[|:)'
 
-# escalate_digest_body: join <buf>'s items with " | " inside the byte budget.
-# Sets ESCALATE_BODY, ESCALATE_EVENTS (every buffered item), and
+# escalate_digest_body: join <buf>'s items, urgent first, inside <budget>
+# bytes. Sets ESCALATE_BODY, ESCALATE_EVENTS (every buffered item), and
 # ESCALATE_BOUNDED (1 when any item was cut or omitted).
-escalate_digest_body() {  # <buf>
-  local LC_ALL=C buf=$1 item='' sep cut remaining=$ESCALATE_DIGEST_BYTES room cap shown=0 total=0
+escalate_digest_body() {  # <buf> <budget>
+  local LC_ALL=C buf=$1 item='' sep cut remaining=$2 room cap shown=0 total=0 pass glyph
+  local -a items=()
   ESCALATE_BODY=
   ESCALATE_BOUNDED=0
   while IFS= read -r item || [ -n "$item" ]; do
-    total=$((total + 1))
-    sep=
-    [ "$shown" -eq 0 ] || sep=' | '
-    room=$((remaining - ${#sep}))
-    [ "$room" -ge "$ESCALATE_ITEM_MIN_BYTES" ] || { ESCALATE_BOUNDED=1; continue; }
-    cap=$ESCALATE_ITEM_BYTES
-    [ "$room" -ge "$cap" ] || cap=$room
-    if [ "${#item}" -gt "$cap" ]; then
-      _utf8_prefix "$item" "$cap" cut
-      item="$cut [+$(( ${#item} - ${#cut} )) bytes]"
-      ESCALATE_BOUNDED=1
-    fi
-    ESCALATE_BODY+="$sep$item"
-    remaining=$((remaining - ${#sep} - ${#item}))
-    shown=$((shown + 1))
+    items+=("$item")
   done < "$buf"
+  total=${#items[@]}
+  for pass in urgent other; do
+    for item in "${items[@]}"; do
+      if [[ $item =~ $ESCALATE_URGENT_RE ]]; then
+        [ "$pass" = urgent ] || continue
+      else
+        [ "$pass" = other ] || continue
+      fi
+      sep=
+      [ "$shown" -eq 0 ] || sep=' ¦ '
+      room=$((remaining - ${#sep}))
+      [ "$room" -ge "$ESCALATE_ITEM_MIN_BYTES" ] || { ESCALATE_BOUNDED=1; continue; }
+      item=${item//|/¦}
+      item=${item//+/＋}
+      for glyph in │ ┃ ║ ╭ ╮ ┌ ┐ ╔ ╗ ┏ ┓ ╰ ╯ └ ┘ ╚ ╝ ┗ ┛ ─ ━ ═ ▀ ▄ ▁ ▔; do
+        item=${item//"$glyph"/¦}
+      done
+      cap=$ESCALATE_ITEM_BYTES
+      [ "$room" -ge "$cap" ] || cap=$room
+      if [ "${#item}" -gt "$cap" ]; then
+        _utf8_prefix "$item" "$((cap - 24))" cut
+        item="$cut [$(( ${#item} - ${#cut} )) more bytes]"
+        ESCALATE_BOUNDED=1
+      fi
+      ESCALATE_BODY+="$sep$item"
+      remaining=$((remaining - ${#sep} - ${#item}))
+      shown=$((shown + 1))
+    done
+  done
   ESCALATE_EVENTS=$total
-  [ "$shown" -ge "$total" ] || ESCALATE_BODY+=" | +$((total - shown)) more event(s)"
+  [ "$shown" -ge "$total" ] || ESCALATE_BODY+=" ¦ and $((total - shown)) more event(s)"
+}
+
+# escalate_digest_wrap / escalate_digest_bounded_note: the digest's fixed
+# envelope, shared by the flush and the budget below so they cannot drift.
+escalate_digest_wrap() {  # <events> <body>
+  printf 'Supervisor escalate (%s event(s)): %s (pre-read; re-arm not needed — watcher daemon-managed)' "$1" "$2"
+}
+
+escalate_digest_bounded_note() {  # <body> <full-text-path>
+  printf '%s (digest bounded; full text of every event: %s)' "$1" "$2"
+}
+
+# escalate_body_budget: bytes left for events once the encoded envelope, a
+# full-text path of the length escalate_full_text_save creates, and the
+# omitted-events tail are paid for.
+escalate_body_budget() {  # <state> <buf>
+  local LC_ALL=C state=$1 buf=$2 events path shell encoded tail
+  events=$(awk 'END { print NR }' "$buf" 2>/dev/null) || events=0
+  path="$state/$ESCALATE_FULL_DIR/digest-00000000T000000.XXXXXX"
+  shell=$(escalate_digest_wrap "$events" "$(escalate_digest_bounded_note x "$path")")
+  fm_operational_input_encode away-supervisor "$shell" encoded || encoded=$shell
+  tail=" ¦ and $events more event(s)"
+  printf '%s' "$(( ESCALATE_INJECT_BYTES - ${#encoded} + 1 - ${#tail} ))"
 }
 
 # escalate_full_text_save: copy <buf> verbatim into a new full-text file and
@@ -835,7 +887,7 @@ escalate_flush() {  # <state>
     log "inject skipped: $INJECT_LAST_FAILURE"
     return 1
   fi
-  escalate_digest_body "$buf"
+  escalate_digest_body "$buf" "$(escalate_body_budget "$state" "$buf")"
   msg=$ESCALATE_BODY
   if [ "$ESCALATE_BOUNDED" -eq 1 ]; then
     if [ -n "$ESCALATE_KEPT_FULL" ] && cmp -s "$ESCALATE_KEPT_FULL" "$buf"; then
@@ -847,11 +899,11 @@ escalate_flush() {  # <state>
       log "inject skipped: $INJECT_LAST_FAILURE; buffer preserved"
       return 1
     fi
-    msg="$msg (digest bounded; full text of every event: $full)"
+    msg=$(escalate_digest_bounded_note "$msg" "$full")
   fi
   # Single-line wrapper: no embedded newlines (inject_msg also collapses as a
   # safety net, but keeping the source single-line makes the intent explicit).
-  msg=$(printf 'Supervisor escalate (%s event(s)): %s (pre-read; re-arm not needed — watcher daemon-managed)' "$ESCALATE_EVENTS" "$msg")
+  msg=$(escalate_digest_wrap "$ESCALATE_EVENTS" "$msg")
   if inject_msg "$msg" "$state"; then
     unknown_wake_acknowledge_flushed "$state" "$buf" \
       || log "unknown-wake acknowledgement write failed; a delivered unknown wake may escalate again"
@@ -1375,6 +1427,36 @@ window_for_task() {  # <task-key> [state]
   return 1
 }
 
+# inject_clear_own_leftover: an earlier attempt that reached the submit
+# primitive without a confirmed submit may have left its typed digest, or a
+# tail of it, in the supervisor composer. The backend removes exactly what is
+# left of that text; text it cannot prove is ours (a person's draft) is left
+# alone. It runs ahead of the afk gate, so a pass after afk turns off and the
+# shutdown path recover too. The record lives only in this process, so a
+# restarted daemon never clears text from a run it did not make.
+inject_clear_own_leftover() {
+  local backend target
+  [ -n "$INJECT_TYPED_TEXT" ] || return 0
+  backend="${FM_SUPERVISOR_BACKEND:-tmux}"
+  target="${FM_SUPERVISOR_TARGET:-$FM_SUPERVISOR_TARGET_DEFAULT}"
+  case "$(fm_backend_composer_clear_own "$backend" "$target" "$INJECT_TYPED_TEXT" 2>/dev/null)" in
+    empty|unsupported) INJECT_TYPED_TEXT= ;;
+    cleared)
+      INJECT_TYPED_TEXT=
+      log "inject recovered: cleared the unsubmitted text of an earlier digest from the supervisor composer"
+      ;;
+    foreign) log "inject: supervisor composer holds text that is not an earlier digest; left alone" ;;
+    *) log "inject: could not verify clearing an earlier digest's unsubmitted text from the supervisor composer" ;;
+  esac
+}
+
+# shutdown_flush: on daemon shutdown, clear an earlier digest's leftover even
+# when afk is off, then flush what is still buffered.
+shutdown_flush() {  # <state>
+  inject_clear_own_leftover
+  escalate_flush "$1"
+}
+
 # --- injection --------------------------------------------------------------
 # inject_msg: send one escalation digest to the supervisor pane.
 # Returns 0 on successful inject (or empty buffer), non-zero if the pane is
@@ -1403,6 +1485,7 @@ inject_msg() {  # <message> [state]
   # watcher triage. Escalations buffer and survive for the next catch-up flush.
   INJECT_LAST_FAILURE=
   INJECT_SUBMIT_ATTEMPTED=0
+  inject_clear_own_leftover
   afk_active "$state" || { INJECT_LAST_FAILURE="deferred: afk inactive"; log "inject $INJECT_LAST_FAILURE"; return 1; }
   # (2) Single-line digest: collapse any embedded newlines so submission via
   # send-keys + Enter is unambiguous regardless of how the TUI composer treats
@@ -1464,8 +1547,10 @@ inject_msg() {  # <message> [state]
     rm -f "$errf"
   fi
   if [ "$verdict" = empty ]; then
+    INJECT_TYPED_TEXT=
     return 0  # Backend confirmed the submit.
   fi
+  INJECT_TYPED_TEXT=$msg
   err=$(_collapse_newlines "$err")
   _utf8_prefix "$err" 512 err
   if [ "$verdict" = send-failed ]; then
@@ -1837,7 +1922,7 @@ fm_super_main() {
   cleanup() {
     trap - TERM INT
     wedge_alarm_stop_active_notifier
-    escalate_flush "$STATE" 2>/dev/null || true
+    shutdown_flush "$STATE" 2>/dev/null || true
     if [ -n "${WATCHER_PID:-}" ]; then
       kill "$WATCHER_PID" 2>/dev/null || true
       wait "$WATCHER_PID" 2>/dev/null || true
