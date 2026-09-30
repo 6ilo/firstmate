@@ -1,0 +1,100 @@
+### 1. Valid examples (schema + card_hash + challenge), signed answers checked with --keys
+answer-credential-seen.json: ok
+ (exit 0)
+answer-decision-second-mate.json: ok
+ (exit 0)
+answer-decision.json: ok
+ (exit 0)
+answer-go-later.json: ok
+ (exit 0)
+answer-later.json: ok
+ (exit 0)
+answer-merge.json: ok
+ (exit 0)
+card-credential-withheld.json: ok
+ (exit 0)
+card-decision-no-repo.json: ok
+ (exit 0)
+card-decision-second-mate.json: ok
+ (exit 0)
+card-decision.json: ok
+ (exit 0)
+card-go.json: ok
+ (exit 0)
+card-merge.json: ok
+ (exit 0)
+enrolment.json: ok
+ (exit 0)
+receipt-applied-second-mate.json: ok
+ (exit 0)
+receipt-applied.json: ok
+ (exit 0)
+receipt-duplicate.json: ok
+ (exit 0)
+receipt-refused.json: ok
+ (exit 0)
+receipt-set-aside.json: ok
+ (exit 0)
+snapshot.json: ok
+ (exit 0)
+
+### 2. Invalid examples each refused with an error line (no traceback)
+answer--answer-id-trailing-line-feed.json exit=1 tracebacks=0 :: error: $.answer_id: pattern: "ans_01J9ZC3K7Q " does not match 
+answer--credential-not-seen.json exit=1 tracebacks=0 :: error: $.value: enum: "rotate-now" is not one of ['seen', 'later'] 
+answer--later-without-time.json exit=1 tracebacks=0 :: error: $: required: missing later_until 
+answer--malformed-card-hash.json exit=1 tracebacks=0 :: error: $.card_hash: pattern: "ABC" does not match 
+answer--merge-without-passkey.json exit=1 tracebacks=0 :: error: $: required: missing passkey 
+answer--note-too-long.json exit=1 tracebacks=0 :: error: $.note: maxLength: longer than 512 
+answer--passkey-authenticator-data-not-base64url.json exit=1 tracebacks=0 :: error: $.passkey.authenticator_data: base64url: Invalid base64-encoded string: number of data characters (5) cannot be 1 more than a multiple of 4 
+answer--passkey-cross-origin.json exit=1 tracebacks=0 :: error: $.passkey.client_data_json: cross-origin: the ceremony ran inside another origin 
+answer--passkey-on-decision.json exit=1 tracebacks=0 :: error: $: not: matches a forbidden shape 
+answer--passkey-other-origin.json exit=1 tracebacks=0 :: error: $.passkey.client_data_json: origin: expected https://relay-api.mmeg.us 
+answer--passkey-other-relying-party.json exit=1 tracebacks=0 :: error: $.passkey.authenticator_data: rp_id: relying-party hash is not SHA-256 of relay-api.mmeg.us 
+answer--passkey-unknown-credential.json exit=1 tracebacks=0 :: error: $.passkey.credential_id: credential: not an enrolled credential 
+answer--passkey-user-not-verified.json exit=1 tracebacks=0 :: error: $.passkey.authenticator_data: flags: user-present and user-verified must both be set 
+answer--passkey-wrong-key.json exit=1 tracebacks=0 :: error: $.passkey.signature: signature: does not verify with the enrolled key 
+answer--signed-for-another-value.json exit=1 tracebacks=0 :: error: $.passkey.client_data_json: challenge: expected MfG2PW9_2tRbwCBM3Vlh6lF6SH9PY8eK_PXKDOIifTY 
+card--credential-with-options.json exit=1 tracebacks=0 :: error: $.options: maxItems: more than 0 
+card--duplicate-option-value.json exit=1 tracebacks=0 :: error: $.options: value: an option value appears twice 
+card--extra-field.json exit=1 tracebacks=0 :: error: $: additionalProperties: body is not allowed 
+card--head-sha-on-decision.json exit=1 tracebacks=0 :: error: $: not: matches a forbidden shape 
+card--later-as-option.json exit=1 tracebacks=0 :: error: $.options[1].value: not: matches a forbidden shape 
+card--merge-without-pr-url.json exit=1 tracebacks=0 :: error: $: required: missing pr_url 
+card--missing-repo.json exit=1 tracebacks=0 :: error: $: required: missing repo 
+card--owner-not-hashed.json exit=1 tracebacks=0 :: error: $.card_hash: card_hash: expected 12aab4e22e477bd746667d29d5ea088d4ee1e67259bb3bb010dbf51afbd5e744 
+card--owner-qualified.json exit=1 tracebacks=0 :: error: $.owner: pattern: "relay-platform/portal-rail-order" does not match 
+card--proof-not-hashed.json exit=1 tracebacks=0 :: error: $.card_hash: card_hash: expected c194120fba7b0b49434ef995e9adf6f2b7ad49cc01123bbf69ec1be57aeace3c 
+card--proof-short-nonce.json exit=1 tracebacks=0 :: error: $.proof.nonce: pattern: "short" does not match 
+card--stale-hash.json exit=1 tracebacks=0 :: error: $.card_hash: card_hash: expected 5b01b6d7ee0297cb4fd05c6b336927b5c794420a0312cc711affc96cc581efad 
+card--two-recommended.json exit=1 tracebacks=0 :: error: $.options: maxContains: 2 match(es), at most 1 allowed 
+card--unknown-kind.json exit=1 tracebacks=0 :: error: $.kind: enum: "approve" is not one of ['decision', 'merge', 'credential', 'go'] 
+card--unknown-verdict.json exit=1 tracebacks=0 :: error: $.text_check.verdict: enum: "unchecked" is not one of ['pass', 'withheld'] 
+enrolment--after-expiry.json exit=1 tracebacks=0 :: error: $.enrolled_at: expires_at: made after the enrolment expired 
+enrolment--already-enrolled.json exit=1 tracebacks=0 :: error: $.credential_id: credential: already enrolled 
+enrolment--attestation-nested-too-deep.json exit=1 tracebacks=0 :: error: $.attestation_object: attestation: CBOR: nested more than 8 deep 
+enrolment--credential-not-attested.json exit=1 tracebacks=0 :: error: $.credential_id: credential: differs from the attested credential id 
+enrolment--impossible-day.json exit=1 tracebacks=0 :: error: $.enrolled_at: instant: not a real time (day 30 must be in range 1..28 for month 2 in year 2026) 
+enrolment--key-mismatch.json exit=1 tracebacks=0 :: error: $.public_key_spki: key: differs from the attested key 
+enrolment--other-challenge.json exit=1 tracebacks=0 :: error: $.client_data_json: challenge: expected jkzuCIOTeKOd2lUrAjge-Hi18LTdRhmVtpO_2gDC9C8 
+enrolment--user-not-verified.json exit=1 tracebacks=0 :: error: $.attestation_object: flags: user-present and user-verified must both be set 
+receipt--refused-without-reason.json exit=1 tracebacks=0 :: error: $: required: missing reason 
+receipt--set-aside-without-current-hash.json exit=1 tracebacks=0 :: error: $: required: missing current_card_hash 
+receipt--unknown-outcome.json exit=1 tracebacks=0 :: error: $.outcome: enum: "accepted" is not one of ['applied', 'set-aside', 'refused', 'duplicate'] 
+snapshot--board-title.json exit=1 tracebacks=0 :: error: $.sections.boards[0]: additionalProperties: title is not allowed 
+snapshot--call-listed-twice-for-owner.json exit=1 tracebacks=0 :: error: $.sections.calls: task_id: a call appears twice 
+snapshot--call-stale-hash.json exit=1 tracebacks=0 :: error: $.sections.calls[0].card_hash: card_hash: expected c008af26c7745e218f200bdb7d50eb260af50adffa458d4f0ba0aac77f760788 
+snapshot--day-attendees.json exit=1 tracebacks=0 :: error: $.sections.day.blocks[0]: additionalProperties: attendees is not allowed 
+snapshot--day-block-ends-before-start.json exit=1 tracebacks=0 :: error: $.sections.day.blocks[1]: ends_at: ends before it starts 
+snapshot--day-block-impossible-date.json exit=1 tracebacks=0 :: error: $.sections.day.blocks[0]: instant: not a real time (day 30 must be in range 1..28 for month 2 in year 2026) 
+snapshot--event-wait-without-label.json exit=1 tracebacks=0 :: error: $.sections.charted_next[0].waits_on[2]: required: missing label 
+snapshot--missing-day.json exit=1 tracebacks=0 :: error: $.sections: required: missing day 
+snapshot--passkeys-credential-twice.json exit=1 tracebacks=0 :: error: $.passkeys.credentials: credential_id: a credential appears twice 
+snapshot--passkeys-origin-outside-relying-party.json exit=1 tracebacks=0 :: error: $.passkeys.origin: origin: host is not relay-api.mmeg.us or within it 
+snapshot--underway-extra-field.json exit=1 tracebacks=0 :: error: $.sections.underway[0]: additionalProperties: body is not allowed 
+snapshot--urgency-out-of-range.json exit=1 tracebacks=0 :: error: $.sections.charted_next[0].urgency: maximum: above 4 
+snapshot--work-listed-twice-for-owner.json exit=1 tracebacks=0 :: error: $.sections: id: a piece of work appears twice 
+snapshot--work-listed-twice.json exit=1 tracebacks=0 :: error: $.sections: id: a piece of work appears twice 
+
+### 3. hash / challenge subcommands on the new card fields
+card-merge hash: 3602e278cdc97f7ce412d6506c3f2805a08341df1a4205290c49ab30d2a544af  card_hash in answer-merge: 3602e278cdc97f7ce412d6506c3f2805a08341df1a4205290c49ab30d2a544af
+answer-merge challenge: 8-gcNEKwHidVGJQmNraCaUBOV0qXV7_EXou6LSqKugA

@@ -1,0 +1,29 @@
+### 8. Independent ajv 2020 (strict) — portal-style load: card + snapshot ONLY
+valid/snapshot.json -> accepted
+invalid/snapshot--passkeys-credential-twice.json -> accepted
+invalid/snapshot--passkeys-origin-outside-relying-party.json -> accepted
+snapshot with malformed enrolment.enrol_id -> refused at /enrolment/enrol_id
+snapshot with extra field in passkeys (closed shape) -> refused at /passkeys must NOT have additional properties
+
+### 9. All schemas loaded; every valid example accepted, schema-level invalid ones refused
+valid/answer-credential-seen.json -> accepted
+valid/answer-decision-second-mate.json -> accepted
+valid/answer-decision.json -> accepted
+valid/answer-go-later.json -> accepted
+valid/answer-later.json -> accepted
+valid/answer-merge.json -> accepted
+valid/card-credential-withheld.json -> accepted
+valid/card-decision-no-repo.json -> accepted
+valid/card-decision-second-mate.json -> accepted
+valid/card-decision.json -> accepted
+valid/card-go.json -> accepted
+valid/card-merge.json -> accepted
+valid/enrolment.json -> accepted
+valid/receipt-applied-second-mate.json -> accepted
+valid/receipt-applied.json -> accepted
+valid/receipt-duplicate.json -> accepted
+valid/receipt-refused.json -> accepted
+valid/receipt-set-aside.json -> accepted
+valid/snapshot.json -> accepted
+invalid/card--head-sha-on-decision.json -> refused
+invalid/card--proof-short-nonce.json -> refused

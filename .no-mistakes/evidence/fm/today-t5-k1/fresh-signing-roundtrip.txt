@@ -1,0 +1,43 @@
+### 4. Fresh keys: independent challenge derivation (7 LF-joined fields) vs checker
+independent: AsMDaBagYZKEPccogpu6_BPqVVgSFFlcbSMXHD9r07I
+checker:     AsMDaBagYZKEPccogpu6_BPqVVgSFFlcbSMXHD9r07I
+
+--- es256 ---
+{
+  "credential_id": "nKfR2uJhnWDRU3ODgH6UKU5VM4c",
+  "alg": -7,
+  "public_key_spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzdgDK-xXyhbxQXTJOwlHj2TB2cpSz5F89Ar3T9nNI9mL3GgaXKdc1NzKFbkwR650sczoVyA2sDs4EkHPpoqZTg"
+}
+fresh signed answer, --keys: ok
+openssl independent verify: Verified OK
+clientDataJSON: {"type":"webauthn.get","challenge":"ux28TJDCTp-kEneQ-FhgyYcQiqDplQwbSal6nhVVuE0","origin":"https://relay-api.mmeg.us","crossOrigin":false}
+same signature, value changed merge->hold: error: $.passkey.client_data_json: challenge: expected vUfndHF4qQyrSIDvY9k4mFD1Ffudew4zuG9EVBtMnWI
+same signature, card_hash changed (e.g. head moved): error: $.passkey.client_data_json: challenge: expected fJOSBJG7c1xtBla4GhFhg3skZvooa_IIu9417kkcsdw
+signature byte flipped: error: $.passkey.signature: signature: does not verify with the enrolled key
+checked against committed keys (unknown credential): error: $.passkey.credential_id: credential: not an enrolled credential
+flags=0x01 (UP only, no UV): error: $.passkey.authenticator_data: flags: user-present and user-verified must both be set
+type webauthn.create on an assertion: error: $.passkey.client_data_json: type: expected webauthn.get
+signed for evil.example origin: error: $.passkey.client_data_json: origin: expected https://relay-api.mmeg.us
+fresh enrolment against snapshot: ok
+enrolment public_key_spki swapped for another key: error: $.public_key_spki: key: differs from the attested key
+enrolled 1s after snapshot enrolment.expires_at: error: $.enrolled_at: expires_at: made after the enrolment expired
+
+--- rs256 ---
+{
+  "credential_id": "zsHXISlPvZCo4bnFy-9tuN9QnG4",
+  "alg": -257,
+  "public_key_spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkdjgHbDFMwviBBOW9V4gGgd3Oc1b6VB05uNisjETIibr6ZOaF2Fq55SJ8xdFfA5LaATNfyIgA4wp59_zpzqpK4ip2xNg8UOfx_zHg7sLiNukIV7cZeSTvsXQtaVfgOVigGIXXph730RTRcwru8W7jbiGB6OiUnTffPbP9ERbl4-CB0ycZY_3No0cvp2z6JOkWYXLrtEymXK07e2Ubo_pQcSelsv4LY_FZN-PFTrnp22f4l0CirEUX0ET0U8pPOXn9yidcad4Mm6KAJi_PpNaeNbjL9yef4AaExVD_41S1PnI3rGkoDjFMYz_w-dGqaugvuPCPsV-vfwrmRB-ok-ZkQIDAQAB"
+}
+fresh signed answer, --keys: ok
+openssl independent verify: Verified OK
+clientDataJSON: {"type":"webauthn.get","challenge":"ux28TJDCTp-kEneQ-FhgyYcQiqDplQwbSal6nhVVuE0","origin":"https://relay-api.mmeg.us","crossOrigin":false}
+same signature, value changed merge->hold: error: $.passkey.client_data_json: challenge: expected vUfndHF4qQyrSIDvY9k4mFD1Ffudew4zuG9EVBtMnWI
+same signature, card_hash changed (e.g. head moved): error: $.passkey.client_data_json: challenge: expected fJOSBJG7c1xtBla4GhFhg3skZvooa_IIu9417kkcsdw
+signature byte flipped: error: $.passkey.signature: signature: does not verify with the enrolled key
+checked against committed keys (unknown credential): error: $.passkey.credential_id: credential: not an enrolled credential
+flags=0x01 (UP only, no UV): error: $.passkey.authenticator_data: flags: user-present and user-verified must both be set
+type webauthn.create on an assertion: error: $.passkey.client_data_json: type: expected webauthn.get
+signed for evil.example origin: error: $.passkey.client_data_json: origin: expected https://relay-api.mmeg.us
+fresh enrolment against snapshot: ok
+enrolment public_key_spki swapped for another key: error: $.public_key_spki: key: differs from the attested key
+enrolled 1s after snapshot enrolment.expires_at: error: $.enrolled_at: expires_at: made after the enrolment expired

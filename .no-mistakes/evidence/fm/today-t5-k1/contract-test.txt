@@ -1,0 +1,11 @@
+ok - all 19 valid examples pass their schema and the contract rules
+ok - all 55 invalid examples fail for their stated reason
+ok - card_hash matches SHA-256 of the hand-written canonical serialization, with and without an owner, head_sha, subject_sha256 and proof
+ok - all 6 example card hashes recompute, and snapshot calls and answers carry them
+ok - the passkey challenge matches the published derivation and the example clientDataJSON
+ok - openssl verifies all 2 signed examples, and the snapshot lists the example credentials
+ok - fresh ES256 and RS256 keys sign answers and enrolments the checker accepts, and forged or changed ones fail
+ok - all 6 cards and the snapshot stay valid without the passkey fields
+ok - the snapshot schema resolves with only the card schema beside it
+skip - portal ajv cross-check: FM_TODAY_PORTAL_DIR is not set
+all fm-today-contract tests passed

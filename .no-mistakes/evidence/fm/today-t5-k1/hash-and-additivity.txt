@@ -1,0 +1,33 @@
+### 5. Committed signed examples verified independently by OpenSSL against the committed public keys
+answer-merge.json alg -7 -> Verified OK
+answer-go-later.json alg -257 -> Verified OK
+
+### 6. head_sha / subject_sha256 / proof join card_hash
+card-merge with head_sha changed, old card_hash kept: error: $.card_hash: card_hash: expected 6273b62d14acfac56ef96937904848c8c8523f79ed553f1511e3fb4c228319aa
+card-merge with proof changed, old card_hash kept: error: $.card_hash: card_hash: expected ed4c12eb4c1e854cac7066b820913423243a7ce7e5fa20ea002aea487d3e87ff
+card-go with subject_sha256 changed, old card_hash kept: error: $.card_hash: card_hash: expected cb1e65fbe5e15a44a9a3720040d5ed9da6d25551c5b222ce3ec58cbb8e7d54f3
+card-decision (no new fields) hash unchanged by the new field list: recomputed=9ca90b45818624bdcc46043048b4fdd0682a31812b98e1ef7db31e7b7f4ed130 committed=9ca90b45818624bdcc46043048b4fdd0682a31812b98e1ef7db31e7b7f4ed130
+card-decision card_hash at base commit: 9ca90b45818624bdcc46043048b4fdd0682a31812b98e1ef7db31e7b7f4ed130
+
+### 7. Additivity: base-commit v1 examples still validate against the new schemas
+answer-credential-seen.json: ok
+answer-decision-second-mate.json: ok
+answer-decision.json: ok
+answer-go-later.json: (base signed answers used placeholder passkeys; schema-only) ok
+answer-later.json: ok
+answer-merge.json: (base signed answers used placeholder passkeys; schema-only) ok
+card-credential-withheld.json: ok
+card-decision-no-repo.json: ok
+card-decision-second-mate.json: ok
+card-decision.json: ok
+card-go.json: ok
+card-merge.json: ok
+receipt-applied-second-mate.json: ok
+receipt-applied.json: ok
+receipt-duplicate.json: ok
+receipt-refused.json: ok
+receipt-set-aside.json: ok
+snapshot.json: ok
+receipt and answer schemas byte-unchanged
+refused receipt with reason 'passkey: head moved': ok
+refused receipt with reason 'passkey: signature did not verify': ok
