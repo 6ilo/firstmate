@@ -6,25 +6,36 @@
 # fm-plan-board.v1 JSON document. The agent writing a plan writes only that
 # items file and its concept picture; this script validates it, fills the
 # template's data and title slots, and writes one self-contained HTML file for
-# the Artifact tool to publish. The same input always produces the same bytes.
+# the Artifact tool to publish. The same inputs always produce the same bytes.
 #
 # Usage:
-#   fm-plan-board.sh check <items.json>
-#   fm-plan-board.sh build <items.json> <out.html>
+#   fm-plan-board.sh check <items.json> [--known <record>]
+#   fm-plan-board.sh build <items.json> <out.html> [--known <record>]
 #   fm-plan-board.sh answers <items.json> <read-db-dir>
+#   fm-plan-board.sh learn <items.json> <read-db-dir> <record>
 #
 # check     Validate the items file and print one summary line.
 # build     Validate, then write the board HTML to <out.html> and print its size.
 #           A board over 80 KB still builds; the size line flags it.
+# --known   The home's what-you-know record (JSON Lines, the newest entry per
+#           concept wins). Its entries for the concepts this plan uses are
+#           embedded for the opening page, and a quiz question about a concept
+#           marked known is refused. An absent record reads as empty.
 # answers   Print the captain's saved answers as the text the board's
 #           "Copy answers" fallback shows, from a directory written by
 #           `Artifact action=read_db ... out_dir=<read-db-dir>` for the
-#           collections answers and reopen, plus notes/general. Missing
+#           collections answers, reopen and check, plus notes/general. Missing
 #           collections read as empty. The output is the decision text for
 #           `fm-captain-hold.sh answer <task> --decision-file`.
+# learn     Append what-you-know entries backed by evidence: each saved quiz
+#           answer (right sets known, missed sets to-teach) and each decided
+#           call that links a concept (known). An entry already present with
+#           the same concept, state and evidence is not appended again, so
+#           rerunning after the same read-back changes nothing. Creates the
+#           record when absent.
 #
-# The fm-plan-board.v1 item schema is owned by
-# .agents/skills/plan-board/SKILL.md; this script enforces it and fills the
+# The fm-plan-board.v1 item schema and the what-you-know record are owned by
+# .agents/skills/plan-board/SKILL.md; this script enforces them and fills the
 # defaults the template relies on.
 #
 # Exit status: 0 on success, 1 on a validation or usage error.
@@ -41,12 +52,11 @@ die() { printf 'fm-plan-board: %s\n' "$*" >&2; exit 1; }
 
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 
-run() {  # <mode> <items.json> [<arg>]
+run() {  # <mode> <items.json> <out-or-dir-or-empty> <record-or-empty>
   python3 - "$TEMPLATE" "$@" <<'PY'
 import html, json, os, re, sys
 
-template, mode, src = sys.argv[1], sys.argv[2], sys.argv[3]
-arg = sys.argv[4] if len(sys.argv) > 4 else None
+template, mode, src, arg, record = sys.argv[1:6]
 errors = []
 
 def err(msg):
@@ -60,13 +70,18 @@ STATES = {"todo", "underway", "done"}
 TYPES = {"build", "plan", "fix", "content", "upkeep"}
 URGENCY = {"now", "week", "later"}
 SIZES = {"S", "M", "L"}
+AUDIENCES = {"public", "team", "agents"}
+PICTURES = {"diagram", "mockup", "chart", "photo"}
 BAD_SVG = re.compile(r"<\s*script|\son[a-z]+\s*=|javascript:|<\s*foreignObject", re.I)
 
-try:
-    with open(src, encoding="utf-8") as fh:
-        doc = json.load(fh)
-except (OSError, ValueError) as exc:
-    sys.exit(f"fm-plan-board: cannot read {src}: {exc}")
+def load_json(path, what):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError) as exc:
+        sys.exit(f"fm-plan-board: cannot read {what} {path}: {exc}")
+
+doc = load_json(src, "items file")
 if not isinstance(doc, dict):
     sys.exit("fm-plan-board: the items file must hold one JSON object")
 
@@ -80,15 +95,23 @@ def text(obj, key, where, required=True):
         err(f"{where}: {key} must be a non-empty string")
 
 def strlist(obj, key, where):
-    val = obj.get(key, [])
-    if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
-        err(f"{where}: {key} must be a list of strings")
+    obj.setdefault(key, [])
+    val = obj[key]
+    if not isinstance(val, list) or not all(isinstance(x, str) and x.strip() for x in val):
+        err(f"{where}: {key} must be a list of non-empty strings")
+        obj[key] = []
 
 def date(obj, key, where):
     val = obj.get(key)
     if val is not None and not (isinstance(val, str) and DATE.match(val)):
         err(f"{where}: {key} must be YYYY-MM-DD")
 
+def count(obj, key, where):
+    val = obj.get(key)
+    if val is not None and (not isinstance(val, int) or isinstance(val, bool) or val < 0):
+        err(f"{where}: {key} must be a count")
+
+# ---- top level ----
 if doc.get("schema") != "fm-plan-board.v1":
     err('schema must be "fm-plan-board.v1"')
 if not (isinstance(doc.get("date"), str) and DATE.match(doc["date"])):
@@ -96,16 +119,16 @@ if not (isinstance(doc.get("date"), str) and DATE.match(doc["date"])):
 doc.setdefault("round", 1)
 if not isinstance(doc["round"], int) or isinstance(doc["round"], bool) or doc["round"] < 1:
     err("round must be a positive integer")
-if "task" in doc and not (isinstance(doc["task"], str) and doc["task"].strip()):
-    err("task must be a non-empty string")
+text(doc, "task", "top level", required=False)
+text(doc, "home", "top level", required=False)
 
 plans = doc.setdefault("plans", {})
 if not isinstance(plans, dict):
     err("plans must be an object")
-    plans = {}
+    plans = doc["plans"] = {}
 for pid, p in plans.items():
     where = f"plans.{pid}"
-    if not ID.match(pid):
+    if not ID.match(pid) or pid.startswith("concept:"):
         err(f"{where}: bad id")
     if not isinstance(p, dict):
         err(f"{where}: must be an object")
@@ -113,43 +136,56 @@ for pid, p in plans.items():
     text(p, "title", where)
     for key in ("home", "owner", "fact", "url"):
         text(p, key, where, required=False)
-    if "open" in p and (not isinstance(p["open"], int) or isinstance(p["open"], bool) or p["open"] < 0):
-        err(f"{where}: open must be a count")
-    if "url" in p and isinstance(p["url"], str) and not p["url"].startswith("https://"):
+    count(p, "open", where)
+    if "ruled" in p:
+        strlist(p, "ruled", where)
+    if isinstance(p.get("url"), str) and not p["url"].startswith("https://"):
         err(f"{where}: url must start with https://")
 
 concepts = doc.setdefault("concepts", [])
 if not isinstance(concepts, list):
     err("concepts must be a list")
-    concepts = []
-targets = {"c-answer"} | set(plans)
+    concepts = doc["concepts"] = []
+library = {"answer": {"kind": "diagram"}}
 for n, c in enumerate(concepts):
-    where = f"concepts[{n}]"
     if not isinstance(c, dict):
-        err(f"{where}: must be an object")
+        err(f"concepts[{n}]: must be an object")
         continue
-    cid = c.get("id", "")
-    where = f"concept {cid or n}"
-    if not (isinstance(cid, str) and ID.match(cid) and cid[:2] in ("c-", "m-")):
-        err(f'{where}: id must start with "c-" or "m-"')
-    elif cid in targets:
+    cid = c.get("id")
+    where = f"concept {cid if isinstance(cid, str) else n}"
+    if not (isinstance(cid, str) and re.match(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", cid)):
+        err(f"{where}: id must be letters, digits, _ and -")
+        continue
+    if cid in library:
         err(f"{where}: id is used twice")
-    targets.add(cid)
+    library[cid] = c
     text(c, "title", where)
     text(c, "caption", where, required=False)
-    c.setdefault("kind", "concept")
-    if c["kind"] not in ("concept", "mockup"):
-        err(f"{where}: kind must be concept or mockup")
-    svg = c.get("svg")
-    if not (isinstance(svg, str) and svg.lstrip().startswith("<svg") and svg.rstrip().endswith("</svg>")):
-        err(f"{where}: svg must be one inline <svg> element")
-    elif BAD_SVG.search(svg):
-        err(f"{where}: svg must carry no script, event handler, foreignObject or javascript: URL")
+    if c.get("kind") not in PICTURES:
+        err(f"{where}: kind must be diagram, mockup, chart or photo")
+    if "used_by" in c:
+        strlist(c, "used_by", where)
+    svg, asset = c.get("svg"), c.get("asset")
+    if (svg is None) == (asset is None):
+        err(f"{where}: give exactly one of svg or asset")
+    elif svg is not None:
+        if not (isinstance(svg, str) and svg.lstrip().startswith("<svg") and svg.rstrip().endswith("</svg>")):
+            err(f"{where}: svg must be one inline <svg> element")
+        elif BAD_SVG.search(svg):
+            err(f"{where}: svg must carry no script, event handler, foreignObject or javascript: URL")
+    elif not (isinstance(asset, str) and (asset.startswith("/_blob/") or asset.startswith("data:image/"))):
+        err(f"{where}: asset must be an artifact /_blob/ path or a data:image/ URL")
 
 evidence = doc.setdefault("evidence", [])
 if not (isinstance(evidence, list) and all(isinstance(r, list) and len(r) == 3 and all(isinstance(x, str) for x in r) for r in evidence)):
     err("evidence must be a list of [signal, seen, source] rows")
 
+def target_ok(to):
+    if isinstance(to, str) and to.startswith("concept:"):
+        return to[8:] in library
+    return to in plans
+
+# ---- items ----
 items = doc.get("items")
 if not isinstance(items, list) or not items:
     err("items must be a non-empty list")
@@ -192,8 +228,12 @@ for iid, it in by_id.items():
         err(f"{iid}: type must be one of {', '.join(sorted(TYPES))}")
     if it["urgency"] not in URGENCY:
         err(f"{iid}: urgency must be now, week or later")
-    date(it, "start", iid)
-    date(it, "due", iid)
+    for key in ("start", "due", "until"):
+        date(it, key, iid)
+    if kind != "task":
+        for key in ("aud", "visible", "until"):
+            if key in it:
+                err(f"{iid}: only a task carries {key}")
     if kind == "plan":
         for key in ("status", "state", "options", "rec", "pick", "depends"):
             if it.get(key):
@@ -207,7 +247,7 @@ for iid, it in by_id.items():
         opts = it.get("options")
         if not (isinstance(opts, list) and 2 <= len(opts) <= 4 and all(isinstance(o, dict) for o in opts)):
             err(f"{iid}: options must be 2 to 4 objects")
-            opts = []
+            opts = it["options"] = []
         for o in opts:
             text(o, "label", f"{iid} option")
             text(o, "consequence", f"{iid} option", required=False)
@@ -223,12 +263,24 @@ for iid, it in by_id.items():
         it.setdefault("status", "decided")
         it.setdefault("state", "todo")
         it.setdefault("size", "M")
+        it.setdefault("aud", "agents")
+        it.setdefault("visible", False)
         if it["status"] == "open":
             err(f"{iid}: only a call can be open; hold the task on the call it waits for")
         if it["state"] not in STATES:
             err(f"{iid}: state must be todo, underway or done")
         if it["size"] not in SIZES:
             err(f"{iid}: size must be S, M or L")
+        if it["aud"] not in AUDIENCES:
+            err(f"{iid}: aud must be public, team or agents")
+        if not isinstance(it["visible"], bool):
+            err(f"{iid}: visible must be true or false")
+        elif it["visible"] and it["aud"] == "agents":
+            err(f"{iid}: only a public or team change can be visible")
+        elif it["visible"] and not any(
+                isinstance(l, dict) and isinstance(l.get("to"), str) and l["to"].startswith("concept:")
+                and library.get(l["to"][8:], {}).get("kind") == "mockup" for l in it["links"]):
+            err(f"{iid}: a visible change must link at least one mockup")
     if it.get("status") is not None and it["status"] not in STATUSES:
         err(f"{iid}: status must be open, decided, parked or dropped")
     deps = it["depends"]
@@ -248,7 +300,7 @@ for iid, it in by_id.items():
         err(f"{iid}: links must be a list of {{to, why}}")
         it["links"] = []
     for l in it["links"]:
-        if l.get("to") not in targets:
+        if not target_ok(l.get("to")):
             err(f"{iid}: link to unknown plan or concept {l.get('to')}")
         text(l, "why", f"{iid} link")
 
@@ -267,16 +319,140 @@ def visit(iid, path):
 for iid in by_id:
     visit(iid, [])
 
+# ---- the opening page ----
+calls = [i for i in items if isinstance(i, dict) and i.get("kind") == "call"]
+opening = doc.get("opening")
+quiz = []
+if opening is not None:
+    if not isinstance(opening, dict):
+        err("opening must be an object")
+        opening = doc["opening"] = {}
+    mission = opening.get("mission")
+    if not isinstance(mission, dict):
+        err("opening.mission must be an object")
+        mission = opening["mission"] = {}
+    text(mission, "why", "opening.mission")
+    strlist(mission, "success", "opening.mission")
+    strlist(mission, "out", "opening.mission")
+    gloss = opening.setdefault("glossary", [])
+    terms = {}
+    if not isinstance(gloss, list):
+        err("opening.glossary must be a list")
+        gloss = opening["glossary"] = []
+    for n, g in enumerate(gloss):
+        if not isinstance(g, dict) or not isinstance(g.get("term"), str) or not g["term"].strip():
+            err(f"opening.glossary[{n}]: term is required")
+            continue
+        if g["term"] in terms:
+            err(f"glossary term {g['term']}: used twice")
+        terms[g["term"]] = g
+        text(g, "def", f"glossary term {g['term']}")
+        strlist(g, "related", f"glossary term {g['term']}")
+    for t, g in terms.items():
+        if g.get("parent") is not None and g["parent"] not in terms:
+            err(f"glossary term {t}: parent {g['parent']} is not a term")
+        for r in g.get("related", []):
+            if r not in terms:
+                err(f"glossary term {t}: related {r} is not a term")
+        seen, p = {t}, g.get("parent")
+        while p in terms:
+            if p in seen:
+                err(f"glossary term {t}: parents form a loop")
+                break
+            seen.add(p)
+            p = terms[p].get("parent")
+    pics = opening.setdefault("concepts", [])
+    if not (isinstance(pics, list) and all(isinstance(x, str) for x in pics)):
+        err("opening.concepts must be a list of concept ids")
+        pics = opening["concepts"] = []
+    for cid in pics:
+        if cid not in library or cid == "answer":
+            err(f"opening.concepts: unknown concept {cid}")
+    quiz = opening.setdefault("quiz", [])
+    if not isinstance(quiz, list) or len(quiz) > 3:
+        err("opening.quiz must hold at most three questions")
+        quiz = opening["quiz"] = []
+    qids = set()
+    for n, q in enumerate(quiz):
+        if not isinstance(q, dict) or not (isinstance(q.get("id"), str) and ID.match(q["id"])):
+            err(f"opening.quiz[{n}]: bad or missing id")
+            continue
+        where = f"quiz {q['id']}"
+        if q["id"] in qids:
+            err(f"{where}: id is used twice")
+        qids.add(q["id"])
+        text(q, "question", where)
+        text(q, "why", where)
+        if q.get("concept") not in library or q.get("concept") == "answer":
+            err(f"{where}: concept must name a library concept")
+        opts = q.get("options")
+        if not (isinstance(opts, list) and len(opts) == 3 and all(isinstance(o, str) and o.strip() for o in opts)):
+            err(f"{where}: options must be three non-empty strings")
+        else:
+            words = [len(o.split()) for o in opts]
+            if max(words) - min(words) > 1:
+                err(f"{where}: options must have the same number of words, within one (have {words})")
+        if q.get("answer") not in (0, 1, 2) or isinstance(q.get("answer"), bool):
+            err(f"{where}: answer must be the right option's index, 0 to 2")
+
+homes = {doc.get("home")} | {plans[l["to"]].get("home") for i in by_id.values() for l in i.get("links", [])
+                             if isinstance(l, dict) and l.get("to") in plans}
+homes.discard(None)
+if opening is None and (len(homes) >= 2 or len(calls) >= 5):
+    err(f"this plan needs an opening page: it touches {len(homes)} homes and has {len(calls)} calls")
+
+# ---- what-you-know record ----
+def read_record(path):
+    latest, entries = {}, []
+    if not path or not os.path.exists(path):
+        return latest, entries
+    with open(path, encoding="utf-8") as fh:
+        for n, line in enumerate(fh, 1):
+            if not line.strip():
+                continue
+            try:
+                e = json.loads(line)
+            except ValueError:
+                sys.exit(f"fm-plan-board: {path}:{n}: not a JSON line")
+            if not (isinstance(e, dict) and isinstance(e.get("concept"), str) and e.get("state") in ("known", "to-teach")
+                    and isinstance(e.get("evidence"), str) and isinstance(e.get("at"), str)):
+                sys.exit(f"fm-plan-board: {path}:{n}: an entry is {{concept, state: known|to-teach, evidence, at}}")
+            latest[e["concept"]] = e
+            entries.append(e)
+    return latest, entries
+
+if mode in ("check", "build") and record:
+    latest, _ = read_record(record)
+    for q in quiz:
+        if isinstance(q, dict) and latest.get(q.get("concept"), {}).get("state") == "known":
+            err(f"quiz {q.get('id')}: concept {q['concept']} is already known; ask about a concept still to teach")
+    used = {l["to"][8:] for i in by_id.values() for l in i.get("links", []) if isinstance(l, dict) and str(l.get("to", "")).startswith("concept:")}
+    if isinstance(opening, dict):
+        used |= set(opening.get("concepts", [])) | {q.get("concept") for q in quiz if isinstance(q, dict)}
+    doc["known"] = [{k: latest[c][k] for k in ("concept", "state", "evidence")} for c in sorted(used) if c in latest]
+
 if errors:
     sys.stderr.write("".join(f"fm-plan-board: {e}\n" for e in errors))
     sys.exit(1)
 
 root = roots[0]
-calls = [i for i in items if i["kind"] == "call"]
+
+def load_dir(coll):
+    found = {}
+    d = os.path.join(arg, coll)
+    if os.path.isdir(d):
+        for name in sorted(os.listdir(d)):
+            if name.endswith(".json"):
+                found[name[:-5]] = load_json(os.path.join(d, name), "saved document")
+    return found
+
+def right(q, saved):
+    return saved.get("choice") == q["answer"] and not isinstance(saved.get("choice"), bool)
 
 if mode == "check":
     print(f"ok: {len(items)} items, {sum(i['kind'] == 'plan' for i in items)} plans, "
-          f"{sum(i['status'] == 'open' for i in calls)} open calls")
+          f"{sum(i['status'] == 'open' for i in calls)} open calls, "
+          f"opening page {'present' if opening is not None else 'absent'}")
 elif mode == "build":
     with open(template, encoding="utf-8") as fh:
         page = fh.read()
@@ -286,25 +462,15 @@ elif mode == "build":
     data = json.dumps(doc, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
     page = page.replace("__FM_PLAN_BOARD_TITLE__", html.escape(root["title"], quote=False))
     page = page.replace("__FM_PLAN_BOARD_DATA__", data)
-    out = arg
-    tmp = out + ".tmp"
+    tmp = arg + ".tmp"
     with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(page)
-    os.replace(tmp, out)
+    os.replace(tmp, arg)
     kb = len(page.encode("utf-8")) / 1024
     note = " (over the 80 KB target: trim items or pictures)" if kb > 80 else ""
-    print(f"built {out}: {kb:.0f} KB{note}")
-else:
-    def load(coll):
-        found = {}
-        d = os.path.join(arg, coll)
-        if os.path.isdir(d):
-            for name in sorted(os.listdir(d)):
-                if name.endswith(".json"):
-                    with open(os.path.join(d, name), encoding="utf-8") as fh:
-                        found[name[:-5]] = json.load(fh)
-        return found
-    answers, reopen, notes = load("answers"), load("reopen"), load("notes")
+    print(f"built {arg}: {kb:.0f} KB{note}")
+elif mode == "answers":
+    answers, reopen, notes, checks = load_dir("answers"), load_dir("reopen"), load_dir("notes"), load_dir("check")
     for key in sorted(set(answers) | set(reopen)):
         if key not in by_id or by_id[key]["kind"] != "call":
             sys.stderr.write(f"fm-plan-board: ignoring saved answer for unknown call {key}\n")
@@ -326,27 +492,74 @@ else:
         change = reopen.get(c["id"], {}).get("note") if c["status"] == "decided" else None
         if change:
             lines.append(f"{c['id']} {c['title']} -> change: {change}")
+    for q in quiz:
+        saved = checks.get(q["id"])
+        if saved and isinstance(saved.get("choice"), int):
+            lines.append(f"Check {q['id']} ({q['concept']}) -> {'right' if right(q, saved) else 'missed'}")
     general = notes.get("general", {}).get("note")
     if general:
         lines.append(f"General note: {general}")
     print("\n".join(lines))
+else:
+    _, entries = read_record(record)
+    have = {(e["concept"], e["state"], e["evidence"]) for e in entries}
+    new = []
+    for c in calls:
+        if c["status"] == "decided":
+            for l in c["links"]:
+                if l["to"].startswith("concept:") and l["to"] != "concept:answer":
+                    new.append({"concept": l["to"][8:], "state": "known",
+                                "evidence": f"call {c['id']} decided {c['pick']}", "at": doc["date"] + "T00:00:00Z"})
+    checks = load_dir("check")
+    for q in quiz:
+        saved = checks.get(q["id"])
+        if saved and isinstance(saved.get("choice"), int):
+            ok = right(q, saved)
+            new.append({"concept": q["concept"], "state": "known" if ok else "to-teach",
+                        "evidence": f"quiz {q['id']} {'right' if ok else 'missed'}, round {doc['round']}",
+                        "at": str(saved.get("at") or doc["date"] + "T00:00:00Z")})
+    added = 0
+    with open(record, "a", encoding="utf-8") as fh:
+        for e in new:
+            key = (e["concept"], e["state"], e["evidence"])
+            if key not in have:
+                have.add(key)
+                fh.write(json.dumps(e, ensure_ascii=False, sort_keys=True) + "\n")
+                added += 1
+    print(f"learned {added} new entr{'y' if added == 1 else 'ies'} into {record}")
 PY
 }
 
 case "${1-}" in
-  check)
-    [ $# -eq 2 ] || die "usage: fm-plan-board.sh check <items.json>"
-    run check "$2"
-    ;;
-  build)
-    [ $# -eq 3 ] || die "usage: fm-plan-board.sh build <items.json> <out.html>"
-    [ -f "$TEMPLATE" ] || die "board template is missing: $TEMPLATE"
-    run build "$2" "$3"
+  check|build)
+    mode=$1
+    shift
+    items=${1-}
+    out=""
+    record=""
+    [ -n "$items" ] || die "usage: fm-plan-board.sh $mode <items.json>$([ "$mode" = build ] && echo ' <out.html>') [--known <record>]"
+    shift
+    if [ "$mode" = build ]; then
+      [ $# -ge 1 ] || die "usage: fm-plan-board.sh build <items.json> <out.html> [--known <record>]"
+      out=$1
+      shift
+      [ -f "$TEMPLATE" ] || die "board template is missing: $TEMPLATE"
+    fi
+    if [ $# -gt 0 ]; then
+      [ $# -eq 2 ] && [ "$1" = --known ] || die "unexpected arguments: $*"
+      record=$2
+    fi
+    run "$mode" "$items" "$out" "$record"
     ;;
   answers)
     [ $# -eq 3 ] || die "usage: fm-plan-board.sh answers <items.json> <read-db-dir>"
     [ -d "$3" ] || die "not a directory: $3"
-    run answers "$2" "$3"
+    run answers "$2" "$3" ""
+    ;;
+  learn)
+    [ $# -eq 4 ] || die "usage: fm-plan-board.sh learn <items.json> <read-db-dir> <record>"
+    [ -d "$3" ] || die "not a directory: $3"
+    run learn "$2" "$3" "$4"
     ;;
   -h|--help|help) usage ;;
   *) usage >&2; exit 1 ;;
