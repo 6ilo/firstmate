@@ -6,9 +6,10 @@ It implements the subset of JSON Schema draft 2020-12 the Today schemas use and
 refuses any keyword it does not implement, so a schema can never be checked
 more loosely than it reads.
 Beyond the schema, it recomputes every card_hash and every passkey challenge
-exactly as docs/today-contract.md defines them, and checks passkey assertions
-and enrolments: ES256 and RS256 signatures are verified here in pure Python,
-so the check depends on no crypto library.
+exactly as docs/today-contract.md defines them, checks passkey assertions
+and enrolments, and applies the page's other rules the schemas cannot state:
+ES256 and RS256 signatures are verified here in pure Python, so the check
+depends on no crypto library.
 
 Usage:
   fm-today-contract-check.py check <schema-dir> <document.json>
@@ -64,6 +65,7 @@ OID_EC_PUBLIC_KEY = bytes.fromhex("2a8648ce3d0201")
 OID_P256 = bytes.fromhex("2a8648ce3d030107")
 OID_RSA = bytes.fromhex("2a864886f70d010101")
 SHA256_DIGEST_INFO = bytes.fromhex("3031300d060960864801650304020105000420")
+NOTE_MAX_BYTES = 2000
 
 
 def canonical(value):
@@ -553,7 +555,7 @@ def json_equal(a, b):
 
 
 def contract_errors(inst, keys=None, snapshot=None):
-    """The rules JSON Schema cannot state: hashes, the challenge, signatures, uniqueness, order, reconcile."""
+    """The rules JSON Schema cannot state: hashes, the challenge, signatures, uniqueness, order, reconcile, note text."""
     out = []
     cards = []
     if inst.get("schema") == "fm-today-card.v1":
@@ -601,6 +603,16 @@ def contract_errors(inst, keys=None, snapshot=None):
     if (inst.get("schema") == "fm-today-answer.v1" and inst["value"] == RECONCILE
             and inst["kind"] != "decision"):
         out.append("$.value: reconcile: answers only a decision card")
+    if inst.get("schema") == "fm-today-note.v1":
+        if len(inst["text"].encode("utf-8")) > NOTE_MAX_BYTES:
+            out.append("$.text: bytes: more than %d UTF-8 bytes" % NOTE_MAX_BYTES)
+        if not inst["text"].strip():
+            out.append("$.text: blank: nothing but white space")
+    if inst.get("schema") == "fm-today-dispatch-order.v1":
+        # An item is keyed like a work row: its owning home and task id.
+        items = [(i.get("owner", MAIN), i["task_id"]) for i in inst["items"]]
+        if len(items) != len(set(items)):
+            out.append("$.items: task_id: an item appears twice")
     if inst.get("schema") == "fm-today-answer.v1" and "passkey" in inst:
         client = client_data("$.passkey.client_data_json", inst["passkey"]["client_data_json"],
                              "webauthn.get", out)

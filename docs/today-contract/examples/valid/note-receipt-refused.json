@@ -1,0 +1,7 @@
+{
+  "schema": "fm-today-note-receipt.v1",
+  "ref": "note_VGFza05vdGVGb3JXb3JrMg",
+  "outcome": "refused",
+  "reason": "the note is over 2000 UTF-8 bytes",
+  "recorded_at": "2026-09-29T15:06:02Z"
+}

@@ -207,7 +207,7 @@
 # carried, so every answer gets a receipt.
 #
 # Configuration. Each value comes from the environment when set, otherwise from
-# this home's gitignored $FM_HOME/.env (bin/fm-env-lib.sh's fmx_env_get). The
+# this home's gitignored $FM_HOME/.env (bin/fm-today-lib.sh reads both). The
 # bridge runs in the main firstmate home, where the token lives.
 #   FM_TODAY_PORTAL_URL    the portal's origin, such as https://portal.example
 #   FM_TODAY_BRIDGE_TOKEN  the bridge's bearer token
@@ -223,9 +223,9 @@
 # out; titles are kept (the day shows each block with its title) but collapsed
 # to one line and capped at 200 characters.
 #
-# The text check (fm-today-text-check@1.0.0) keeps learner, family, fee, and
+# The text check (bin/fm_today_text_check.py) keeps learner, family, fee, and
 # legal detail on this machine; docs/configuration.md "Today bridge" owns its
-# rule families, and RULES below implements them. A tripped card goes out with
+# rule families, and that module implements them. A tripped card goes out with
 # the `withheld` verdict and neutral text of firstmate's own in place of every
 # checked field, never partly redacted. Every other free-text field passes the
 # same check: a tripped work title becomes the work id and a tripped `doing`,
@@ -234,7 +234,6 @@
 # cap, at the end or mid-text), the partial word before each … is dropped
 # before the check, and the field trips when any of the five words before a
 # cut contains a digit.
-# Bump the checker version whenever RULES changes.
 #
 # Exit status: 0 on success; 1 when the snapshot cannot be built or fails the
 # check; 2 on a usage error or a missing URL or token (nothing is sent); 3 when
@@ -251,8 +250,8 @@ CONTRACT_DIR="$SCRIPT_DIR/../docs/today-contract"
 CHECKER="$SCRIPT_DIR/../tests/fm-today-contract-check.py"
 MAX_BYTES=524288
 
-# shellcheck source=bin/fm-env-lib.sh
-. "$SCRIPT_DIR/fm-env-lib.sh"
+# shellcheck source=bin/fm-today-lib.sh
+. "$SCRIPT_DIR/fm-today-lib.sh"
 # shellcheck source=bin/fm-supervision-lib.sh
 . "$SCRIPT_DIR/fm-supervision-lib.sh"
 # shellcheck source=bin/fm-wake-lib.sh
@@ -271,59 +270,36 @@ die() {
   exit "${2:-1}"
 }
 
-# Environment wins over the home .env.
-config_value() {  # <key>
-  local key=$1
-  if [ -n "${!key:-}" ]; then
-    printf '%s' "${!key}"
-  else
-    fmx_env_get "$key" "$FM_HOME/.env"
-  fi
-}
-
 URL=''
 TOKEN=''
 CONFIG_ERROR=''
-# load_config_quiet: set URL and TOKEN, or set CONFIG_ERROR to why not and
-# return 1. load_config exits 2 with that reason instead.
+# load_config_quiet and portal_post are thin wrappers over the shared settings
+# and one POST in bin/fm-today-lib.sh, so every bridge endpoint reads the same
+# URL rule and carries the same Authorization header (never on a command line).
+# load_config_quiet: set URL and TOKEN (and the lib's FM_TODAY_URL and
+# FM_TODAY_TOKEN), or set CONFIG_ERROR to why not and return 1. load_config
+# exits 2 with that reason instead.
 load_config_quiet() {
-  local missing=''
   CONFIG_ERROR=''
-  URL=$(config_value FM_TODAY_PORTAL_URL)
-  TOKEN=$(config_value FM_TODAY_BRIDGE_TOKEN)
-  [ -n "$URL" ] || missing="FM_TODAY_PORTAL_URL"
-  [ -n "$TOKEN" ] || missing="${missing:+$missing and }FM_TODAY_BRIDGE_TOKEN"
-  if [ -n "$missing" ]; then
-    CONFIG_ERROR="missing $missing; nothing was sent"
-    return 1
+  if fm_today_portal_settings "$FM_HOME"; then
+    URL=$FM_TODAY_URL
+    TOKEN=$FM_TODAY_TOKEN
+    return 0
   fi
-  if [[ ! "$URL" =~ ^https://|^http://(127\.0\.0\.1|localhost)(:[0-9]{1,5})?(/.*)?$ ]]; then
-    CONFIG_ERROR="FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent"
-    return 1
-  fi
-  case "$TOKEN" in
-    *[[:space:]]*) CONFIG_ERROR="FM_TODAY_BRIDGE_TOKEN must not contain whitespace; nothing was sent"; return 1 ;;
-  esac
-  URL=${URL%/}
+  CONFIG_ERROR=$FM_TODAY_SETTINGS_ERROR
+  return 1
 }
 
 load_config() { load_config_quiet || die "$CONFIG_ERROR" 2; }
 
 # portal_post <path> <body-file> <out-file> <max-seconds>: print the HTTP
-# status, 000 when the portal could not be reached. The bearer header lives
-# only in a private file for the length of the call.
+# status, 000 when the portal could not be reached, bounding this one call by
+# <max-seconds> (the lib's per-call bound).
 portal_post() {
-  local hdr code
   make_tmp
-  hdr="$TMP_DIR/headers"
-  (umask 077; printf 'Authorization: Bearer %s\nContent-Type: application/json\n' "$TOKEN" > "$hdr") \
-    || { printf '000\n'; return; }
-  code=$(curl -sS --max-time "$4" -o "$3" -w '%{http_code}' -H @"$hdr" \
-    --data-binary @"$2" "$URL$1" 2>"$TMP_DIR/curl.err") || code=000
-  rm -f -- "$hdr"
-  case "$code" in [0-9][0-9][0-9]) printf '%s\n' "$code" ;; *) printf '000\n' ;; esac
+  FM_TODAY_POST_MAX_SECS=${4:-30}
+  fm_today_post "$1" "$2" "$3" "$TMP_DIR"
 }
-
 supervision_state() {
   fm_supervision_status "$STATE"
   if [ "$FM_SUP_WATCHER_FRESH" = true ]; then
@@ -373,7 +349,9 @@ import sys
 import tempfile
 
 GENERATOR_VERSION = "1.4.0"
-CHECKER = "fm-today-text-check@1.0.0"
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.environ["FM_TODAY_BIN"])
+from fm_today_text_check import CHECKER, tripped  # noqa: E402  (the text check)
 # docs/today-contract.md owns this definition.
 CARD_HASH_FIELDS = ("schema", "task_id", "owner", "kind", "title", "question",
                     "options", "repo", "pr_url", "due", "head_sha", "subject_sha256", "proof")
@@ -392,23 +370,6 @@ GITHUB = re.compile(r"github\.com[:/]([A-Za-z0-9_.-]{1,100})/([A-Za-z0-9_.-]{1,1
 INSTANT = re.compile(r"^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]{1,6})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$")
 DATE = re.compile(r"^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])")
 
-STREET = ("Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|"
-          "Way|Place|Pl|Terrace|Parkway|Pkwy|Highway|Hwy|Circle|Cir")
-# The text check's rule set; docs/configuration.md "Today bridge" documents every family.
-RULES = (
-    ("email", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")),
-    ("phone", re.compile(r"\+\d[\d\s().-]{7,}\d|(?:\(\d{3}\)\s?|\b\d{3}[.\s-])\d{3}[.\s-]\d{4}\b")),
-    ("money", re.compile(r"[$£€¥]\s?\d|\b\d[\d,]*(?:\.\d+)?\s?(?:USD|EUR|GBP|dollars?|euros?|pounds?)\b",
-                         re.IGNORECASE)),
-    ("address", re.compile(r"\b\d{1,6}\s+(?:[A-Z][A-Za-z.'-]*\s+){1,4}(?:" + STREET + r")\b"
-                           r"|\b(?i:p\.?\s?o\.?\s+box)\s+\d+")),
-    ("date-of-birth", re.compile(r"\b(?:date\s+of\s+birth|d\.?o\.?b\b|birth\s?date|birthday|born\s+on)",
-                                 re.IGNORECASE)),
-    ("word", re.compile(r"\b(?:guardians?|parents?|minors?|learners?|students?|family|families|"
-                        r"tuition|fees?|invoices?|counsel|attorneys?|lawyers?|lawsuits?|custody)\b",
-                        re.IGNORECASE)),
-    ("cut", re.compile(r"\d[^\s…]*(?:\s+[^\s…]+){0,4}…")),
-)
 CUT_WORD = re.compile(r"\s*[^\s…]*…")
 
 WITHHELD_TITLE = "A call is waiting on the machine"
@@ -430,14 +391,6 @@ KIND_OPTIONS = {
 }
 
 skipped = []
-
-
-def tripped(*texts):
-    for text in texts:
-        for _name, rule in RULES:
-            if text and rule.search(text):
-                return True
-    return False
 
 
 def units(text):
@@ -1062,7 +1015,7 @@ cmd_push() {
       *) die "unknown push argument: $1" 2 ;;
     esac
   done
-  [ -n "$dry" ] || load_config
+[ -n "$dry" ] || load_config
   make_tmp
   snap="$TMP_DIR/snapshot.json"
   if [ -n "$given" ]; then

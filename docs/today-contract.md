@@ -1,7 +1,7 @@
 # Today contract, version 1
 
 Today is the admin portal's control centre for the captain, and it replaces the bearings board.
-This page is the single owner of the contract between firstmate and the portal: the five published shapes, how they travel, how the bridge authenticates, what may leave the captain's machine, and how the contract changes.
+This page is the single owner of the contract between firstmate and the portal: the eight published shapes, how they travel, how the bridge authenticates, what may leave the captain's machine, and how the contract changes.
 The machine-checkable shapes live in [`today-contract/`](today-contract/) as JSON Schema draft 2020-12 documents.
 
 | Schema constant | File | Direction |
@@ -11,6 +11,9 @@ The machine-checkable shapes live in [`today-contract/`](today-contract/) as JSO
 | `fm-today-answer.v1` | [`fm-today-answer.v1.schema.json`](today-contract/fm-today-answer.v1.schema.json) | portal to firstmate |
 | `fm-today-receipt.v1` | [`fm-today-receipt.v1.schema.json`](today-contract/fm-today-receipt.v1.schema.json) | firstmate to portal |
 | `fm-today-enrolment.v1` | [`fm-today-enrolment.v1.schema.json`](today-contract/fm-today-enrolment.v1.schema.json) | portal to firstmate |
+| `fm-today-note.v1` | [`fm-today-note.v1.schema.json`](today-contract/fm-today-note.v1.schema.json) | portal to firstmate |
+| `fm-today-dispatch-order.v1` | [`fm-today-dispatch-order.v1.schema.json`](today-contract/fm-today-dispatch-order.v1.schema.json) | portal to firstmate |
+| `fm-today-note-receipt.v1` | [`fm-today-note-receipt.v1.schema.json`](today-contract/fm-today-note-receipt.v1.schema.json) | firstmate to portal |
 
 Every document names its shape in its `schema` field.
 Valid and invalid example documents for every shape live in [`today-contract/examples/`](today-contract/examples/).
@@ -24,6 +27,7 @@ The portal shows calls and carries answers; firstmate alone records, merges, or 
 Every kind of answer may be given from the portal, and the merge word and the go to build also carry the captain's passkey signature, which firstmate checks itself.
 Every answer gets exactly one receipt from firstmate.
 A note sent with an answer carries no authority: firstmate records it as the captain's words and never acts on it as an instruction.
+A note from Today carries no authority either, and a dispatch order is only a proposal; [Notes and dispatch orders](#notes-and-dispatch-orders) says what firstmate does with each.
 
 ## Travel
 
@@ -31,12 +35,13 @@ A bridge on the captain's machine sends the fleet's snapshot out and long-polls 
 Nothing ever calls into the captain's machine: every connection is opened by the bridge, outward, to the portal.
 The portal has no address for the captain's machine and never needs one.
 
-The bridge calls exactly two endpoints on the portal.
+The bridge calls exactly three endpoints on the portal.
 
 | Method and path | Request body | Success response |
 | --- | --- | --- |
 | `POST /api/fleet/bridge/snapshot` | one `fm-today-snapshot.v1` document, at most 512 KiB | `200` with the portal's `heard_at` stamp |
 | `POST /api/fleet/answers` | `{"receipts": [<fm-today-receipt.v1>...], "wait_seconds": <0-25>}` | `200` with `{"answers": [<fm-today-answer.v1>...], "enrolments": [<fm-today-enrolment.v1>...]}`, `enrolments` optional |
+| `POST /api/fleet/notes` | `{"receipts": [<fm-today-note-receipt.v1>...], "wait_seconds": <0-25>}` | `200` with `{"notes": [<fm-today-note.v1>...], "dispatch_orders": [<fm-today-dispatch-order.v1>...]}` |
 
 **Snapshot.**
 The portal refuses a body over 512 KiB with `413` before reading further, and a body that fails the snapshot schema with `400`.
@@ -57,12 +62,21 @@ The portal validates every answer against the answer schema before it becomes de
 The response also carries `enrolments`, absent when there are none: the passkey the captain registered for the snapshot's open enrolment, if any, as described under "The enrolment".
 An enrolment gets no receipt: the portal returns it on every call, and does not hold the request open for it, until the snapshot no longer carries its `enrol_id`.
 
+**Notes and dispatch orders.**
+The notes call works exactly as the answers call, on its own endpoint so the answers envelope stays unchanged, and nothing on it ever reaches the answer queue.
+The portal first stores every receipt in the request, ignoring any whose `ref` it does not know or has already receipted.
+It then returns every note and every dispatch order that has no receipt yet, each list oldest first and at most 50 long, both keys always present.
+When there is none, it holds the request open for up to `wait_seconds`, as for answers.
+Every unreceipted note and order is delivered again on every call until its receipt arrives, and firstmate replies `duplicate` to a repeated id.
+The portal refuses a body over 256 KiB with `413`, and a request that is not the envelope or carries a receipt failing its schema with `400` and the same `{"path", "rule"}` issues, storing nothing from it.
+Errors use the same body as the snapshot's.
+
 **Authentication.**
-Both calls send `Authorization: Bearer <token>`.
+All three calls send `Authorization: Bearer <token>`.
 The token lives only in the main firstmate home's gitignored `.env`, as `FM_TODAY_BRIDGE_TOKEN`.
 The portal stores only the token's SHA-256 digest, as lowercase hex, in `FLEET_BRIDGE_TOKEN_SHA256`.
 The portal hashes the presented token and compares the two digests in constant time, answering `401` on any mismatch, a missing header, another scheme, or a missing or malformed configured digest.
-One token serves both endpoints, and rotating it means writing a new token into `.env` and its digest into the portal together.
+One token serves every endpoint, and rotating it means writing a new token into `.env` and its digest into the portal together.
 
 ## The snapshot
 
@@ -257,6 +271,53 @@ A signed answer refused for its passkey carries a `reason` that begins with one 
 | `passkey: sign count` | The signature counter did not increase. |
 | `passkey: signature did not verify` | The signature does not verify with the enrolled key. |
 | `passkey: head moved` | The pull request's head is no longer the signed `head_sha`. |
+## Notes and dispatch orders
+
+A note is the captain's words to firstmate from Today, and a dispatch order is the order in which the captain proposes that Charted Next be dispatched.
+Neither is an answer, the merge word, or the go to build, and each says so in a constant `authority` field.
+Both are unsigned, so firstmate treats every byte of them as evidence and never as an instruction, whatever the words say.
+
+### The note
+
+| Field | Meaning |
+| --- | --- |
+| `note_id` | `note_` and 22 base64url characters, minted by the portal; the key for receipts and duplicates. |
+| `authority` | Always `none`. |
+| `text` | The captain's words, 1 to 2000 characters and at most 2000 UTF-8 bytes, not blank; line feeds and tabs are allowed and no other control character. |
+| `task_id`, `owner` | Optional: the call or work row the note was written from, keyed as a card is; `owner` without `task_id` is invalid, and an absent `owner` means `(main)`. |
+| `written_at` | When the captain sent it, UTC. |
+| `person`, `device` | As in an answer. |
+
+Firstmate records a note on the captain's machine as evidence, with the text check's verdict and the task it names, and replies `recorded`.
+It never answers or closes a call with a note, never files one as work, never starts work from one, and never routes one to its captain inbox, whose notes are requests.
+
+### The dispatch order
+
+| Field | Meaning |
+| --- | --- |
+| `order_id` | `dord_` and 22 base64url characters, minted by the portal. |
+| `authority` | Always `proposal`. |
+| `items` | 1 to 50 `{task_id, owner?}`, first to dispatch first, each a Charted Next row as shown, keyed as a work row is. |
+| `charted_as_of` | The `generated_at` of the snapshot whose Charted Next was ordered. |
+| `queued_at` | When the captain sent the order, UTC. |
+| `person`, `device` | As in an answer. |
+
+The portal refuses an order naming work no longer charted, a `warning` row, or one item twice, and a newer order replaces one the bridge has not collected yet.
+Firstmate records an order as the order ranks of its own items still charted, first item first, through its backlog planning record; recording it starts nothing, and what is dispatched next and when stays firstmate's call.
+Items no longer charted are left out, and items a second mate owns are kept for firstmate to route to that home.
+An order older by `queued_at` than one already recorded is refused, so a late redelivery cannot undo a newer order.
+
+### The note receipt
+
+| `outcome` | Meaning |
+| --- | --- |
+| `recorded` | Kept: a note as the captain's words, an order as the proposed order. |
+| `refused` | Not kept, and `reason` says why, such as a document that fails its schema or an order older than the one recorded. |
+| `duplicate` | This id was already received; nothing further happened. |
+
+Every note receipt carries `ref`, the `note_id` or `order_id` it answers, and `recorded_at`.
+`reason` is required with `refused` and may accompany `recorded`, for example to count the ordered items that were left out.
+Firstmate writes `reason` from its own fixed wording, counts, schema paths, and rule names, never from a note's words.
 
 ## Rules the schemas cannot state
 
@@ -272,11 +333,15 @@ The reference checker enforces these beside the schemas:
 - The snapshot's `passkeys` credentials are unique, and the origin of `passkeys` and of `enrolment` lies within its `rp_id`.
 - Given the credentials firstmate holds, a passkey assertion passes every stateless check under "The passkey assertion", its signature included.
 - An enrolment's attested credential id, key, and algorithm are the ones it names, with the user-present and user-verified flags; given the snapshot, it also matches the open enrolment and is not already enrolled.
+- A note's `text` is at most 2000 UTF-8 bytes and is not blank.
+- A dispatch order names each item once for each `owner` and `task_id` pair, an absent `owner` counting as `(main)`.
 
 ## Privacy
 
 - Everything the portal receives through this contract lives in captain-only tables, enforced on the server, never shown to staff.
 - The text of a call leaves the captain's machine only as a card, after firstmate's text check.
+- A note's words cannot be checked before they reach the portal, so the portal keeps them only until firstmate has them: once a note's receipt is stored, the portal deletes its `text` and keeps only that it was sent and recorded (its id, times, length, and SHA-256), and a note never receipted has its `text` deleted 14 days after it was written; audit rows record the same, never the words.
+- Firstmate runs the text check on every note it records and keeps the verdict with the note on the captain's machine; no receipt or later document carries a note's words.
 - Every other free-text field in a snapshot passes the same check before the bridge sends it, except day block titles; that includes each passkey `label`.
 - Passkey ids, public keys, challenges, and signatures carry no secret; no private key ever leaves the authenticator.
 - Day block titles are exempt from the text check by the captain's D33, which shows each calendar block with its title; they are sent only in `day`, and the portal deletes them when the day ends.
@@ -290,7 +355,7 @@ The reference checker enforces these beside the schemas:
 
 relay-platform built its first slice against internal draft shapes before v1 was published, and the draft expects to change to match v1.
 Where the draft already named or shaped a fact, v1 takes its shape: work titles, `waits_on`, `order`, `landed_at`, `pr_url` on work, a credential card with no options, the day's `ends_at` and blocks as instants with ids, the limits, the snapshot path, and its status codes.
-These differences are deliberate:
+These differences are deliberate, the last six from the notes and dispatch order proposal (relay-platform `docs/seams/fleet-notes.md`):
 
 | v1 | Draft | Reason |
 | --- | --- | --- |
@@ -310,6 +375,12 @@ These differences are deliberate:
 | Card `owner`, and calls and work keyed by `owner` with the id | - | Today shows the whole fleet's work, and task ids are unique only within one home. |
 | Answers, receipts, and `POST /api/fleet/answers` | - | The draft covers the snapshot only. |
 | Card `head_sha`, `subject_sha256`, `proof`; snapshot `passkeys`, `enrolment`; `enrolments` and `fm-today-enrolment.v1` | - | The passkey proof on the merge word and the go to build. |
+| Note `task_id` and `owner` | - | A note written from a call or work row is evidence on that task. |
+| Note `text` refuses control characters other than line feed and tab | Any text | The words land in local records and terminals on the captain's machine. |
+| Dispatch order item `task_id` and `owner` use the card's definitions | Copied pattern, free-string owner | An owner is `(main)` or a registered home id, never free text. |
+| Note receipt `reason` allowed with `recorded` | Only with `refused` | A recorded order can count the items left out, as an answer receipt may carry a reason. |
+| Unreceipted notes and orders delivered on every call | Again after 60 seconds | One delivery rule for both long-poll endpoints. |
+| The portal deletes a note's words once receipted, or after 14 days | Kept and shown for 14 days | The text check cannot run before a note reaches the portal. |
 
 ## Versioning
 
@@ -324,4 +395,5 @@ A v2 shape gets new `.v2` schema constants beside the v1 files, and both sides a
 The required, nullable `repo` stays v1 because the portal's copy of v1 already required it and no v1 snapshot had been accepted before the two copies were made identical.
 The passkey additions stay v1 by these rules: `head_sha`, `subject_sha256`, and `proof` are optional card fields joining `card_hash`'s field list; `passkeys`, `enrolment`, and the answers response's `enrolments` are optional members; `fm-today-enrolment.v1` is a new shape that changes no existing one; the receipt reasons are text in the existing `reason`; and the challenge and the answer shape are unchanged.
 The Charted Next change-encoding fields `aud`, `visible`, `until`, `parked`, and `mockup_url` stay v1 as new optional fields whose absence keeps today's meaning: their conditions bind only rows that carry them, every snapshot accepted before still passes, and no existing field, enum, or pattern changes.
+The note, dispatch order, and note receipt shapes joined v1 as new shapes with their own endpoint, which changed no existing shape.
 The portal vendors the schema files byte-for-byte from this repository, so a change to any of them reaches the portal only as a fresh copy of every file.

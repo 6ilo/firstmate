@@ -1531,6 +1531,8 @@ A fail-closed poll that already queued a wake, and a timeout, always print so th
 `bin/fm-today-bridge.sh` sends the fleet's snapshot from the captain's machine to the admin portal's Today page, and carries the captain's answers from Today back into firstmate.
 [`docs/today-contract.md`](today-contract.md) owns the documents it sends and receives, the portal endpoints, and the privacy rules; this section covers setup and the text check.
 The bridge only ever opens connections outward, to the portal; nothing calls in to the machine.
+This half of the bridge sends the snapshot only; it does not fetch answers, and nothing runs it on a schedule yet.
+`bin/fm-today-notes.sh` collects the captain's notes and dispatch orders from Today with the same settings; see [Notes and dispatch orders](#notes-and-dispatch-orders).
 
 ### Settings
 
@@ -1596,6 +1598,18 @@ The bridge sends both members in every snapshot, and checks each enrolment Today
 The store is the home's gitignored `config/today-passkeys.json`, mode `0600`, holding public keys only.
 Keep at least two active credentials (`revoke` warns when fewer remain but never refuses, so a compromised key can always be retired), and enrol right after a reviewed portal deploy, because the machine confirmation is the moment of trust.
 
+### Notes and dispatch orders
+
+`bin/fm-today-notes.sh collect` makes one call to the portal's `POST /api/fleet/notes`, records every note and dispatch order it returns, and sends each one's receipt on an immediate follow-up call.
+[`docs/today-contract.md`](today-contract.md#notes-and-dispatch-orders) owns what each carries and what firstmate may do with it; neither ever starts work.
+A home that wants them collected unattended arms the standing check in the main home: `bin/fm-today-notes.sh arm`.
+That writes `state/today-notes.check.sh` and binds its bytes with `bin/fm-check-register.sh`, so the watcher runs it on its normal `FM_CHECK_INTERVAL` cadence; each run waits up to `FM_TODAY_NOTES_WAIT` seconds (default 10) for something to arrive, within the watcher's per-check bound.
+It prints one line, which the watcher turns into a `check:` wake, whenever a note or order was recorded, and once for each new kind of failure.
+Arming is refused in a secondmate home, and `bin/fm-today-notes.sh disarm` removes the standing check and keeps every record.
+
+Notes and orders are kept in `data/today-notes/`, one JSON record each; `bin/fm-today-notes.sh list` shows them newest first, `list --task <id>` the notes about one task, and `show <id>` one record with its words.
+Receipts wait in `state/today-notes/receipts/` until a call that carried them is answered 200.
+
 ### Calendar day file
 
 The day comes from a JSON file written by a job outside the repository: `{"date", "ends_at", "fetched_at", "blocks": [{"id", "title", "starts_at", "ends_at"}]}`, with times carrying an explicit UTC offset.
@@ -1622,6 +1636,7 @@ Every other free-text field in the snapshot passes the same check: a work title 
 Wherever a field was cut, marked by `…` at its end or mid-text (bearings' cuts and the bridge's own 200-character cap alike), the partial word before each `…` is dropped before the check and before the field is sent.
 A cut field is then withheld, as if it tripped, when any of the five words before a cut contains a digit, so a house number or phone number split at the cut cannot leave in part.
 The check leans toward withholding, so ordinary words such as "parent" or "minor" in a technical call also keep that call's text on the machine.
+`bin/fm_today_text_check.py` implements the rule set, and `bin/fm-today-notes.sh` records its verdict on every note from Today without sending anything back.
 
 ## Fleet request queue (.env)
 
