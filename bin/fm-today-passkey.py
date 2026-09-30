@@ -150,14 +150,6 @@ def passkeys_block(credentials):
                             for c in active[:MAX_ACTIVE]]}
 
 
-def ttl_secs():
-    """The enrolment lifetime: 15 minutes, or shorter when FM_TODAY_ENROL_TTL_SECS asks."""
-    raw = os.environ.get("FM_TODAY_ENROL_TTL_SECS", "")
-    if raw.isdigit() and 0 < int(raw) < ENROL_TTL_SECS:
-        return int(raw)
-    return ENROL_TTL_SECS
-
-
 def cmd_enrol(home, label):
     if not label or len(label) > 120 or printable(label) != label or label.strip() != label:
         raise Refusal("--label must be 1 to 120 printable characters with no leading or trailing space")
@@ -173,7 +165,7 @@ def cmd_enrol(home, label):
             "rp_id": RP_ID,
             "origin": ORIGIN,
             "user_handle": check.b64url(os.urandom(16)),
-            "expires_at": stamp(at + datetime.timedelta(seconds=ttl_secs())),
+            "expires_at": stamp(at + datetime.timedelta(seconds=ENROL_TTL_SECS)),
             "label": label,
             "opened_at": stamp(at),
             "status": "open",
@@ -215,7 +207,11 @@ def cmd_revoke(home, credential_id):
         entry["status"] = "revoked"
         entry["revoked_at"] = stamp(now())
         home.save_credentials(credentials)
+        active = sum(1 for c in credentials if c.get("status") == "active")
     print("revoked %s (%s)" % (credential_id, printable(entry["label"])))
+    if active < 2:
+        sys.stderr.write("fm-today-passkey: warning: only %d active credential%s left; enrol another so"
+                         " Today keeps a working passkey\n" % (active, "" if active == 1 else "s"))
     return 0
 
 

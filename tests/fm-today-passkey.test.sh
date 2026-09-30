@@ -219,8 +219,13 @@ test_expired_enrolment_is_refused() {
   local home out code
   home=$(new_home expired)
   keygen "$home/k.pem"
-  FM_TODAY_ENROL_TTL_SECS=1 register "$home" "$home/k.pem" "$home/e.json"
-  sleep 2
+  register "$home" "$home/k.pem" "$home/e.json"
+  python3 - "$home/state/today-passkey-enrolment.json" <<'PY'
+import json, sys
+record = json.load(open(sys.argv[1]))
+record["expires_at"] = "2000-01-01T00:00:00Z"
+json.dump(record, open(sys.argv[1], "w"))
+PY
   out=$(pk "$home" check "$home/e.json"); code=$?
   expect_code 1 "$code" "check of an expired enrolment"
   assert_contains "$out" "expired" "the expiry is named"
@@ -284,7 +289,10 @@ test_rs256_and_revoke() {
     || fail "an RS256 enrolment failed: $out"
   assert_contains "$out" "RS256" "the confirm names the algorithm"
   cred=$(field "$home/k.pem.cred" 'd["credential_id"]')
-  out=$(pk "$home" revoke "$cred") || fail "revoke failed"
+  out=$(pk "$home" revoke "$cred" 2>"$home/revoke.err") || fail "revoke of the last active credential failed"
+  assert_contains "$(cat "$home/revoke.err")" "warning: only 0 active credentials left" \
+    "revoking below two active credentials warns"
+  assert_not_contains "$out" "warning" "the warning goes to stderr"
   pk "$home" list --json > "$home/l.json"
   assert_equals "revoked" "$(field "$home/l.json" 'd["credentials"][0]["status"]')" "revoked status"
   assert_not_equals "None" "$(field "$home/l.json" 'd["credentials"][0]["revoked_at"]')" "revoked_at is set"

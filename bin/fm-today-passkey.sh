@@ -25,7 +25,8 @@
 # list     Every enrolled credential, active and revoked, with its key
 #          fingerprint; --json prints the store's entries as they are.
 # revoke   Mark the credential revoked with revoked_at. Entries are never
-#          deleted.
+#          deleted. Revoke is never refused, even of the last active key; it
+#          warns on stderr when fewer than two active credentials remain.
 # blocks   Print {"passkeys"?, "enrolment"?}, the two optional snapshot
 #          members: `passkeys` lists the active credentials and is absent when
 #          none is; `enrolment` is the open enrolment and is absent once it is
@@ -52,9 +53,6 @@
 # enrolled_at, enrolled_via (portal), backup_eligible, sign_count, status
 # (active or revoked), and revoked_at. It holds public keys only. Both files are
 # replaced atomically, mode 0600, under one lock.
-#
-# FM_TODAY_ENROL_TTL_SECS shortens the enrolment's lifetime below 900 seconds,
-# for tests; it can never lengthen it.
 #
 # Exit status: 0 on success; 1 when a check fails, the captain refuses, or the
 # store cannot be read; 2 on a usage error.

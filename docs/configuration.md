@@ -1589,7 +1589,7 @@ The merge word and the go to build from Today carry the captain's passkey signat
 The bridge does not send those members yet, and does not yet hand received enrolments to `confirm`.
 
 The store is the home's gitignored `config/today-passkeys.json`, mode `0600`, holding public keys only.
-Keep at least two active credentials, and enrol right after a reviewed portal deploy, because the machine confirmation is the moment of trust.
+Keep at least two active credentials (`revoke` warns when fewer remain but never refuses, so a compromised key can always be retired), and enrol right after a reviewed portal deploy, because the machine confirmation is the moment of trust.
 
 ### Calendar day file
 
