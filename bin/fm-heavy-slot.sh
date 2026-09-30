@@ -16,15 +16,21 @@
 #   fm_lock_acquire_wait_bounded, which owns stale-owner recovery; a live
 #   holder that keeps it past FM_HEAVY_SLOT_LOCK_WAIT seconds (default 30)
 #   fails the command with exit 1.
-# Capacity: heavy_total (default 3) and ask_reserve (default 2) from the active
+# Capacity: heavy_total (default 2) and ask_reserve (default 1) from the active
 #   home's config/lanes.json when present (read with jq; the file is never
 #   created here). An ask may take any free slot. A backlog holder may take one
 #   only while backlog holders are fewer than heavy_total - ask_reserve.
 # Gates, checked on every new acquire (defaults overridable in config/lanes.json):
-#   max_load 16            refuse while the 1-minute load average is >= this
-#   max_pressure_level 4   refuse while kern.memorystatus_vm_pressure_level >= this
+#   max_pressure_level 2   refuse while kern.memorystatus_vm_pressure_level >= this
+#                          (2 is warning, 4 critical)
 #   max_swap_used_mb 7168  refuse while swap used (MB) is >= this
 #   max_browser_pages 30   refuse while WebKit WebContent processes are > this
+#   max_load (unset)       no load gate by default; when set, refuse while the
+#                          1-minute load average is >= this
+#   The 1-minute load average is always read and reported (limit "off" when
+#   max_load is unset); it never refuses by default. The ledger has no point
+#   where it picks between waiters (each waiter polls and the first to find a
+#   free slot takes it), so load is not used as a tie-breaker either.
 #   A reading this platform cannot take is reported as unknown and never
 #   refuses. Tests inject readings with FM_HEAVY_SLOT_LOAD1,
 #   FM_HEAVY_SLOT_PRESSURE_LEVEL, FM_HEAVY_SLOT_SWAP_USED_MB, and
@@ -132,10 +138,10 @@ trap lock_release EXIT
 
 # --- configuration -----------------------------------------------------------
 
-HEAVY_TOTAL=3
-ASK_RESERVE=2
-MAX_LOAD=16
-MAX_PRESSURE=4
+HEAVY_TOTAL=2
+ASK_RESERVE=1
+MAX_LOAD=''  # empty: load is reported, never a gate, unless lanes.json sets max_load
+MAX_PRESSURE=2
 MAX_SWAP_MB=7168
 MAX_PAGES=30
 
@@ -230,14 +236,14 @@ read_gates() {
 
 gates_line() {
   printf 'load1=%s/%s pressure=%s/%s swap_used_mb=%s/%s browser_pages=%s/%s' \
-    "$GATE_LOAD" "$MAX_LOAD" "$GATE_PRESSURE" "$MAX_PRESSURE" \
+    "$GATE_LOAD" "${MAX_LOAD:-off}" "$GATE_PRESSURE" "$MAX_PRESSURE" \
     "$GATE_SWAP_MB" "$MAX_SWAP_MB" "$GATE_PAGES" "$MAX_PAGES"
 }
 
 # Prints the first refusing gate's reason, or nothing when every gate passes.
 gate_refusal() {
   read_gates
-  if [ "$GATE_LOAD" != unknown ] && num_ge "$GATE_LOAD" "$MAX_LOAD"; then
+  if [ -n "$MAX_LOAD" ] && [ "$GATE_LOAD" != unknown ] && num_ge "$GATE_LOAD" "$MAX_LOAD"; then
     echo "load average $GATE_LOAD is at or above $MAX_LOAD"
   else
     memory_refusal
