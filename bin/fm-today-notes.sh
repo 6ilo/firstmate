@@ -71,9 +71,10 @@
 #   portal deletes a note's words only once they are on this machine; an
 #   intake interrupted between the two is answered `duplicate` on redelivery.
 #
-# Exit status: 0 on success (including nothing new); 1 when a record cannot be
-# written, an order cannot be applied, or a document is unreadable (none of
-# them is receipted, so the portal delivers it again on the next collect);
+# Exit status: 0 on success (including nothing new); 1 when a record or a
+# receipt cannot be written, an order cannot be applied, or a document is
+# unreadable (none of them is receipted, so the portal delivers it again on the
+# next collect, and a document already recorded is answered `duplicate`);
 # 2 on a usage error or missing settings (nothing is sent); 3 when the portal
 # cannot be reached, answers anything but 200, or answers malformed JSON.
 set -u
@@ -235,7 +236,10 @@ def receipt(ref, outcome, reason=None):
     bad = errors(doc)
     if bad:
         raise SystemExit("fm-today-notes: a receipt failed its own schema: %s" % bad[0])
-    write_json(path, doc)
+    try:
+        write_json(path, doc)
+    except Retry:
+        summary["retry"].append({"id": ref, "why": "recorded, but its receipt could not be written"})
 
 
 def record(ident, kind, doc, outcome, reason=None, **extra):
@@ -482,7 +486,7 @@ cmd_collect() {
     [ (map(.retry) | add | unique_by(.id)[] | .id + " (" + .why + ")"),
       (map(.unreadable) | max | if . > 0 then tostring + " unreadable" else empty end) ]
     | join(", ")' "${summaries[@]}")
-  [ -z "$pending" ] || die "not recorded yet, delivered again on the next collect: $pending"
+  [ -z "$pending" ] || die "not receipted, delivered again on the next collect: $pending"
   return 0
 }
 
