@@ -1,0 +1,14 @@
+## Live drive: real fm-today-bridge.sh against a fixture home + local stub portal at 127.0.0.1
+
+### 1. A held merge call raises a real merge card in the snapshot (fm-today-bridge.sh snapshot):
+{"task_id":"m-ship","kind":"merge","pr_url":"https://github.com/acme/widget/pull/9","repo":"acme/widget","options":["merge"]}
+
+### 2. answers once: a well-formed merge answer from the portal is recorded and REFUSED for proof (slice-0 C1/C2 safe before the verifier):
+answer-json: {"answer_id": "live_merge_001", "owner": "(main)", "task_id": "m-ship", "kind": "merge", "value": "merge", "outcome": "refused", "action": "refused", "reason": "proof_required: a merge or go answer needs the captain's passkey signature, which firstmate cannot check yet; nothing was merged, released, or started. Give this word at the machine."}
+
+### 3. The answer was recorded and its refusal receipt exist in the store:
+live_merge_001.json
+live_merge_001.json
+
+### 4. Nothing was merged/released: the merge card is still a held, open captain call:
+- [ ] m-ship - Ship the fix (repo: firstmate) (kind: ship) (hold: merge it) (hold-kind: captain)
