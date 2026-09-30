@@ -91,6 +91,7 @@ enrolment--user-not-verified $.attestation_object: flags
 receipt--refused-without-reason required: missing reason
 receipt--set-aside-without-current-hash required: missing current_card_hash
 receipt--unknown-outcome $.outcome: enum
+snapshot--audience-on-underway $.sections.underway[0]: additionalProperties: aud
 snapshot--board-title $.sections.boards[0]: additionalProperties: title
 snapshot--call-listed-twice-for-owner $.sections.calls: task_id: a call appears twice
 snapshot--call-stale-hash $.sections.calls[0].card_hash: card_hash
@@ -99,10 +100,17 @@ snapshot--day-block-ends-before-start $.sections.day.blocks[1]: ends_at: ends be
 snapshot--day-block-impossible-date $.sections.day.blocks[0]: instant: not a real time
 snapshot--event-wait-without-label $.sections.charted_next[0].waits_on[2]: required: missing label
 snapshot--missing-day $.sections: required: missing day
+snapshot--mockup-not-https $.sections.charted_next[0].mockup_url: pattern
+snapshot--mockup-not-visible $.sections.charted_next[0].visible: const
+snapshot--mockup-without-visible $.sections.charted_next[0]: required: missing visible
 snapshot--passkeys-credential-twice $.passkeys.credentials: credential_id: a credential appears twice
 snapshot--passkeys-origin-outside-relying-party $.passkeys.origin: origin
 snapshot--underway-extra-field $.sections.underway[0]: additionalProperties: body
+snapshot--unknown-audience $.sections.charted_next[1].aud: enum
+snapshot--until-not-a-date $.sections.charted_next[1].until: pattern
 snapshot--urgency-out-of-range $.sections.charted_next[0].urgency: maximum
+snapshot--visible-for-agents $.sections.charted_next[0].aud: enum
+snapshot--visible-without-audience $.sections.charted_next[0]: required: missing aud
 snapshot--work-listed-twice $.sections: id: a piece of work appears twice
 snapshot--work-listed-twice-for-owner $.sections: id: a piece of work appears twice
 EOF

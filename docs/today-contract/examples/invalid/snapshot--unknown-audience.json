@@ -239,7 +239,8 @@
         "reason": "Inventory needs a look",
         "dispatchable": false,
         "repo": null,
-        "kind": "warning"
+        "kind": "warning",
+        "aud": "everyone"
       },
       {
         "id": "portal-map-legend",
