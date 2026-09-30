@@ -24,9 +24,10 @@
 #   owns those readings, limits, and the ledger location.
 # Load ceiling: off by default (load is reported, never a gate); it applies
 #   only when config/lanes.json sets load_ceiling or max_load. A sample with
-#   the 1-minute load >= load_ceiling counts toward a trip; two consecutive such samples trip the lane closed. A tripped lane
-#   reopens once every sample has stayed under both reopen_load and
-#   load_ceiling for reopen_secs.
+#   the 1-minute load >= load_ceiling counts toward a trip; two consecutive
+#   such samples trip the lane closed. A tripped lane reopens once every
+#   sample has stayed under both reopen_load and load_ceiling for reopen_secs.
+#   With no ceiling set, each gate call persists a cleared trip state.
 #   Samples and trip state persist in <home>/state/lanes-load.state (replaced
 #   atomically; concurrent gate calls may drop a sample, never corrupt it). An
 #   unknown load reading records no sample.
