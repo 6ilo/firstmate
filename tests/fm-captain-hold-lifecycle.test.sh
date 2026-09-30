@@ -1242,6 +1242,69 @@ test_due_date_keeps_a_call_on_captains_call_until_answered() {
   pass "a due date keeps a captain call on Captain's Call from seven days ahead until answered"
 }
 
+# A merge, go, or credential call rides the hold lifecycle as one line under
+# the stamps, exactly as a due date does, and reaches bearings as the row's call;
+# re-holding an active call may leave out --reason and keeps the one it has.
+test_call_kind_rides_the_hold_lifecycle() {
+  local home body json pr=https://github.com/acme/widget/pull/9
+  home=$(make_home call-kind)
+  body_of() {  # <id>: the task's indented body lines, unindented
+    awk -v id="$1" '
+      $0 ~ "^- \\[.\\] " id " " { on = 1; next }
+      on && /^  / { sub(/^  /, ""); print; next }
+      on { exit }
+    ' "$home/data/backlog.md"
+  }
+  FM_CAPTAIN_HOLD_NOW=2026-06-01T12:00:00Z run_captain "$home" hold ship-fix --title "Ship the fix" \
+    --reason "merge the fix" --repo widget --due 2026-07-22 --call merge --pr "$pr" >/dev/null \
+    || fail "could not hold a merge call"
+  body=$(printf 'Captain hold set: 2026-06-01T12:00:00Z\nCaptain hold due: 2026-07-22\nCaptain hold call: {"kind":"merge","pr_url":"%s"}' "$pr")
+  [ "$(body_of ship-fix)" = "$body" ] || fail "the call line is not under the stamps: $(body_of ship-fix)"
+
+  # Repeating the active hold, even with --until and no --reason, keeps the
+  # call, the stamps, and the reason.
+  run_captain "$home" hold ship-fix --until 2030-06-10 >/dev/null || fail "could not re-hold without --reason"
+  [ "$(body_of ship-fix)" = "$body" ] || fail "re-holding changed the stamps or the call: $(body_of ship-fix)"
+  grep -q '^- \[ \] ship-fix .*(hold: merge the fix) (hold-kind: captain) (hold-until: 2030-06-10)' \
+    "$home/data/backlog.md" || fail "the re-hold did not keep its reason and take the date: $(grep ship-fix "$home/data/backlog.md")"
+  json=$(run_bearings "$home" --all-decisions) || fail "bearings failed"
+  printf '%s' "$json" | jq -e --arg pr "$pr" '.decisions_open[] | select(.id == "ship-fix")
+    | .call == {kind: "merge", pr_url: $pr} and .task_kind == "captain"' >/dev/null \
+    || fail "bearings did not carry the call and task kind: $(printf '%s' "$json" | jq -c .decisions_open)"
+  PATH="$home/fakebin:$PATH" FM_HOME="$home" FM_BEARINGS_NOW=2026-07-14T12:00:00Z "$BEARINGS" --all-decisions \
+    | grep -q 'decisions_open\[[0-9]*\]{id,key,verb,summary,owner}:' || fail "the TOON rows took the call's fields"
+
+  run_captain "$home" hold ship-fix --reason "merge the fix" --call go >/dev/null || fail "could not change the call"
+  [ "$(body_of ship-fix | sed -n 3p)" = 'Captain hold call: {"kind":"go"}' ] || fail "--call did not replace: $(body_of ship-fix)"
+  run_captain "$home" hold ship-fix --reason "merge the fix" --call credential >/dev/null \
+    || fail "could not record a credential call"
+  [ "$(body_of ship-fix | sed -n 3p)" = 'Captain hold call: {"kind":"credential"}' ] \
+    || fail "a credential call was not recorded: $(body_of ship-fix)"
+  for args in "--call merge" "--call merge --pr http://github.com/acme/widget/pull/9" \
+    "--call merge --pr https://github.com/acme/widget/issues/9" "--call go --pr $pr" "--pr $pr" "--call vote"; do
+    # shellcheck disable=SC2086  # each case is a deliberately split argument list
+    if run_captain "$home" hold ship-fix --reason "merge the fix" $args >/dev/null 2>&1; then
+      fail "hold accepted an unusable call: $args"
+    fi
+  done
+  [ "$(body_of ship-fix | sed -n 3p)" = 'Captain hold call: {"kind":"credential"}' ] \
+    || fail "a refused call changed the record: $(body_of ship-fix)"
+  if run_captain "$home" hold new-call --title "A new call" >/dev/null 2>&1; then
+    fail "a new hold was accepted without --reason"
+  fi
+
+  # A new hold lifecycle drops the call.
+  printf 'Merged at the machine.\n' > "$home/answer.txt"
+  run_captain "$home" answer ship-fix --decision-file "$home/answer.txt" --release >/dev/null \
+    || fail "could not answer the call"
+  run_captain "$home" hold ship-fix --reason "one more look" >/dev/null || fail "could not re-hold"
+  json=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" "$ROOT/bin/fm-fleet-snapshot.sh" --json) \
+    || fail "fleet snapshot failed"
+  printf '%s' "$json" | jq -e '.backlog.records[] | select(.id == "ship-fix") | .hold_call == null' >/dev/null \
+    || fail "a new hold lifecycle kept the old call"
+  pass "a merge, go, or credential call rides the hold lifecycle and reaches bearings"
+}
+
 # The recorded-answer guard survives an out-of-band close: a bare tasks-axi done
 # fails verify until answer records the captain's word, and an ordinary finished
 # task can never be dressed up as an answered captain call.
@@ -4128,6 +4191,7 @@ test_hold_stamp_precedes_hold_visibility
 test_interrupted_answer_preserves_hold_age
 test_deferral_leaves_captains_call_until_due
 test_due_date_keeps_a_call_on_captains_call_until_answered
+test_call_kind_rides_the_hold_lifecycle
 test_out_of_band_close_is_recordable
 test_visual_review_uses_shared_completion_owner
 test_none_inventory_and_resolved_prose_do_not_create_holds
