@@ -31,6 +31,8 @@
 #      once delivered, and its delivery-unknown decision still closes on resolve
 #  17. Settled (resolved) history adds no process work to a tick, while a
 #      resolved record's still-open escalation is still closed
+#  18. The tick prunes settled records older than the retention window and
+#      never prunes an unresolved record or one whose escalation is still open
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -1088,8 +1090,9 @@ test_tick_skips_terminal_and_reuses_target_observation() {
   pass "tick skips terminal records and reuses target observations"
 }
 
-# The watcher runs this tick on every poll and resolved records are kept
-# forever, so settled history must not add per-record process work: at 396
+# The watcher runs this tick on every poll and resolved records are kept for
+# the retention window, so settled history must not add per-record process
+# work: before retention existed, at 396
 # resolved records the forked per-field reads made the tick alone ~45s per poll
 # at load 15, and minutes under heavy load, starving the watcher's beacon.
 # Every external command the tick can reach is counted through PATH shims, and
@@ -1164,6 +1167,81 @@ test_tick_cost_does_not_grow_with_settled_history() {
       || fail "150 settled records added process work to one tick: $without without them, $with with them"
   ) || fail "settled-history tick cost regression failed"
   pass "settled pending-reply history adds no process work to a tick"
+}
+
+# Resolved records used to accumulate forever (396 in the main home), and every
+# poll visits every record. The tick deletes settled history once it is older
+# than the retention window, while anything that still guards a reply stays.
+test_tick_prunes_settled_records_past_retention() {
+  (
+    local home state dir day now corr path
+    # This fixture clock and hook are intentionally scoped to the isolated subshell.
+    # shellcheck disable=SC2030,SC2031
+    export FM_PENDING_REPLY_SEND_HOOK='true'
+    day=86400
+    now=$((1000000 + 3 * day))
+    # shellcheck disable=SC2030,SC2031
+    export FM_PENDING_REPLY_NOW=$now
+    home=$(setup_parent prune-settled)
+    state="$home/state"
+    dir=$(fm_pending_reply_dir "$state")
+    mkdir -p "$dir"
+    write_rec() {  # <corr> <phase> <resolved_epoch|-> [extra-lines]
+      {
+        printf 'schema=fm-pending-reply.v1\ncorr_id=%s\ntask_id=prune\n' "$1"
+        printf 'parent_status=%s\ncreated_epoch=1000000\n' "$state/prune.status"
+        printf 'delivered_epoch=1000001\nphase=%s\n' "$2"
+        [ "$3" = - ] || printf 'resolved_epoch=%s\nresolved_via=status\n' "$3"
+        [ -z "${4:-}" ] || printf '%s\n' "$4"
+      } > "$dir/$1"
+    }
+    # Settled and old: pruned, with its delivery confirmation.
+    write_rec 00000000000000a1 resolved $((now - day))
+    printf 'confirmed=1000001\n' > "$(fm_pending_reply_delivery_confirmation_path "$state" 00000000000000a1)"
+    write_rec 00000000000000a2 resolved $((now - 2 * day)) \
+      $'escalated_epoch=1000002\nescalation_closed_epoch=1000003'
+    # Settled but inside the window: kept.
+    write_rec 00000000000000b1 resolved $((now - day + 1))
+    # Resolved and old, but its escalation close has not landed: closed first,
+    # kept on this tick, and pruned by a later one.
+    write_rec 00000000000000c1 resolved $((now - 2 * day)) 'escalated_epoch=1000002'
+    # Unresolved records are never pruned, however old.
+    write_rec 00000000000000d1 escalated - 'escalated_epoch=1000002'
+    write_rec 00000000000000d2 awaiting_report -
+    # A resolved record without a readable resolved time is kept.
+    write_rec 00000000000000e1 resolved -
+    write_rec 00000000000000e2 resolved soon
+
+    fm_pending_reply_tick "$state"
+    for corr in 00000000000000a1 00000000000000a2; do
+      [ ! -e "$dir/$corr" ] || fail "settled record $corr past retention was not pruned"
+    done
+    path=$(fm_pending_reply_delivery_confirmation_path "$state" 00000000000000a1)
+    [ ! -e "$path" ] || fail "a pruned record's delivery confirmation was left behind"
+    for corr in 00000000000000b1 00000000000000c1 00000000000000d1 00000000000000d2 00000000000000e1 00000000000000e2; do
+      [ -f "$dir/$corr" ] || fail "record $corr must not be pruned on the first tick"
+    done
+    [ "$(fm_pending_reply_get "$dir/00000000000000d1" phase)" = escalated ] \
+      || fail "an unresolved escalated record changed phase"
+    [ -n "$(fm_pending_reply_get "$dir/00000000000000c1" escalation_closed_epoch)" ] \
+      || fail "the tick did not close the old resolved record's open escalation"
+
+    fm_pending_reply_tick "$state"
+    [ ! -e "$dir/00000000000000c1" ] || fail "a settled record whose escalation closed was not pruned later"
+    for corr in 00000000000000b1 00000000000000d1 00000000000000d2 00000000000000e1 00000000000000e2; do
+      [ -f "$dir/$corr" ] || fail "record $corr must never be pruned here"
+    done
+
+    # The window is tunable, and a malformed value keeps the one-day default.
+    FM_PENDING_REPLY_RETENTION_SECS=junk fm_pending_reply_tick "$state"
+    [ -f "$dir/00000000000000b1" ] || fail "a malformed retention value pruned a record inside the default window"
+    FM_PENDING_REPLY_RETENTION_SECS=60 fm_pending_reply_tick "$state"
+    [ ! -e "$dir/00000000000000b1" ] || fail "a shorter retention window did not prune the settled record"
+    for corr in 00000000000000d1 00000000000000d2 00000000000000e1 00000000000000e2; do
+      [ -f "$dir/$corr" ] || fail "record $corr must never be pruned"
+    done
+  ) || fail "settled pending-reply retention failed"
+  pass "the tick prunes settled pending-reply records past retention and keeps the rest"
 }
 
 test_correlations_reuse_only_for_matching_open_task() {
@@ -1710,6 +1788,7 @@ test_unknown_backend_state_uses_capture_fallback
 test_kimi_capture_fallback_uses_recorded_harness
 test_tick_skips_terminal_and_reuses_target_observation
 test_tick_cost_does_not_grow_with_settled_history
+test_tick_prunes_settled_records_past_retention
 test_correlations_reuse_only_for_matching_open_task
 test_tick_end_to_end_missed_then_escalate
 test_failed_send_discards_undelivered_expectation
