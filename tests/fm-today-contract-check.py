@@ -409,7 +409,14 @@ def enrolment_errors(enrolment, snapshot):
         out.append("$.client_data_json: challenge: expected %s" % asked["challenge"])
     out += client_origin_errors("$.client_data_json", client, asked["origin"])
     out += authenticator_data_errors("$.attestation_object", auth, asked["rp_id"], 0)
-    if instant(enrolment["enrolled_at"]) > instant(asked["expires_at"]):
+    times = {}
+    for where, text in (("$.enrolled_at", enrolment["enrolled_at"]),
+                        ("snapshot $.enrolment.expires_at", asked["expires_at"])):
+        try:
+            times[where] = instant(text)
+        except ValueError as err:
+            out.append("%s: instant: not a real time (%s)" % (where, err))
+    if len(times) == 2 and times["$.enrolled_at"] > times["snapshot $.enrolment.expires_at"]:
         out.append("$.enrolled_at: expires_at: made after the enrolment expired")
     held = [c["credential_id"] for c in snapshot.get("passkeys", {}).get("credentials", [])]
     if enrolment["credential_id"] in held:
