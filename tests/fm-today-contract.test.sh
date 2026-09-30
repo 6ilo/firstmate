@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Behavior tests for the Today contract v1 (docs/today-contract.md): every valid
-# example passes its schema and the contract rules, every invalid example fails
-# for its stated reason, and card_hash and the passkey challenge recompute from
+# example of all seven shapes passes its schema and the contract rules, every
+# invalid example fails for its stated reason, and card_hash and the passkey challenge recompute from
 # the definitions the page publishes, checked against an independent openssl
 # digest of the literal canonical bytes. Passkey signatures in the examples
 # verify under openssl as well as the reference checker, fresh software
@@ -33,8 +33,8 @@ test_valid_examples_pass() {
       || fail "valid example $(basename "$f") was refused: $out"
     n=$((n + 1))
   done
-  [ "$n" -ge 5 ] || fail "expected valid examples for all five schemas, found $n files"
-  for schema in snapshot card answer receipt enrolment; do
+  [ "$n" -ge 8 ] || fail "expected valid examples for all eight schemas, found $n files"
+  for schema in snapshot card answer receipt enrolment note dispatch-order note-receipt; do
     compgen -G "$CONTRACT/examples/valid/$schema*.json" >/dev/null \
       || fail "no valid $schema example"
   done
@@ -63,6 +63,10 @@ answer--passkey-user-not-verified $.passkey.authenticator_data: flags
 answer--passkey-wrong-key $.passkey.signature: signature
 answer--signed-for-another-value $.passkey.client_data_json: challenge
 card--credential-with-options $.options: maxItems
+dispatch-order--empty $.items: minItems
+dispatch-order--item-twice $.items: task_id: an item appears twice
+dispatch-order--owner-qualified $.items[0].owner: pattern
+dispatch-order--start-flag additionalProperties: start
 card--duplicate-option-value $.options: value: an option value appears twice
 card--extra-field additionalProperties: body
 card--head-sha-on-decision $: not:
@@ -85,6 +89,13 @@ enrolment--credential-not-attested $.credential_id: credential: differs from the
 enrolment--key-mismatch $.public_key_spki: key
 enrolment--other-challenge $.client_data_json: challenge
 enrolment--user-not-verified $.attestation_object: flags
+note--authority-granted $.authority: const
+note--blank-text $.text: blank
+note--control-character $.text: pattern
+note--owner-without-task required: missing task_id
+note--text-over-2000-bytes $.text: bytes
+note-receipt--applied $.outcome: enum
+note-receipt--refused-without-reason required: missing reason
 receipt--refused-without-reason required: missing reason
 receipt--set-aside-without-current-hash required: missing current_card_hash
 receipt--unknown-outcome $.outcome: enum

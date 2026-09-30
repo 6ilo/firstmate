@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/6ilo/firstmate/docs/today-contract/fm-today-note-receipt.v1.schema.json",
+  "title": "fm-today-note-receipt.v1",
+  "description": "Firstmate's reply to one note or one dispatch order, sent back through the bridge. docs/today-contract.md owns the meaning of every outcome.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "ref", "outcome", "recorded_at"],
+  "properties": {
+    "schema": { "const": "fm-today-note-receipt.v1" },
+    "ref": { "type": "string", "pattern": "^(note|dord)_[A-Za-z0-9_-]{22}$" },
+    "outcome": { "enum": ["recorded", "refused", "duplicate"] },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 400 },
+    "recorded_at": { "$ref": "fm-today-card.v1.schema.json#/$defs/timestamp" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "outcome": { "const": "refused" } }, "required": ["outcome"] },
+      "then": { "required": ["reason"] }
+    }
+  ]
+}
