@@ -17,10 +17,15 @@
     }
   ],
   "repo": "6ilo/firstmate",
+  "subject_sha256": "9f2c5a1e0b7d4c3e8a6f1b2d3c4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60",
+  "proof": {
+    "nonce": "kwJ28-roRg_A2Ii4Pwtm1w",
+    "expires_at": "2026-09-29T14:05:00Z"
+  },
   "text_check": {
     "verdict": "pass",
     "checker": "fm-today-text-check@1.0.0",
     "checked_at": "2026-09-28T14:05:00Z"
   },
-  "card_hash": "5b8914a3f2b4e1f202ea6c88a21d9f5009eb48f949bdc4c6a3038e751bb1b93c"
+  "card_hash": "07adb493c2828de693f7fca412e47750c6ff19d20ed9df0bf46593f29657c887"
 }

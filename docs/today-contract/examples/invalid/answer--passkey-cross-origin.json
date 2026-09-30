@@ -11,7 +11,7 @@
   "passkey": {
     "credential_id": "O7cn84PjZqpNkGq9rT1JEeSOHms",
     "authenticator_data": "WmRW4yO0zR4QlQ2_b41F0rV2eEJUD688VfXUd27wBYUdAAAAAA",
-    "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiOC1nY05FS3dIaWRWR0pRbU5yYUNhVUJPVjBxWFY3X0VYb3U2TFNxS3VnQSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVsYXktYXBpLm1tZWcudXMiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
-    "signature": "MEUCIBZEkgwDx6gH1qW9F54MULRg1kG-HLYGVak-28tEs56jAiEAlvGjet3xBLBFHrnp8vWp_GhF9ggPhbTapIcQ8I0P9yE"
+    "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiOC1nY05FS3dIaWRWR0pRbU5yYUNhVUJPVjBxWFY3X0VYb3U2TFNxS3VnQSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVsYXktYXBpLm1tZWcudXMiLCJjcm9zc09yaWdpbiI6dHJ1ZX0",
+    "signature": "MEYCIQCPihPCVh6LU_hueqwxLJejlXaRKvl7e8WW4CLCZOScHQIhAODk6eZfOsXQt-YoDuIFljzttnumSGviRNrDnoiVT1H4"
   }
 }

@@ -1,7 +1,7 @@
 # Today contract, version 1
 
 Today is the admin portal's control centre for the captain, and it replaces the bearings board.
-This page is the single owner of the contract between firstmate and the portal: the four published shapes, how they travel, how the bridge authenticates, what may leave the captain's machine, and how the contract changes.
+This page is the single owner of the contract between firstmate and the portal: the five published shapes, how they travel, how the bridge authenticates, what may leave the captain's machine, and how the contract changes.
 The machine-checkable shapes live in [`today-contract/`](today-contract/) as JSON Schema draft 2020-12 documents.
 
 | Schema constant | File | Direction |
@@ -10,10 +10,12 @@ The machine-checkable shapes live in [`today-contract/`](today-contract/) as JSO
 | `fm-today-card.v1` | [`fm-today-card.v1.schema.json`](today-contract/fm-today-card.v1.schema.json) | firstmate to portal, inside the snapshot |
 | `fm-today-answer.v1` | [`fm-today-answer.v1.schema.json`](today-contract/fm-today-answer.v1.schema.json) | portal to firstmate |
 | `fm-today-receipt.v1` | [`fm-today-receipt.v1.schema.json`](today-contract/fm-today-receipt.v1.schema.json) | firstmate to portal |
+| `fm-today-enrolment.v1` | [`fm-today-enrolment.v1.schema.json`](today-contract/fm-today-enrolment.v1.schema.json) | portal to firstmate |
 
 Every document names its shape in its `schema` field.
 Valid and invalid example documents for every shape live in [`today-contract/examples/`](today-contract/examples/).
-[`tests/fm-today-contract.test.sh`](../tests/fm-today-contract.test.sh) checks every example, and [`tests/fm-today-contract-check.py`](../tests/fm-today-contract-check.py) is a standard-library reference implementation of the schema check, `card_hash`, and the passkey challenge.
+[`tests/fm-today-contract.test.sh`](../tests/fm-today-contract.test.sh) checks every example, and [`tests/fm-today-contract-check.py`](../tests/fm-today-contract-check.py) is a standard-library reference implementation of the schema check, `card_hash`, the passkey challenge, the passkey signature, and the enrolment checks.
+The signed examples were made by [`tests/fm-today-soft-authenticator.py`](../tests/fm-today-soft-authenticator.py), a software authenticator, with keys whose private halves were never kept; [`software-authenticator.keys.json`](today-contract/examples/software-authenticator.keys.json) holds their public keys, the relying party, and the origin, so either side can check the examples' signatures.
 
 ## Who owns what
 
@@ -34,7 +36,7 @@ The bridge calls exactly two endpoints on the portal.
 | Method and path | Request body | Success response |
 | --- | --- | --- |
 | `POST /api/fleet/bridge/snapshot` | one `fm-today-snapshot.v1` document, at most 512 KiB | `200` with the portal's `heard_at` stamp |
-| `POST /api/fleet/answers` | `{"receipts": [<fm-today-receipt.v1>...], "wait_seconds": <0-25>}` | `200` with `{"answers": [<fm-today-answer.v1>...]}` |
+| `POST /api/fleet/answers` | `{"receipts": [<fm-today-receipt.v1>...], "wait_seconds": <0-25>}` | `200` with `{"answers": [<fm-today-answer.v1>...], "enrolments": [<fm-today-enrolment.v1>...]}`, `enrolments` optional |
 
 **Snapshot.**
 The portal refuses a body over 512 KiB with `413` before reading further, and a body that fails the snapshot schema with `400`.
@@ -52,6 +54,8 @@ When there is none, it holds the request open for up to `wait_seconds` and retur
 An answer is delivered again on every call until its receipt arrives, so delivery is at least once.
 Firstmate recognizes a repeated `answer_id` and replies `duplicate`, so a repeat never acts twice.
 The portal validates every answer against the answer schema before it becomes deliverable.
+The response also carries `enrolments`, absent when there are none: the passkey the captain registered for the snapshot's open enrolment, if any, as described under "The enrolment".
+An enrolment gets no receipt: the portal returns it on every call, and does not hold the request open for it, until the snapshot no longer carries its `enrol_id`.
 
 **Authentication.**
 Both calls send `Authorization: Bearer <token>`.
@@ -63,7 +67,7 @@ One token serves both endpoints, and rotating it means writing a new token into 
 ## The snapshot
 
 The snapshot is the whole fleet as Today shows it: every piece of the fleet's work, the main home and every secondmate home together.
-Its top level carries `generator_version` (the bridge's version), `generated_at` (UTC), `home` (the label of the home the bridge runs in, as bearings labels it), and `sections`.
+Its top level carries `generator_version` (the bridge's version), `generated_at` (UTC), `home` (the label of the home the bridge runs in, as bearings labels it), and `sections`, and may carry `passkeys` and `enrolment`, described under "The passkey".
 Where a fact already exists in the bearings snapshot (`bin/fm-bearings-snapshot.sh`) or the `fm-bearings-board.v1` payload (`bin/fm-bearings-board.sh`), the field keeps that name and meaning.
 
 | Section | Rows | Meaning |
@@ -110,15 +114,21 @@ Firstmate composes every card; the portal renders it and never edits it.
 | `repo` | `owner/name`, or `null` when the call genuinely has no repository. |
 | `pr_url` | The pull request a call is about; required on a `merge` card. |
 | `due` | The date the call must be settled by, `YYYY-MM-DD`. |
+| `head_sha` | Merge cards only: the pull request's head commit, 40 or 64 lowercase hex, as firstmate read it when it raised the call. |
+| `subject_sha256` | Go cards only: the SHA-256, as 64 lowercase hex, of the plan or brief the go approves. |
+| `proof` | Merge and go cards only: `nonce`, 22 to 64 base64url characters holding at least 128 random bits, and `expires_at`, UTC. |
 | `text_check` | `verdict` (`pass` or `withheld`), `checker` (`name@x.y.z`), and `checked_at`. |
 | `card_hash` | The hash of the card as shown, defined below. |
 
 A `withheld` verdict means the check refused the call's own words, and firstmate replaced the title, question, and every option label and hint with neutral text of its own; the portal should tell the captain to read the call on the machine.
 Every card carries at least one option except a `credential` card, which carries none and is answered only `seen` or `later`: the portal never holds, asks for, or creates a key.
 A decision card may carry a `reconcile` option, meaning "already settled, re-check", with the meaning [`captain-hold-lifecycle.md`](captain-hold-lifecycle.md) gives it.
+Firstmate sends `head_sha`, `subject_sha256`, and `proof` on every merge and go card it raises, and mints a fresh `proof.nonce` each time it raises or re-raises a call.
+Because all three are hashed, a signature binds the head the captain was shown, the words the go approves, and this raising of the call: a new head, changed words, or a re-minted nonce makes a new `card_hash`.
+Firstmate re-mints the nonce no later than `proof.expires_at`, so the portal should not ask for a signature after that instant.
 
 **`card_hash`.**
-Take the card's `schema`, `task_id`, `owner`, `kind`, `title`, `question`, `options`, `repo`, `pr_url`, and `due` fields, leaving out any optional field the card does not carry.
+Take the card's `schema`, `task_id`, `owner`, `kind`, `title`, `question`, `options`, `repo`, `pr_url`, `due`, `head_sha`, `subject_sha256`, and `proof` fields, leaving out any optional field the card does not carry.
 `repo` is always carried, so a call with no repository hashes `"repo":null`.
 Serialize that object with the JSON Canonicalization Scheme, RFC 8785: keys sorted, no whitespace, strings in UTF-8 with only the escapes RFC 8785 requires.
 `card_hash` is the SHA-256 of those bytes, as 64 lowercase hex characters.
@@ -131,7 +141,7 @@ An answer is what the portal sends back for one card.
 
 | Field | Meaning |
 | --- | --- |
-| `answer_id` | The portal's id for this answer, 8 to 64 of `A-Z a-z 0-9 _ -`; the key for receipts and duplicates. |
+| `answer_id` | The portal's id for this answer, 8 to 64 of `A-Z a-z 0-9 _ -`; the key for receipts and duplicates. On a signed answer the browser mints it before the challenge, from at least 128 random bits, and the portal checks its form and uniqueness when it stores the answer. |
 | `task_id`, `owner`, `kind` | Copied from the card answered; `owner` is left out when the card carries none. |
 | `value` | One option value from the card, or `later`; on a `credential` card, `seen` or `later`. |
 | `later_until` | Required with `later` and allowed only with it: when to ask again, UTC. |
@@ -141,21 +151,66 @@ An answer is what the portal sends back for one card.
 | `person`, `device` | The portal's ids for who answered and on which device. |
 | `passkey` | Required on `merge` and `go` answers and forbidden on the others. |
 
+## The passkey
+
+The merge word and the go to build carry the captain's passkey signature, which firstmate checks itself against a public key it pinned when the captain enrolled the passkey on the machine.
+The passkey is a WebAuthn credential registered only for this purpose, not the sign-in service's own passkey, whose public key firstmate could never read.
+
+**What the snapshot tells the portal.**
+`passkeys` carries `rp_id`, the relying-party id; `origin`, the portal's exact origin; and `credentials`, one to 16 of `{credential_id, label}`, the captain's active credentials.
+`rp_id` is the portal's own host, the narrowest id the origin allows, so no other site under the same domain can ask for the credential.
+The origin's host is `rp_id` or lies within it.
+`passkeys` is absent when no credential is active, and then no merge or go answer can be signed.
+The portal asks for a signature with `rpId` set to `rp_id`, `allowCredentials` listing those credential ids, and `userVerification` `required`, and shows the repository, the pull request, the short head commit, and the option before it does.
+
 **The passkey challenge.**
 Join these seven strings with a single line feed, with no trailing line feed: the literal `fm-today-passkey.v1`, `answer_id`, `task_id`, `kind`, `card_hash`, `value`, and `later_until` or the empty string when absent.
 The WebAuthn challenge is the 32-byte SHA-256 of that UTF-8 text, so the signature binds this answer, this option, and this card as shown.
 None of those fields can contain a line feed, so the joined text is unambiguous.
 The `note` is not signed.
 The owner is not joined separately: it is bound through `card_hash`, so an answer re-pointed at another home's call with the same `task_id` no longer matches that call's hash.
+The head commit, the go's words, and the nonce are bound the same way, through `card_hash`.
 
 **The passkey assertion.**
 `passkey` carries `credential_id`, `authenticator_data`, `client_data_json`, and `signature`, each base64url without padding, exactly as the browser's assertion returned them.
+The signed bytes are the decoded `authenticator_data` followed by the 32-byte SHA-256 of the decoded `client_data_json`, taken as the browser returned it and never re-serialized.
+The signature is ES256 (ECDSA on P-256 with SHA-256, DER-encoded as WebAuthn returns it) or RS256 (RSASSA-PKCS1-v1_5 with SHA-256), by the credential's enrolled algorithm.
 Firstmate accepts the signature only when all of these hold:
 
-- `credential_id` names a public key firstmate holds for the captain.
-- `client_data_json` has `type` `webauthn.get`, a `challenge` equal to the base64url of the derived challenge, and the portal's `origin`.
-- `authenticator_data` carries the portal's relying-party id hash and has the user-present and user-verified flags set.
-- `signature` verifies over `authenticator_data` followed by the SHA-256 of `client_data_json`.
+- `credential_id` names an active credential firstmate holds for the captain.
+- `client_data_json` has `type` `webauthn.get`, a `challenge` equal to the base64url of the derived challenge, an `origin` equal to the pinned origin, `crossOrigin` absent or false, and no `topOrigin`.
+- `authenticator_data` starts with the SHA-256 of the pinned `rp_id` and has the user-present and user-verified flags set.
+- When the credential's stored signature counter is above zero, the new counter is greater; synced passkeys report zero.
+- `signature` verifies over the signed bytes with the pinned public key.
+- The card carries `proof`, and `head_sha` on a merge or `subject_sha256` on a go, and no signed answer was already applied under that `proof.nonce`.
+
+Firstmate settles a signed answer in this order: `duplicate` for an `answer_id` it has seen, then `set-aside` when `card_hash` is not the call's current hash, including a call re-raised with a new nonce or head, then `refused` for a value the card did not offer or a failed passkey check.
+Firstmate merges only the signed `head_sha`: a pull request whose head moved after the signature was checked is refused, and the call is raised again with the new head.
+
+## The enrolment
+
+The captain enrols a credential only by starting the enrolment on the machine, and confirms it there before firstmate trusts it.
+The portal can never start one itself.
+
+**What the snapshot asks.**
+While an enrolment is open, the snapshot carries `enrolment` with `enrol_id`, `challenge` (32 random bytes, base64url), `rp_id`, `origin`, `user_handle` (the WebAuthn user id, base64url), and `expires_at`, UTC.
+The portal shows its enrolment page only to the captain and only while the snapshot carries the block.
+It calls `navigator.credentials.create` with that challenge, `rp.id` set to `rp_id`, `user.id` set to the decoded `user_handle`, `pubKeyCredParams` ES256 (-7) and RS256 (-257), `authenticatorSelection` with `residentKey` `preferred` and `userVerification` `required`, `attestation` `none`, and `excludeCredentials` naming the `passkeys` credentials; it chooses the user's name and display name itself.
+It accepts at most one enrolment per `enrol_id`, and none after `expires_at`.
+
+**What the portal hands back.**
+An `fm-today-enrolment.v1` document carries `enrol_id`, `credential_id`, `client_data_json` and `attestation_object` exactly as the browser returned them, `public_key_spki` (the DER SubjectPublicKeyInfo from `getPublicKey()`), `public_key_alg` (-7 or -257), optional `transports`, `enrolled_at`, and the portal's `person` and `device`.
+Every binary member is base64url without padding.
+
+**What firstmate checks.**
+Firstmate accepts an enrolment only when all of these hold, and then asks the captain on the machine, showing the label, device, time, and key fingerprint, before it writes the credential:
+
+- `enrol_id` names the enrolment firstmate opened, which is unexpired and unused, and `credential_id` is not already enrolled.
+- `client_data_json` has `type` `webauthn.create`, the enrolment's `challenge` and `origin`, `crossOrigin` absent or false, and no `topOrigin`.
+- The authenticator data inside `attestation_object` starts with the SHA-256 of `rp_id`, has the user-present, user-verified, and attested-credential flags set, and attests `credential_id` with a public key equal to `public_key_spki` under `public_key_alg`.
+
+Firstmate drops the `enrolment` block from the snapshot once it has taken the enrolment, whatever the captain decided, or once it expires.
+The attestation statement is not checked, because passkeys that sync give none: trust rests on the machine confirmation.
 
 ## The receipt
 
@@ -170,6 +225,22 @@ Firstmate sends one receipt per answer, through the next answers call.
 
 Every receipt also carries `answer_id`, `task_id`, and `recorded_at`, and the answer's `owner` when it carried one.
 
+A signed answer refused for its passkey carries a `reason` that begins with one of these, optionally followed by `; ` and detail:
+
+| Reason | Meaning |
+| --- | --- |
+| `passkey: card carries no proof` | The card lacks `proof`, or a merge card `head_sha` or a go card `subject_sha256`. |
+| `passkey: proof already used` | A signed answer was already applied under this `proof.nonce`. |
+| `passkey: unknown credential` | `credential_id` is not an active enrolled credential. |
+| `passkey: client data` | `client_data_json` is not JSON, is not `webauthn.get`, or ran inside another origin. |
+| `passkey: challenge` | The challenge is not the one the answer derives. |
+| `passkey: origin` | The origin is not the pinned origin. |
+| `passkey: relying party` | The authenticator data is for another relying-party id. |
+| `passkey: user not verified` | The user-present or user-verified flag is not set. |
+| `passkey: sign count` | The signature counter did not increase. |
+| `passkey: signature did not verify` | The signature does not verify with the enrolled key. |
+| `passkey: head moved` | The pull request's head is no longer the signed `head_sha`. |
+
 ## Rules the schemas cannot state
 
 The reference checker enforces these beside the schemas:
@@ -180,12 +251,16 @@ The reference checker enforces these beside the schemas:
 - An absent `owner` counts as `(main)` in both keys.
 - Each day block's `id` is unique, its `starts_at` and `ends_at` name real instants (not, say, February 30), and its `ends_at` is at or after its `starts_at`.
 - A passkey assertion's `client_data_json` carries the challenge derived from its answer.
+- The snapshot's `passkeys` credentials are unique, and the origin of `passkeys` and of `enrolment` lies within its `rp_id`.
+- Given the credentials firstmate holds, a passkey assertion passes every stateless check under "The passkey assertion", its signature included.
+- An enrolment's attested credential id, key, and algorithm are the ones it names, with the user-present and user-verified flags; given the snapshot, it also matches the open enrolment and is not already enrolled.
 
 ## Privacy
 
 - Everything the portal receives through this contract lives in captain-only tables, enforced on the server, never shown to staff.
 - The text of a call leaves the captain's machine only as a card, after firstmate's text check.
-- Every other free-text field in a snapshot passes the same check before the bridge sends it, except day block titles.
+- Every other free-text field in a snapshot passes the same check before the bridge sends it, except day block titles; that includes each passkey `label`.
+- Passkey ids, public keys, challenges, and signatures carry no secret; no private key ever leaves the authenticator.
 - Day block titles are exempt from the text check by the captain's D33, which shows each calendar block with its title; they are sent only in `day`, and the portal deletes them when the day ends.
 - No document ever carries learner, family, fee, or legal detail.
 - A board row carries no board title or body, only the fields listed above.
@@ -216,6 +291,7 @@ These differences are deliberate:
 | `repo` required on every card and work row, `null` for none | Optional | The captain's standing rule: every row names its repository explicitly, and `null` means genuinely none. |
 | Card `owner`, and calls and work keyed by `owner` with the id | - | Today shows the whole fleet's work, and task ids are unique only within one home. |
 | Answers, receipts, and `POST /api/fleet/answers` | - | The draft covers the snapshot only. |
+| Card `head_sha`, `subject_sha256`, `proof`; snapshot `passkeys`, `enrolment`; `enrolments` and `fm-today-enrolment.v1` | - | The passkey proof on the merge word and the go to build. |
 
 ## Versioning
 
@@ -227,4 +303,5 @@ Two exceptions keep v1: a new optional field joining `card_hash`'s field list, b
 The card `owner` is both, and it stays optional in v1 because a new required field is v2; a v2 would make it required.
 A v2 shape gets new `.v2` schema constants beside the v1 files, and both sides accept both versions until the change is complete.
 The required, nullable `repo` stays v1 because the portal's copy of v1 already required it and no v1 snapshot had been accepted before the two copies were made identical.
-The portal vendors the snapshot and card schema files byte-for-byte from this repository, so a change to either reaches the portal only as a fresh copy of both.
+The passkey additions stay v1 by these rules: `head_sha`, `subject_sha256`, and `proof` are optional card fields joining `card_hash`'s field list; `passkeys`, `enrolment`, and the answers response's `enrolments` are optional members; `fm-today-enrolment.v1` is a new shape that changes no existing one; the receipt reasons are text in the existing `reason`; and the challenge and the answer shape are unchanged.
+The portal vendors the schema files byte-for-byte from this repository, so a change to any of them reaches the portal only as a fresh copy of every file.
