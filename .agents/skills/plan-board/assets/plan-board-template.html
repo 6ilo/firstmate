@@ -275,6 +275,7 @@ const KNOWN=Object.fromEntries((P.known||[]).map(k=>[k.concept,k]));
 const kids=id=>ITEMS.filter(i=>i.parent===id);
 const desc=id=>kids(id).flatMap(k=>[k,...desc(k.id)]);
 const leaves=id=>desc(id).filter(i=>i.kind!=="plan");
+const within=i=>i.kind==="plan"?[i,...desc(i.id)]:[i];
 const topUnder=(i,root)=>{let p=i;while(p.parent&&p.parent!==root)p=byId[p.parent];return p;};
 const openCalls=ITEMS.filter(i=>i.kind==="call"&&i.status==="open");
 const decidedCalls=ITEMS.filter(i=>i.kind==="call"&&i.status==="decided");
@@ -318,8 +319,8 @@ function roll(p){
   ls.forEach(i=>{if(i.status==="open")c.open++;else if(i.status==="parked")c.park++;else if(i.status==="dropped")c.drop++;else c.dec++;
     if(i.kind==="task"&&i.status!=="dropped"){c.task++;if(i.state==="done")c.done++;c.aud[i.aud]++;c.st[stateOf(i)]++;if(i.visible)c.vis++;}});
   const live=ls.filter(i=>i.kind==="task"&&sched(i).s!=null&&!sched(i).done);
-  const dues=ls.filter(i=>i.due!=null).map(i=>off(i.due));
-  return {...c,s:live.length?Math.min(...live.map(i=>sched(i).s)):null,e:live.length?Math.max(...live.map(i=>sched(i).e)):null,due:dues.length?Math.min(...dues):null,links:[...new Set(ls.flatMap(i=>i.links.map(l=>l.to)))]};
+  const dues=ls.filter(i=>i.due!=null&&i.status!=="dropped"&&!(i.kind==="task"?i.state==="done":i.status==="decided")).map(i=>off(i.due));
+  return {...c,s:live.length?Math.min(...live.map(i=>sched(i).s)):null,e:live.length?Math.max(...live.map(i=>sched(i).e)):null,due:dues.length?Math.min(...dues):null,links:[...new Set(within(p).flatMap(i=>i.links.map(l=>l.to)))]};
 }
 const span=n=>n.kind==="plan"?roll(n):sched(n);
 const nextDate=r=>r.due!=null?`due ${day(r.due)}`:r.e!=null?`done ~${day(r.e)} (projected)`:"no date";
@@ -469,7 +470,7 @@ function renderTime(set){
     else if(sp.s==null) s+=`<text x="${X(0)+4}" y="${y+19}" font-size="11" class="svg-muted">${n.kind==="plan"?"nothing left to schedule":"in the fog: no time yet"}</text>`;
     else{const x1=X(sp.s),w=Math.max(12,(sp.e-sp.s)*PX-3);pos[n.id]={x1,x2:x1+w,y:y+RH/2};
       if(n.kind==="plan") s+=`<rect x="${x1}" y="${y+4}" width="${w}" height="${RH-8}" fill="none" style="stroke:${hl||"var(--ink)"}" stroke-width="${hl?2.5:2}" stroke-dasharray="5 3"/>`;
-      else{s+=box(n,x1,y+4,w,RH-8,hl)+`<rect x="${x1}" y="${y+4}" width="4" height="${RH-8}" fill="${URG[n.urgency][1]}"/><text x="${x1+9}" y="${y+19}" font-size="11" font-weight="700" style="fill:${inkOn(n)==="#080C10"?t[3]:"var(--ink)"}" font-family="JetBrains Mono">${t[1]}${stateOf(n)==="deferred"?" · "+day(off(n.until)):""}</text>`;
+      else{s+=box(n,x1,y+4,w,RH-8,hl)+`<rect x="${x1}" y="${y+4}" width="4" height="${RH-8}" style="fill:${URG[n.urgency][2]||URG[n.urgency][1]}"/><text x="${x1+9}" y="${y+19}" font-size="11" font-weight="700" style="fill:${inkOn(n)==="#080C10"?t[3]:"var(--ink)"}" font-family="JetBrains Mono">${t[1]}${stateOf(n)==="deferred"?" · "+day(off(n.until)):""}</text>`;
         if(gated(n)) s+=`<rect x="${x1}" y="${y+4}" width="${w}" height="${RH-8}" fill="url(#th)" opacity=".7"/>`;}}
     const du=n.kind==="plan"?roll(n).due:off(n.due);
     if(du!=null) s+=`<line x1="${X(du)}" y1="${y}" x2="${X(du)}" y2="${y+RH}" class="stroke-red" stroke-width="2.5"/><text x="${X(du)+4}" y="${y+9}" font-size="10" class="svg-red">due</text>`;
@@ -506,7 +507,7 @@ function renderDeps(set){
     const plain=n.kind!=="task"||n.ghost;
     const lab=n.ghost?`${n.id.slice(1)} · in ${byId[n.parent].title}`:n.kind==="call"?`◆ ${n.id} · ${n.status==="decided"?"decided "+(n.pick||""):CALLST[n.status].toLowerCase()}`:n.kind==="plan"?`${n.id} · plan`:`${AUD[n.aud][2]} ${n.id} · ${stWord(n)}${n.visible?" ◎":""}`;
     s+=`<g class="pick${dim?" dim":""}" ${n.ghost?"":`data-sel="${esc(n.id)}" tabindex="0" role="button"`} aria-label="${esc(n.title)}">
-      ${plain?`<rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" style="fill:var(--paper);stroke:${hl||"var(--ink)"}" stroke-width="${n.id===SEL?3:hl?2.4:1.3}" ${n.ghost||n.kind==="plan"?'stroke-dasharray="4 3"':""}/>`:box(n,p.x,p.y,NW,NH,hl)+`<rect x="${p.x}" y="${p.y}" width="4" height="${NH}" fill="${URG[n.urgency][1]}"/>`}
+      ${plain?`<rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" style="fill:var(--paper);stroke:${hl||"var(--ink)"}" stroke-width="${n.id===SEL?3:hl?2.4:1.3}" ${n.ghost||n.kind==="plan"?'stroke-dasharray="4 3"':""}/>`:box(n,p.x,p.y,NW,NH,hl)+`<rect x="${p.x}" y="${p.y}" width="4" height="${NH}" style="fill:${URG[n.urgency][2]||URG[n.urgency][1]}"/>`}
       ${!n.ghost&&gated(n)?`<rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" fill="url(#dh)" opacity=".6"/>`:""}
       <text x="${p.x+10}" y="${p.y+17}" font-size="11" font-family="JetBrains Mono" style="fill:${plain?"var(--green)":inkOn(n)==="#080C10"?t[3]:AUD[n.aud][1]}">${esc(cut(lab,26))}</text>
       <text x="${p.x+10}" y="${p.y+34}" font-size="12" style="fill:${plain?"var(--ink)":inkOn(n)}">${esc(cut(n.title,26))}</text></g>`;});
@@ -518,7 +519,7 @@ function renderDeps(set){
 function mapModel(set){
   const left=set.some(n=>n.kind==="plan")?set.filter(n=>n.kind==="plan"):set.filter(n=>n.links.length);
   const edges=[],targets=new Map();
-  left.forEach(n=>{const seen=new Set();(n.kind==="plan"?leaves(n.id):[n]).forEach(x=>x.links.forEach(l=>{if(seen.has(l.to))return;seen.add(l.to);edges.push({from:n.id,to:l.to,why:l.why,via:x.id});targets.set(l.to,EXT[l.to]);}));});
+  left.forEach(n=>{const seen=new Set();within(n).forEach(x=>x.links.forEach(l=>{if(seen.has(l.to))return;seen.add(l.to);edges.push({from:n.id,to:l.to,why:l.why,via:x.id});targets.set(l.to,EXT[l.to]);}));});
   const inner=[];left.forEach(n=>depsOf(n,set).forEach(d=>{if(left.some(m=>m.id===d))inner.push({from:n.id,to:d});}));
   return {left,edges,targets:[...targets],inner};
 }
@@ -570,7 +571,7 @@ function renderBoard(){
 }
 
 /* ---------- start: the opening page for qualifying plans, else the ordinary start ---------- */
-const homes=new Set([P.home,...leaves(ROOT).flatMap(i=>i.links.map(l=>(EXT[l.to]||{}).home))].filter(Boolean));
+const homes=new Set([P.home,...within(byId[ROOT]).flatMap(i=>i.links.map(l=>(EXT[l.to]||{}).home))].filter(Boolean));
 const openingOn=()=>!!OP&&(homes.size>=2||ITEMS.filter(i=>i.kind==="call").length>=5||Object.values(A).some(a=>a.unsure));
 function unlockOrder(calls){
   const done=new Set(),out=[],ids=new Set(calls.map(c=>c.id));
@@ -592,7 +593,7 @@ function renderOpening(){
   if(!on) return;
   const m=OP.mission;
   $("#mission").innerHTML=`<p>“${esc(m.why)}”</p>${m.success.length?`<p><b>Success:</b> ${m.success.map(esc).join(" · ")}</p>`:""}${m.out.length?`<p><b>Out:</b> ${m.out.map(esc).join(" · ")}</p>`:""}`;
-  const linked=new Set(leaves(ROOT).flatMap(i=>i.links.map(l=>l.to)));
+  const linked=new Set(within(byId[ROOT]).flatMap(i=>i.links.map(l=>l.to)));
   const ruled=[...decidedCalls.map(c=>`${c.id} ${c.title}: ${c.pick} · ${optOf(c,c.pick)}`),
     ...Object.entries(P.plans||{}).filter(([k])=>linked.has(k)).flatMap(([,p])=>(p.ruled||[]).map(r=>`${p.title}: ${r}`)),
     ...Object.values(KNOWN).filter(k=>k.state==="known").map(k=>`${(EXT["concept:"+k.concept]||{title:k.concept}).title}: known (${k.evidence})`)];

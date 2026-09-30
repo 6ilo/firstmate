@@ -72,7 +72,7 @@ URGENCY = {"now", "week", "later"}
 SIZES = {"S", "M", "L"}
 AUDIENCES = {"public", "team", "agents"}
 PICTURES = {"diagram", "mockup", "chart", "photo"}
-BAD_SVG = re.compile(r"<\s*script|\son[a-z]+\s*=|javascript:|<\s*foreignObject", re.I)
+BAD_SVG = re.compile(r"<\s*script|[\s/\"']on[a-z]+\s*=|j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:|<\s*foreignObject|&(?!(?:amp|lt|gt|quot|apos);)", re.I)
 
 def load_json(path, what):
     try:
@@ -172,7 +172,7 @@ for n, c in enumerate(concepts):
         if not (isinstance(svg, str) and svg.lstrip().startswith("<svg") and svg.rstrip().endswith("</svg>")):
             err(f"{where}: svg must be one inline <svg> element")
         elif BAD_SVG.search(svg):
-            err(f"{where}: svg must carry no script, event handler, foreignObject or javascript: URL")
+            err(f"{where}: svg must carry no script, event handler, foreignObject, javascript: URL or character reference")
     elif not (isinstance(asset, str) and (asset.startswith("/_blob/") or asset.startswith("data:image/"))):
         err(f"{where}: asset must be an artifact /_blob/ path or a data:image/ URL")
 
@@ -516,7 +516,7 @@ else:
         if saved and isinstance(saved.get("choice"), int):
             ok = right(q, saved)
             new.append({"concept": q["concept"], "state": "known" if ok else "to-teach",
-                        "evidence": f"quiz {q['id']} {'right' if ok else 'missed'}, round {doc['round']}",
+                        "evidence": f"quiz {q['id']} {'right' if ok else 'missed'}",
                         "at": str(saved.get("at") or doc["date"] + "T00:00:00Z")})
     added = 0
     with open(record, "a", encoding="utf-8") as fh:

@@ -169,19 +169,40 @@ test_learning_is_recorded_from_evidence_only_once() {
   jq -s -e '
     map({concept, state, evidence}) == [
       {concept: "board-card", state: "known", evidence: "call Q3 decided A"},
-      {concept: "board-card", state: "to-teach", evidence: "quiz U1 missed, round 1"},
-      {concept: "answer-store", state: "known", evidence: "quiz U2 right, round 1"}]
+      {concept: "board-card", state: "to-teach", evidence: "quiz U1 missed"},
+      {concept: "answer-store", state: "known", evidence: "quiz U2 right"}]
   ' "$record" >/dev/null || fail "the record did not hold one entry per piece of evidence: $(cat "$record")"
   assert_contains "$("$BOARD" learn "$SAMPLE" "$READ_DB" "$record")" "learned 0 new entries" "a rerun appended again"
+  assert_contains "$("$BOARD" learn "$(edit '.round = 2')" "$READ_DB" "$record")" "learned 0 new entries" \
+    "a later round appended an earlier round's quiz answer again"
   rm "$READ_DB/check/U1.json"
   out=$(render "$(edit '.opening.quiz |= map(select(.id != "U2"))')" "" --known "$record")
-  printf '%s' "$out" | jq -e '(.opening.pictures | contains("to teach again")) and (.opening.ruled | contains("Where a saved answer goes: known (quiz U2 right, round 1)"))' >/dev/null \
+  printf '%s' "$out" | jq -e '(.opening.pictures | contains("to teach again")) and (.opening.ruled | contains("Where a saved answer goes: known (quiz U2 right)"))' >/dev/null \
     || fail "the opening page did not use the record: $out"
   if "$BOARD" build "$SAMPLE" "$TMP_ROOT/known.html" --known "$record" 2>"$TMP_ROOT/known.err"; then
     fail "a quiz about a known concept built"
   fi
   assert_contains "$(cat "$TMP_ROOT/known.err")" "quiz U2: concept answer-store is already known" "the refusal did not name the known concept"
   pass "the what-you-know record grows only from evidence, feeds the opening page, and keeps known concepts out of the quiz"
+}
+
+test_a_plan_items_own_links_count_like_its_contents() {
+  local out
+  out=$(render "$(edit '(.items[] | select(.id == "T6") | .links) = [] | (.items[] | select(.id == "PB") | .links) = [{"to": "x-hub", "why": "shares the hub"}]')")
+  printf '%s' "$out" | jq -e '.error == null and (.views.ROOT.map.text | contains("Learner hub overhaul") and contains("shares the hub"))' >/dev/null \
+    || fail "a link on a plan item was dropped: $out"
+  pass "a link on a plan item reaches its plan's map edges"
+}
+
+test_a_plans_next_date_comes_from_what_is_still_ahead() {
+  local out
+  out=$(render "$SAMPLE")
+  assert_contains "$(printf '%s' "$out" | jq -r .views.ROOT.cards.text)" "due Sat 3 Oct" "an open task's due date did not roll up"
+  out=$(render "$(edit '(.items[] | select(.id == "T3") | .state) = "done"')")
+  case "$(printf '%s' "$out" | jq -r .views.ROOT.cards.text)" in
+    *"due Sat 3 Oct"*) fail "a built task still set its plan's next date: $out" ;;
+  esac
+  pass "a plan's next date rolls up only from what is still ahead"
 }
 
 test_item_text_renders_as_text() {
@@ -209,6 +230,9 @@ test_invalid_items_are_refused_with_the_reason() {
 (.items[] | select(.id == "T2") | .links[0].to) = "x-missing" => T2: link to unknown plan or concept x-missing
 (.items[] | select(.id == "PB") | .parent) = "T1" => PB: parent must name a plan item
 .concepts[0].svg = "<svg><script>alert(1)</script></svg>" => svg must carry no script
+.concepts[0].svg = "<svg/onload=alert(1)></svg>" => svg must carry no script
+.concepts[0].svg = "<svg><a href=\"javascript&#58;alert(1)\"><text>x</text></a></svg>" => svg must carry no script
+.concepts[0].svg = "<svg><a href=\"java\tscript:alert(1)\"><text>x</text></a></svg>" => svg must carry no script
 .items += [{"id":"Z","kind":"plan","owner":"x","title":"Second root"}] => exactly one item must have no parent
 (.items[] | select(.id == "T3") | .visible) = true => T3: only a public or team change can be visible
 (.items[] | select(.id == "T2") | .links) = [] => T2: a visible change must link at least one mockup
@@ -229,5 +253,7 @@ test_a_plan_with_no_trigger_opens_on_the_ordinary_start
 test_saved_answers_come_back_as_the_decision_text
 test_a_quiz_answer_teaches_and_saves_once
 test_learning_is_recorded_from_evidence_only_once
+test_a_plan_items_own_links_count_like_its_contents
+test_a_plans_next_date_comes_from_what_is_still_ahead
 test_item_text_renders_as_text
 test_invalid_items_are_refused_with_the_reason
