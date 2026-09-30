@@ -108,7 +108,9 @@
 # one receipt, written before the next call, with a .sent marker once a 200
 # confirmed the portal has it, and dups/ holds `duplicate` receipts not yet
 # sent. A receipt is never re-derived, so a crash or a failed call re-sends the
-# stored receipt and never carries the answer again. Each new answer is
+# stored receipt and never carries the answer again; an answer stored with no
+# receipt was interrupted mid-carry, and is refused with the reason to check
+# the call at the machine rather than carried again. Each new answer is
 # checked against the call as it stands now (a fresh snapshot), in this order:
 #   0. An answer that does not declare schema fm-today-answer.v1 or lacks
 #      kind, value, or card_hash is refused.
@@ -948,6 +950,10 @@ PROOF_REFUSAL = ("proof_required: a merge or go answer needs the captain's passk
                  "Give this word at the machine.")
 # Slice 0 applies no second mate's answer anywhere: it is recorded and refused.
 MATE_REFUSAL = "answer a second mate's call at the machine for now; nothing was applied"
+# An answer stored with no receipt was being carried when the bridge stopped;
+# it may already have been applied, so it is refused rather than carried again.
+INTERRUPTED_REFUSAL = ("the bridge stopped while carrying this answer, so it may or may not "
+                       "have been applied; check the call at the machine")
 
 
 def now():
@@ -1135,22 +1141,26 @@ def cmd_apply(response, cards_file, calls_file):
             print("duplicate: %s" % aid)
             continue
         seen.add(aid)
-        write_json(os.path.join(DIR, "answers", aid + ".json"), answer)
-        try:
-            if (answer.get("schema") != "fm-today-answer.v1"
-                    or not all(isinstance(answer.get(k), str) for k in ("kind", "value", "card_hash"))):
-                why = "not an fm-today-answer.v1 with kind, value, and card_hash"
-            elif answer.get("kind") in PROOF_KINDS:
-                why = None
-            else:
-                why = schema_errors(answer)
-            if why:
-                outcome, reason, current, action = "refused", "invalid answer: " + why, None, "refused"
-            else:
-                outcome, reason, current, action = carry(answer, cards, closes)
-        except Exception as exc:
-            outcome, reason, current, action = ("refused", "could not carry the answer: %s"
-                                                % first_line(str(exc), type(exc).__name__), None, "refused")
+        answer_path = os.path.join(DIR, "answers", aid + ".json")
+        if os.path.exists(answer_path):
+            outcome, reason, current, action = "refused", INTERRUPTED_REFUSAL, None, "refused"
+        else:
+            write_json(answer_path, answer)
+            try:
+                if (answer.get("schema") != "fm-today-answer.v1"
+                        or not all(isinstance(answer.get(k), str) for k in ("kind", "value", "card_hash"))):
+                    why = "not an fm-today-answer.v1 with kind, value, and card_hash"
+                elif answer.get("kind") in PROOF_KINDS:
+                    why = None
+                else:
+                    why = schema_errors(answer)
+                if why:
+                    outcome, reason, current, action = "refused", "invalid answer: " + why, None, "refused"
+                else:
+                    outcome, reason, current, action = carry(answer, cards, closes)
+            except Exception as exc:
+                outcome, reason, current, action = ("refused", "could not carry the answer: %s"
+                                                    % first_line(str(exc), type(exc).__name__), None, "refused")
         receipt = dict(base, outcome=outcome)
         if reason:
             receipt["reason"] = reason[:400]

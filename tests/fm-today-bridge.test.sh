@@ -1067,6 +1067,31 @@ test_answers_receipts_survive_a_failed_call_and_repeats_are_duplicates() {
   pass "a receipt survives a failed call and is re-sent, and a repeated answer is answered duplicate"
 }
 
+# A bridge that stopped after storing an answer but before its receipt may
+# already have carried it, so the redelivered answer is refused, not carried.
+test_answers_interrupted_carry_is_refused_not_carried_again() {
+  local tree=$TMP_ROOT/answers-tree home portal=$TMP_ROOT/portal-interrupted s
+  home=$(make_answers_home answers-home-interrupted)
+  start_portal "$portal"
+  jq -s . <(answer ans_intr_0001 q-later decision later "$(hash_of "$tree" "$home" q-later)" \
+    '{"later_until":"2031-03-04T12:00:00Z"}') > "$portal/answers.json"
+  mkdir -p "$home/state/today-answers/answers"
+  jq '.[0]' "$portal/answers.json" > "$home/state/today-answers/answers/ans_intr_0001.json"
+  abridge "$tree" "$home" answers once
+  [ "$CODE" -eq 0 ] || fail "answers once exited $CODE: $(cat "$ERR")"
+  s=$(summary_of ans_intr_0001)
+  [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "refused refused" ] \
+    || fail "an interrupted answer was not refused: $s"
+  jq -r .reason <<< "$s" | grep -q 'check the call at the machine' \
+    || fail "the refusal does not send the captain to the machine: $s"
+  ! row_of "$home" q-later | grep -q 'hold-until' || fail "an interrupted answer was carried again"
+  abridge "$tree" "$home" answers once
+  [ "$(jq -c '[.body.receipts[] | [.answer_id, .outcome]]' "$portal/req-1.json")" = '[["ans_intr_0001","refused"]]' ] \
+    || fail "the interrupted answer was not receipted: $(jq -c .body "$portal/req-1.json")"
+  stop_portal
+  pass "an answer stored without a receipt is refused and never carried again"
+}
+
 test_answers_poll_reports_through_the_process_event_adapter() {
   local tree=$TMP_ROOT/answers-tree home portal=$TMP_ROOT/portal-poll result
   home=$(make_answers_home answers-home-poll)
@@ -1186,6 +1211,7 @@ test_answers_that_do_not_fit_the_call_are_set_aside_or_refused
 test_answers_later_reconcile_and_seen_never_close
 test_answers_second_mate_answer_is_refused_in_every_home
 test_answers_receipts_survive_a_failed_call_and_repeats_are_duplicates
+test_answers_interrupted_carry_is_refused_not_carried_again
 test_answers_poll_reports_through_the_process_event_adapter
 test_answers_refuse_bad_settings
 test_armed_source_carries_answers_and_wakes_firstmate
