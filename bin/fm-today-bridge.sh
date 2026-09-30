@@ -37,9 +37,14 @@
 #               title or body.
 #             day
 #               the calendar day file (below)
-#           A row whose id the contract cannot carry is left out rather than
-#           rewritten, and a work id already listed in an earlier section is
-#           not listed again. Each left-out row is named on stderr.
+#           Every card and work row carries `owner`: `(main)` for this home,
+#           otherwise the second mate whose home holds it, with the bare task
+#           id in that home (bearings' `mate/task` becomes owner `mate`, id
+#           `task`).
+#           A row whose id or owner the contract cannot carry is left out
+#           rather than rewritten, and work already listed for the same owner
+#           in an earlier section is not listed again. Each left-out row is
+#           named on stderr.
 #           Bearings holds no structured answer options for a call, so every
 #           card is a `decision` card offering the standard `reconcile` option;
 #           the portal adds `later` itself. Every card and work row carries
@@ -170,13 +175,15 @@ import re
 import subprocess
 import sys
 
-GENERATOR_VERSION = "1.1.0"
+GENERATOR_VERSION = "1.2.0"
 CHECKER = "fm-today-text-check@1.0.0"
 # docs/today-contract.md owns this definition.
-CARD_HASH_FIELDS = ("schema", "task_id", "kind", "title", "question",
+CARD_HASH_FIELDS = ("schema", "task_id", "owner", "kind", "title", "question",
                     "options", "repo", "pr_url", "due")
+MAIN = "(main)"
 WORK_LIMIT = 1000
 TASK_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+OWNER = re.compile(r"^(\(main\)|[A-Za-z0-9._-]{1,128})$")
 REF = re.compile(r"^[A-Za-z0-9._:/-]{1,200}$")
 REPO = re.compile(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
 PR_URL = re.compile(r"^https://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?/[^\s]*$")
@@ -356,20 +363,30 @@ def slug(value, fallback):
     return text or fallback
 
 
+def split_owner(raw_id, owner=None):
+    """Bearings' `mate/task` id as (owner, task); otherwise the row's own owner or (main)."""
+    if isinstance(raw_id, str) and "/" in raw_id:
+        return tuple(raw_id.split("/", 1))
+    return (owner if isinstance(owner, str) and owner else MAIN), raw_id
+
+
 seen_work = set()
 
 
-def claim_work(section, raw_id):
+def claim_work(section, owner, raw_id):
     if not isinstance(raw_id, str) or not TASK_ID.match(raw_id):
         skipped.append("%s row %s: id the contract cannot carry" % (section, json.dumps(raw_id)))
         return False
-    if raw_id in seen_work:
-        skipped.append("%s row %s: already listed" % (section, raw_id))
+    if not OWNER.match(owner):
+        skipped.append("%s row %s: owner %s the contract cannot carry" % (section, raw_id, json.dumps(owner)))
+        return False
+    if (owner, raw_id) in seen_work:
+        skipped.append("%s row %s/%s: already listed" % (section, owner, raw_id))
         return False
     if len(seen_work) >= WORK_LIMIT:
         skipped.append("%s row %s: over the %d-row work limit" % (section, raw_id, WORK_LIMIT))
         return False
-    seen_work.add(raw_id)
+    seen_work.add((owner, raw_id))
     return True
 
 
@@ -380,14 +397,14 @@ recorded_prs = {r.get("id"): r.get("url") for r in bearings.get("recorded_prs") 
 calls = []
 seen_calls = set()
 for dec in bearings.get("decisions_open") or []:
-    tid = dec.get("id")
-    if not isinstance(tid, str) or not TASK_ID.match(tid):
-        skipped.append("call %s: id the contract cannot carry" % json.dumps(tid))
+    owner, tid = split_owner(dec.get("id"), dec.get("owner"))
+    if not isinstance(tid, str) or not TASK_ID.match(tid) or not OWNER.match(owner):
+        skipped.append("call %s: id the contract cannot carry" % json.dumps(dec.get("id")))
         continue
-    if tid in seen_calls or len(calls) >= 200:
-        skipped.append("call %s: already listed or over the 200-call limit" % tid)
+    if (owner, tid) in seen_calls or len(calls) >= 200:
+        skipped.append("call %s/%s: already listed or over the 200-call limit" % (owner, tid))
         continue
-    seen_calls.add(tid)
+    seen_calls.add((owner, tid))
     title = whole(line(dec.get("summary"), 200, tid)) or tid
     question = whole(line(dec.get("summary"), 4000, tid)) or tid
     options = [dict(RECONCILE)]
@@ -395,7 +412,7 @@ for dec in bearings.get("decisions_open") or []:
     verdict = "withheld" if tripped(*shown) else "pass"
     if verdict == "withheld":
         title, question = WITHHELD_TITLE, WITHHELD_QUESTION
-    card = {"schema": "fm-today-card.v1", "task_id": tid, "kind": "decision",
+    card = {"schema": "fm-today-card.v1", "task_id": tid, "owner": owner, "kind": "decision",
             "title": title, "question": question, "options": options, "repo": None}
     card["text_check"] = {"verdict": verdict, "checker": CHECKER, "checked_at": now}
     card["card_hash"] = card_hash(card)
@@ -404,11 +421,8 @@ for dec in bearings.get("decisions_open") or []:
 # --- work --------------------------------------------------------------------
 underway = []
 for row in bearings.get("in_flight") or []:
-    raw = row.get("id")
-    owner = None
-    if isinstance(raw, str) and "/" in raw:
-        owner, raw = raw.split("/", 1)
-    if not claim_work("underway", raw):
+    owner, raw = split_owner(row.get("id"))
+    if not claim_work("underway", owner, raw):
         continue
     kind = slug(row.get("kind"), "work")
     state = slug(row.get("state"), "unknown")
@@ -417,9 +431,8 @@ for row in bearings.get("in_flight") or []:
            "title": checked(row.get("name"), 200, raw),
            "kind": kind, "state": state,
            "doing": checked(row.get("doing"), 200, state),
-           "repo": repo_for(row.get("repo"), pr)}
-    if owner and len(owner) <= 128:
-        out["owner"] = owner
+           "repo": repo_for(row.get("repo"), pr),
+           "owner": owner}
     out.update(plan_fields(row.get("plan"), row.get("kind"), False))
     if pr:
         out["pr_url"] = pr
@@ -431,7 +444,8 @@ for row in bearings.get("gates") or []:
     warning = isinstance(raw, str) and raw.startswith("(") and raw.endswith(")")
     if warning:
         raw = raw[1:-1]
-    if not claim_work("charted_next", raw):
+    owner, raw = split_owner(raw, row.get("owner"))
+    if not claim_work("charted_next", owner, raw):
         continue
     blocked = [b for b in str(row.get("blocked_by") or "-").split(",")
                if b and b != "-" and TASK_ID.match(b)]
@@ -448,21 +462,18 @@ for row in bearings.get("gates") or []:
     if blocked:
         out["blocked_by"] = blocked
     out["repo"] = repo_for(row.get("repo"))
-    owner = row.get("owner")
-    if isinstance(owner, str) and 0 < len(owner) <= 128:
-        out["owner"] = owner
+    out["owner"] = owner
     out.update(plan_fields(row.get("plan"), row.get("kind"), True))
     charted.append(out)
 
 landed = []
 for row in bearings.get("landed") or []:
-    raw = row.get("id")
-    if not claim_work("landed", raw):
+    owner, raw = split_owner(row.get("id"), row.get("owner"))
+    if not claim_work("landed", owner, raw):
         continue
-    owner = row.get("owner")
     out = {"id": raw,
            "title": checked(row.get("what"), 200, raw),
-           "owner": owner if isinstance(owner, str) and 0 < len(owner) <= 128 else "(main)"}
+           "owner": owner}
     pr = pr_for(row.get("artifact"))
     if pr and "/pull/" not in pr:
         pr = None

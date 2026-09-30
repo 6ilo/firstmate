@@ -141,6 +141,41 @@
           "checked_at": "2026-09-28T14:05:00Z"
         },
         "card_hash": "d563bbb43ed21c6b9cbdfcea3fed1177e0637f3cba9301af37708f9327c99192"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "portal-rail-order",
+        "kind": "decision",
+        "title": "Rail order for the overhaul",
+        "question": "Which order should the rail use?\nThe plan recommends Today first, “one place to look”.",
+        "options": [
+          {
+            "value": "today-first",
+            "label": "Today first",
+            "hint": "Matches the plan",
+            "recommended": true
+          },
+          {
+            "value": "keep-current",
+            "label": "Keep the current order",
+            "recommended": false
+          },
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "repo": "MMEG-PIT/relay-platform",
+        "due": "2026-10-02",
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-28T14:05:00Z"
+        },
+        "card_hash": "23c296947281b2e477c490176b3da315827eea7953a308024071f2a8321a7ee4",
+        "owner": "(main)"
       }
     ],
     "underway": [

@@ -1,0 +1,12 @@
+{
+  "schema": "fm-today-answer.v1",
+  "answer_id": "ans-mate-rail-order-01",
+  "task_id": "portal-rail-order",
+  "owner": "relay-platform",
+  "kind": "decision",
+  "value": "kit-order",
+  "card_hash": "d563bbb43ed21c6b9cbdfcea3fed1177e0637f3cba9301af37708f9327c99192",
+  "answered_at": "2026-09-28T14:10:12Z",
+  "person": "user_2captain",
+  "device": "iphone-15"
+}

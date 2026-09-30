@@ -20,6 +20,7 @@
     "schema": { "const": "fm-today-answer.v1" },
     "answer_id": { "$ref": "#/$defs/answer_id" },
     "task_id": { "$ref": "fm-today-card.v1.schema.json#/$defs/task_id" },
+    "owner": { "$ref": "fm-today-card.v1.schema.json#/$defs/owner" },
     "kind": { "enum": ["decision", "merge", "credential", "go"] },
     "value": {
       "description": "An option value from the card as shown, or the reserved value later.",

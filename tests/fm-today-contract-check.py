@@ -34,8 +34,9 @@ ASSERTIONS = {
 }
 
 # docs/today-contract.md owns these two definitions; keep them in step.
-CARD_HASH_FIELDS = ("schema", "task_id", "kind", "title", "question",
+CARD_HASH_FIELDS = ("schema", "task_id", "owner", "kind", "title", "question",
                     "options", "repo", "pr_url", "due")
+MAIN = "(main)"
 PASSKEY_DOMAIN = "fm-today-passkey.v1"
 WORK_LIMIT = 1000
 
@@ -209,10 +210,12 @@ def contract_errors(inst):
         cards = [("$", inst)]
     elif inst.get("schema") == "fm-today-snapshot.v1":
         cards = [("$.sections.calls[%d]" % i, c) for i, c in enumerate(inst["sections"]["calls"])]
-        ids = [c["task_id"] for _, c in cards]
+        # A call is keyed by its owning home and task id; absent owner is (main).
+        ids = [(c.get("owner", MAIN), c["task_id"]) for _, c in cards]
         if len(ids) != len(set(ids)):
             out.append("$.sections.calls: task_id: a call appears twice")
-        work = [w["id"] for k in ("underway", "charted_next", "landed") for w in inst["sections"][k]]
+        work = [(w.get("owner", MAIN), w["id"])
+                for k in ("underway", "charted_next", "landed") for w in inst["sections"][k]]
         if len(work) > WORK_LIMIT:
             out.append("$.sections: work: more than %d rows across underway, charted_next and landed" % WORK_LIMIT)
         if len(work) != len(set(work)):

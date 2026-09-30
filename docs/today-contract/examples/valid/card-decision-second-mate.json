@@ -1,0 +1,34 @@
+{
+  "schema": "fm-today-card.v1",
+  "task_id": "portal-rail-order",
+  "owner": "relay-platform",
+  "kind": "decision",
+  "title": "Rail order for the portal kit",
+  "question": "Which order should the kit's rail use?\nThe second mate recommends the kit's own order.",
+  "options": [
+    {
+      "value": "kit-order",
+      "label": "Kit order",
+      "hint": "Matches the kit plan",
+      "recommended": true
+    },
+    {
+      "value": "keep-current",
+      "label": "Keep the current order",
+      "recommended": false
+    },
+    {
+      "value": "reconcile",
+      "label": "Reconcile",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ],
+  "repo": "MMEG-PIT/relay-platform",
+  "text_check": {
+    "verdict": "pass",
+    "checker": "fm-today-text-check@1.0.0",
+    "checked_at": "2026-09-28T14:05:00Z"
+  },
+  "card_hash": "d563bbb43ed21c6b9cbdfcea3fed1177e0637f3cba9301af37708f9327c99192"
+}
