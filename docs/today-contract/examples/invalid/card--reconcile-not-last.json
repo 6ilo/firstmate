@@ -6,6 +6,12 @@
   "question": "Which order should the rail use?\nThe plan recommends Today first, “one place to look”.",
   "options": [
     {
+      "value": "reconcile",
+      "label": "Already settled",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    },
+    {
       "value": "today-first",
       "label": "Today first",
       "hint": "Matches the plan",
@@ -15,20 +21,14 @@
       "value": "keep-current",
       "label": "Keep the current order",
       "recommended": false
-    },
-    {
-      "value": "reconcile",
-      "label": "Already settled",
-      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
-      "recommended": false
     }
   ],
   "repo": "MMEG-PIT/relay-platform",
   "due": "2026-10-02",
   "text_check": {
-    "verdict": "unchecked",
+    "verdict": "pass",
     "checker": "fm-today-text-check@1.0.0",
     "checked_at": "2026-09-28T14:05:00Z"
   },
-  "card_hash": "3f62355fe0782827f04dd91c5bcc0c2d5360f139074f4cf5bfbea96ab0d02b6b"
+  "card_hash": "913421a89ab4ea23535b40b875d474ea0ecc35dfc3983a6967fcf5d7687dc1de"
 }

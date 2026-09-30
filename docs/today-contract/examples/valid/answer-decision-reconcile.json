@@ -1,12 +1,12 @@
 {
   "schema": "fm-today-answer.v1",
-  "answer_id": "ans_01J9ZC3K7Q",
+  "answer_id": "ans_01J9ZC9R2C",
   "task_id": "portal-rail-order",
   "kind": "decision",
-  "value": "today-first",
+  "value": "reconcile",
   "card_hash": "3f62355fe0782827f04dd91c5bcc0c2d5360f139074f4cf5bfbea96ab0d02b6b",
-  "answered_at": "2026-09-28T14:10:12Z",
+  "answered_at": "2026-09-28T14:12:40Z",
   "person": "user_2captain",
   "device": "iphone-15",
-  "note": "Go with the plan; revisit after the kit lands."
+  "note": "Settled in the planning thread yesterday."
 }

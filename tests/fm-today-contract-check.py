@@ -47,6 +47,7 @@ CARD_HASH_FIELDS = ("schema", "task_id", "owner", "kind", "title", "question",
                     "options", "repo", "pr_url", "due", "head_sha",
                     "subject_sha256", "proof")
 MAIN = "(main)"
+RECONCILE = "reconcile"
 PASSKEY_DOMAIN = "fm-today-passkey.v1"
 WORK_LIMIT = 1000
 FLAG_UP, FLAG_UV, FLAG_AT = 0x01, 0x04, 0x40
@@ -552,7 +553,7 @@ def json_equal(a, b):
 
 
 def contract_errors(inst, keys=None, snapshot=None):
-    """The rules JSON Schema cannot state: hashes, the challenge, signatures, uniqueness, order."""
+    """The rules JSON Schema cannot state: hashes, the challenge, signatures, uniqueness, order, reconcile."""
     out = []
     cards = []
     if inst.get("schema") == "fm-today-card.v1":
@@ -587,12 +588,19 @@ def contract_errors(inst, keys=None, snapshot=None):
         values = [o["value"] for o in card["options"]]
         if len(values) != len(set(values)):
             out.append("%s.options: value: an option value appears twice" % where)
+        # reconcile is only ever a decision card's own final option.
+        for i, value in enumerate(values):
+            if value == RECONCILE and (card["kind"] != "decision" or i != len(values) - 1):
+                out.append("%s.options[%d].value: reconcile: only a decision card's final option" % (where, i))
     if inst.get("schema") == "fm-today-snapshot.v1":
         out += relying_party_errors("$.passkeys", inst.get("passkeys"))
         out += relying_party_errors("$.enrolment", inst.get("enrolment"))
         held = [c["credential_id"] for c in inst.get("passkeys", {}).get("credentials", [])]
         if len(held) != len(set(held)):
             out.append("$.passkeys.credentials: credential_id: a credential appears twice")
+    if (inst.get("schema") == "fm-today-answer.v1" and inst["value"] == RECONCILE
+            and inst["kind"] != "decision"):
+        out.append("$.value: reconcile: answers only a decision card")
     if inst.get("schema") == "fm-today-answer.v1" and "passkey" in inst:
         client = client_data("$.passkey.client_data_json", inst["passkey"]["client_data_json"],
                              "webauthn.get", out)

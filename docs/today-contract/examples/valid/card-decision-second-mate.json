@@ -19,7 +19,7 @@
     },
     {
       "value": "reconcile",
-      "label": "Reconcile",
+      "label": "Already settled",
       "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
       "recommended": false
     }
@@ -30,5 +30,5 @@
     "checker": "fm-today-text-check@1.0.0",
     "checked_at": "2026-09-28T14:05:00Z"
   },
-  "card_hash": "d563bbb43ed21c6b9cbdfcea3fed1177e0637f3cba9301af37708f9327c99192"
+  "card_hash": "6b26302d246f5c266b31566a81408e9bddd553ffca3f885752ae546a2633b85e"
 }

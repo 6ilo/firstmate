@@ -25,7 +25,7 @@
           },
           {
             "value": "reconcile",
-            "label": "Reconcile",
+            "label": "Already settled",
             "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
             "recommended": false
           }
@@ -37,7 +37,7 @@
           "checker": "fm-today-text-check@1.0.0",
           "checked_at": "2026-09-28T14:05:00Z"
         },
-        "card_hash": "9ca90b45818624bdcc46043048b4fdd0682a31812b98e1ef7db31e7b7f4ed130"
+        "card_hash": "3f62355fe0782827f04dd91c5bcc0c2d5360f139074f4cf5bfbea96ab0d02b6b"
       },
       {
         "schema": "fm-today-card.v1",
@@ -129,7 +129,7 @@
           },
           {
             "value": "reconcile",
-            "label": "Reconcile",
+            "label": "Already settled",
             "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
             "recommended": false
           }
@@ -140,7 +140,7 @@
           "checker": "fm-today-text-check@1.0.0",
           "checked_at": "2026-09-28T14:05:00Z"
         },
-        "card_hash": "d563bbb43ed21c6b9cbdfcea3fed1177e0637f3cba9301af37708f9327c99192"
+        "card_hash": "6b26302d246f5c266b31566a81408e9bddd553ffca3f885752ae546a2633b85e"
       }
     ],
     "underway": [

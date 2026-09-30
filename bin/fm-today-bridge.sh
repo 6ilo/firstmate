@@ -46,8 +46,9 @@
 #           in an earlier section is not listed again. Each left-out row is
 #           named on stderr.
 #           Bearings holds no structured answer options for a call, so every
-#           card is a `decision` card offering the standard `reconcile` option;
-#           the portal adds `later` itself. Every card and work row carries
+#           card is a `decision` card whose final option is the standard
+#           `reconcile` option, labelled "Already settled"; the portal adds
+#           `later` itself. Every card and work row carries
 #           `repo`: `owner/name` when one is found, otherwise `null`; bearings
 #           records no repository for a call, so a card's is always `null`.
 #
@@ -216,7 +217,7 @@ WITHHELD_QUESTION = "This call's text stays on the machine. Read it there."
 WITHHELD_TEXT = "Text kept on the machine"
 RECONCILE = {
     "value": "reconcile",
-    "label": "Reconcile",
+    "label": "Already settled",
     "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
     "recommended": False,
 }

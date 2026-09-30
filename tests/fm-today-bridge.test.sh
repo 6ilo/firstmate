@@ -186,6 +186,17 @@ test_every_row_carries_its_owner() {
   pass "every main-home card and work row carries owner (main)"
 }
 
+# docs/today-contract.md: every decision card the bridge sends ends with the
+# reconcile option, labelled "Already settled", and no other option uses reconcile.
+test_every_decision_card_ends_with_reconcile() {
+  local snap=$TMP_ROOT/snap.json
+  jq -e '[.sections.calls[] | select(.kind == "decision")] | length > 0 and all(
+          (.options[-1] | .value == "reconcile" and .label == "Already settled" and .recommended == false)
+          and ([.options[] | select(.value == "reconcile")] | length == 1))' "$snap" >/dev/null \
+    || fail "a decision card did not end with the one reconcile option: $(jq -c '[.sections.calls[] | .options]' "$snap")"
+  pass "every decision card ends with the one reconcile option, labelled Already settled"
+}
+
 # Second mates' calls and work come from the bearings snapshot as `mate/task`
 # ids with the mate as owner. A copy of the bridge whose bearings snapshot is a
 # fixed document stands in for a fleet with a second mate: its calls go out
@@ -563,6 +574,7 @@ test_snapshot_carries_the_fleet
 test_card_hash_recomputes
 test_every_row_carries_repo
 test_every_row_carries_its_owner
+test_every_decision_card_ends_with_reconcile
 test_second_mate_calls_and_work_travel
 test_snapshot_passes_the_portal_validator
 test_cut_text_loses_its_partial_word
