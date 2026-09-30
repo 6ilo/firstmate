@@ -241,7 +241,8 @@ It can never let freeform captain prose forge a task id or a mode.
 - It feeds each decision answer from the admin portal's Today page to the intake as one keyed line, with the option's label and the close its card declared: `done` for a captain question, `release` for held work.
 - A Today `reconcile` answer goes to `reconcile-requests` under the bridge's own bound source id, `today-bridge`, and a `later` answer re-holds the call with `--until`.
 - Until firstmate checks the captain's passkey itself, a merge or go answer never reaches the intake; the bridge refuses it for proof.
-- A second mate's answer is never fed to this home's intake.
+- A second mate's answer is recorded and refused, and fed to no home's intake.
+- Nothing is fed unless `today-bridge` is bound in this home.
 - The bridge's header owns the order of its checks and every outcome.
 
 Trusted external process-event adapters intentionally expose no answer operation and cannot feed this authority-bearing intake; [`extension-bindings.md`](extension-bindings.md#trust-boundary) owns that boundary.
