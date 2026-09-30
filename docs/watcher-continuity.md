@@ -445,6 +445,8 @@ It also checks that a newly appended keyed decision is classified without reread
 - The typed self-eviction failure.
 - Bounded and successor-linked lifecycle rows.
 - A SIGSTOP counterfactual that distinguishes a live PID from a stale beacon before classifying termination.
+- Host sleep after the last beat, which must not read as a stale live watcher, against the same beacon with no sleep or with a sleep that ended before the beat, which still must.
+- A beacon refreshed after a slow cycle stage, before the terminal wait.
 
 ### Claude auto-arm and turn-end guard
 

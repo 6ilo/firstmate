@@ -321,7 +321,7 @@ return_guard() {
 
 health_snapshot() {  # <evidence-file>
   local evidence=$1 beat_age lines=""
-  beat_age=$(fm_path_age "$STATE/.last-watcher-beat")
+  beat_age=$(fm_watcher_beat_age "$STATE")
   if [ -e "$STATE/.watcher-down" ]; then
     # The marker survives past its episode in an acked:* state
     # (fm-wake-lib.sh _fm_recovery_marker_ack); only pending:* and

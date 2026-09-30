@@ -109,6 +109,18 @@ fm_path_age() {
   echo $(( $(date +%s) - m ))
 }
 
+# fm_watcher_beat_age <state-dir>
+# Age of the watcher liveness beacon (state/.last-watcher-beat) in awake time,
+# the one reading every watcher liveness verdict compares with its grace.
+# bin/fm-beacon-lib.sh owns why and how host sleep is discounted.
+fm_watcher_beat_age() {
+  command -v fm_beacon_age >/dev/null 2>&1 || {
+    # shellcheck source=bin/fm-beacon-lib.sh
+    . "$FM_WAKE_LIB_DIR/fm-beacon-lib.sh"
+  }
+  fm_beacon_age "$1/.last-watcher-beat"
+}
+
 # fm_poll_derived_grace [poll-seconds]
 # Default guard-grace derivation: max(300, poll + 60). A watcher touches its
 # liveness beacon once per poll cycle, so a fixed 300s grace stops correctly
@@ -160,16 +172,15 @@ fm_watcher_lock_matches_pid() {
 FM_WATCHER_HEALTHY_PID=
 FM_WATCHER_HEALTHY_IDENTITY=
 fm_watcher_healthy() {
-  local state=$1 watch_path=$2 grace=${3:-${FM_GUARD_GRACE:-300}} home=${4:-$FM_HOME} lockdir beat pid identity age
+  local state=$1 watch_path=$2 grace=${3:-${FM_GUARD_GRACE:-300}} home=${4:-$FM_HOME} lockdir pid identity age
   FM_WATCHER_HEALTHY_PID=
   FM_WATCHER_HEALTHY_IDENTITY=
   lockdir="$state/.watch.lock"
-  beat="$state/.last-watcher-beat"
   pid=$(cat "$lockdir/pid" 2>/dev/null || true)
   fm_pid_alive "$pid" || return 1
   fm_watcher_lock_matches_pid "$state" "$watch_path" "$pid" "$home" || return 1
   identity=$FM_WATCHER_MATCHED_IDENTITY
-  age=$(fm_path_age "$beat")
+  age=$(fm_watcher_beat_age "$state")
   [ "$age" -lt "$grace" ] || return 1
   # shellcheck disable=SC2034 # Read by callers after fm_watcher_healthy returns.
   FM_WATCHER_HEALTHY_PID=$pid
@@ -406,11 +417,10 @@ FM_WATCHER_VERDICT_REASON=stale-beacon
 fm_watcher_supervision_verdict() {
   local state=$1 watch=$2 grace=${3:-${FM_GUARD_GRACE:-300}} home=${4:-$FM_HOME}
   local root=${5:-$FM_ROOT}
-  local beat age fresh=false model
+  local age fresh=false model
   FM_WATCHER_VERDICT_OK=false
   FM_WATCHER_VERDICT_REASON=stale-beacon
-  beat="$state/.last-watcher-beat"
-  age=$(fm_path_age "$beat")
+  age=$(fm_watcher_beat_age "$state")
   case "$age" in
     ''|*[!0-9]*) ;;
     *) [ "$age" -lt "$grace" ] && fresh=true ;;
@@ -1546,7 +1556,7 @@ fm_autoarm_claim_open() {  # <state-dir> [grace]
   [ -n "$current" ] || return 1
   [ "$current" = "$FM_AUTOARM_IDENTITY" ] || return 1
   if [ "$(fm_path_age "$epoch")" -ge "$grace" ] \
-    && [ "$(fm_path_age "$state/.last-watcher-beat")" -ge "$grace" ]; then
+    && [ "$(fm_watcher_beat_age "$state")" -ge "$grace" ]; then
     return 1
   fi
   return 0
@@ -1740,7 +1750,7 @@ fm_autoarm_claim_abandoned() {  # <state-dir> [grace]
     '') return 1 ;;
     arming)
       [ "$(fm_path_age "$epoch")" -ge "$grace" ] || return 1
-      [ "$(fm_path_age "$state/.last-watcher-beat")" -ge "$grace" ] || return 1
+      [ "$(fm_watcher_beat_age "$state")" -ge "$grace" ] || return 1
       return 0
       ;;
   esac

@@ -203,6 +203,36 @@ fm_pending_reply_get() {  # <record-path> <key>
   grep "^${key}=" "$rec" 2>/dev/null | tail -1 | cut -d= -f2- || true
 }
 
+# Read the fields fm_pending_reply_tick triages on in one builtin pass, with the
+# same last-line-wins result fm_pending_reply_get gives for each key. The tick
+# visits every record ever created on every watcher poll, and resolved records
+# are never deleted, so this read must cost no process per record: forking
+# fm_pending_reply_get for each field made settled history alone take minutes
+# per poll under load, starving the watcher's liveness beacon.
+FM_PENDING_REPLY_FIELD_CORR=
+FM_PENDING_REPLY_FIELD_TASK=
+FM_PENDING_REPLY_FIELD_PHASE=
+FM_PENDING_REPLY_FIELD_ESCALATED=
+FM_PENDING_REPLY_FIELD_CLOSED=
+fm_pending_reply_read_tick_fields() {  # <record-path>
+  local rec=$1 line
+  FM_PENDING_REPLY_FIELD_CORR=
+  FM_PENDING_REPLY_FIELD_TASK=
+  FM_PENDING_REPLY_FIELD_PHASE=
+  FM_PENDING_REPLY_FIELD_ESCALATED=
+  FM_PENDING_REPLY_FIELD_CLOSED=
+  [ -f "$rec" ] || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      corr_id=*) FM_PENDING_REPLY_FIELD_CORR=${line#corr_id=} ;;
+      task_id=*) FM_PENDING_REPLY_FIELD_TASK=${line#task_id=} ;;
+      phase=*) FM_PENDING_REPLY_FIELD_PHASE=${line#phase=} ;;
+      escalated_epoch=*) FM_PENDING_REPLY_FIELD_ESCALATED=${line#escalated_epoch=} ;;
+      escalation_closed_epoch=*) FM_PENDING_REPLY_FIELD_CLOSED=${line#escalation_closed_epoch=} ;;
+    esac
+  done < "$rec"
+}
+
 fm_pending_reply_sighting_encode() {  # <path> <line-number>
   local path=$1 line_no=$2 encoded
   case "$line_no" in ''|*[!0-9]*) return 1 ;; esac
@@ -1442,17 +1472,23 @@ fm_pending_reply_tick() {  # <state-dir>
   [ -d "$dir" ] || return 0
   for rec in "$dir"/*; do
     [ -f "$rec" ] || continue
-    case "$(basename "$rec")" in
+    case "${rec##*/}" in
       .*) continue ;;
     esac
-    corr=$(fm_pending_reply_get "$rec" corr_id)
-    [ -n "$corr" ] || corr=$(basename "$rec")
-    task_id=$(fm_pending_reply_get "$rec" task_id)
-    phase=$(fm_pending_reply_get "$rec" phase)
+    fm_pending_reply_read_tick_fields "$rec" || continue
+    corr=$FM_PENDING_REPLY_FIELD_CORR
+    [ -n "$corr" ] || corr=${rec##*/}
+    task_id=$FM_PENDING_REPLY_FIELD_TASK
+    phase=$FM_PENDING_REPLY_FIELD_PHASE
     if [ "$phase" = resolved ]; then
-      # Cheap no-op unless an escalation for this record is still open; this is
-      # the retry that makes the close converge after a transient write failure.
-      fm_pending_reply_close_escalation "$state" "$corr" || true
+      # Only a resolved record whose escalation is still open needs the locked
+      # close; this is the retry that makes the close converge after a transient
+      # write failure. The close re-reads the record under its lock, so this
+      # unlocked read only decides whether to take that lock, and settled
+      # history costs this poll nothing.
+      if [ -n "$FM_PENDING_REPLY_FIELD_ESCALATED" ] && [ -z "$FM_PENDING_REPLY_FIELD_CLOSED" ]; then
+        fm_pending_reply_close_escalation "$state" "$corr" || true
+      fi
       continue
     fi
     fm_pending_reply_reconcile_delivery "$state" "$corr" || true

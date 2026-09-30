@@ -29,6 +29,8 @@
 #  15. Remote parent-replies.status is not classified as wrong-home
 #  16. An escalated correlation stays retryable while undelivered, is never reset
 #      once delivered, and its delivery-unknown decision still closes on resolve
+#  17. Settled (resolved) history adds no process work to a tick, while a
+#      resolved record's still-open escalation is still closed
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -1086,6 +1088,84 @@ test_tick_skips_terminal_and_reuses_target_observation() {
   pass "tick skips terminal records and reuses target observations"
 }
 
+# The watcher runs this tick on every poll and resolved records are kept
+# forever, so settled history must not add per-record process work: at 396
+# resolved records the forked per-field reads made the tick alone ~45s per poll
+# at load 15, and minutes under heavy load, starving the watcher's beacon.
+# Every external command the tick can reach is counted through PATH shims, and
+# a home with 150 settled records must cost exactly what the same home costs
+# without them, while a resolved record whose escalation is still open is
+# still closed.
+test_tick_cost_does_not_grow_with_settled_history() {
+  (
+    local shim count_log cmd real with without bare_home full_home kind home state corr rec i settled
+    shim="$TMP_ROOT/count-shims-$RANDOM"
+    count_log="$shim.log"
+    mkdir -p "$shim"
+    for cmd in grep tail cut sed awk basename dirname mkdir rmdir ln rm mv cat readlink date stat ps tr od; do
+      real=$(command -v "$cmd") || continue
+      # shellcheck disable=SC2016  # the shim expands FM_TEST_COUNT_LOG and "$@" at run time
+      printf '#!/bin/sh\nprintf "%%s\\n" %s >> "$FM_TEST_COUNT_LOG"\nexec %s "$@"\n' "$cmd" "$real" > "$shim/$cmd"
+      chmod +x "$shim/$cmd"
+    done
+    # This fixture hook and clock are intentionally scoped to the isolated subshell.
+    # shellcheck disable=SC2030,SC2031
+    export FM_PENDING_REPLY_SEND_HOOK='true'
+    # shellcheck disable=SC2030,SC2031
+    export FM_PENDING_REPLY_NOW=11100
+    for kind in bare full; do
+      home=$(setup_parent "settled-$kind")
+      state="$home/state"
+      corr=$(fm_pending_reply_create "$home" "$state" hibit "still-open escalation")
+      fm_pending_reply_mark_delivered "$state" "$corr"
+      fm_pending_reply_mark_turn_completed "$state" "$corr" request
+      fm_pending_reply_send_recovery "$state" "$corr" || fail "recovery send failed"
+      fm_pending_reply_mark_turn_completed "$state" "$corr" recovery
+      fm_pending_reply_maybe_escalate "$state" "$corr" || fail "escalation should fire"
+      # Resolved while its close did not land, as after a transient write failure.
+      rec=$(fm_pending_reply_path "$state" "$corr")
+      fm_pending_reply_set "$rec" phase resolved || fail "could not resolve the fixture"
+      printf '%s\n' "$corr" > "$home/open-corr"
+      if [ "$kind" = bare ]; then
+        bare_home=$home
+        continue
+      fi
+      full_home=$home
+      i=0
+      while [ "$i" -lt 150 ]; do
+        settled=$(printf '%016x' "$((i + 4096))")
+        {
+          printf 'schema=fm-pending-reply.v1\ncorr_id=%s\ntask_id=hibit\n' "$settled"
+          printf 'parent_status=%s\ndelivered_epoch=11000\nphase=resolved\n' "$state/hibit.status"
+          if [ $((i % 3)) -eq 0 ]; then
+            printf 'escalated_epoch=11001\nescalation_closed_epoch=11002\n'
+          fi
+          printf 'resolved_epoch=11003\nresolved_via=status\n'
+        } > "$(fm_pending_reply_dir "$state")/$settled"
+        i=$((i + 1))
+      done
+    done
+    for home in "$bare_home" "$full_home"; do
+      : > "$count_log"
+      PATH="$shim:$PATH" FM_TEST_COUNT_LOG="$count_log" fm_pending_reply_tick "$home/state"
+      rec=$(fm_pending_reply_path "$home/state" "$(cat "$home/open-corr")")
+      [ -n "$(fm_pending_reply_get "$rec" escalation_closed_epoch)" ] \
+        || fail "a resolved record's still-open escalation was not closed by the tick"
+      [ -z "$(status_open_decisions "$home/state/hibit.status")" ] \
+        || fail "the tick left the resolved record's escalation decision open"
+      if [ "$home" = "$bare_home" ]; then
+        without=$(wc -l < "$count_log" | tr -d ' ')
+      else
+        with=$(wc -l < "$count_log" | tr -d ' ')
+      fi
+    done
+    [ "$without" -gt 0 ] || fail "the process-count shims observed nothing; the comparison would be vacuous"
+    [ "$with" = "$without" ] \
+      || fail "150 settled records added process work to one tick: $without without them, $with with them"
+  ) || fail "settled-history tick cost regression failed"
+  pass "settled pending-reply history adds no process work to a tick"
+}
+
 test_correlations_reuse_only_for_matching_open_task() {
   local dir fb log home state got corr1 corr2 corr3 rec
   dir="$TMP_ROOT/corr-reuse"; mkdir -p "$dir"
@@ -1629,6 +1709,7 @@ test_busy_idle_observation_via_backend_abstraction
 test_unknown_backend_state_uses_capture_fallback
 test_kimi_capture_fallback_uses_recorded_harness
 test_tick_skips_terminal_and_reuses_target_observation
+test_tick_cost_does_not_grow_with_settled_history
 test_correlations_reuse_only_for_matching_open_task
 test_tick_end_to_end_missed_then_escalate
 test_failed_send_discards_undelivered_expectation
