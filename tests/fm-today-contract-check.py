@@ -171,12 +171,18 @@ def spki_key(der):
     raise ValueError("SPKI: algorithm is neither EC nor RSA")
 
 
-def cbor_decode(buf, pos=0):
+CBOR_DEPTH = 8
+
+
+def cbor_decode(buf, pos=0, depth=0):
     """One definite-length CBOR item at pos: (value, next position).
 
     Covers what a WebAuthn attestation object uses: integers, byte and text
-    strings, arrays, and maps; anything else is refused.
+    strings, arrays, and maps, nested at most CBOR_DEPTH deep; anything else
+    is refused.
     """
+    if depth > CBOR_DEPTH:
+        raise ValueError("CBOR: nested more than %d deep" % CBOR_DEPTH)
     if pos >= len(buf):
         raise ValueError("CBOR: truncated")
     major, info = buf[pos] >> 5, buf[pos] & 0x1f
@@ -203,14 +209,14 @@ def cbor_decode(buf, pos=0):
     if major == 4:
         out = []
         for _ in range(arg):
-            item, pos = cbor_decode(buf, pos)
+            item, pos = cbor_decode(buf, pos, depth + 1)
             out.append(item)
         return out, pos
     if major == 5:
         out = {}
         for _ in range(arg):
-            key, pos = cbor_decode(buf, pos)
-            out[key], pos = cbor_decode(buf, pos)
+            key, pos = cbor_decode(buf, pos, depth + 1)
+            out[key], pos = cbor_decode(buf, pos, depth + 1)
         return out, pos
     raise ValueError("CBOR: unsupported major type %d" % major)
 

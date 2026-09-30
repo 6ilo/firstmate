@@ -80,6 +80,7 @@ card--unknown-verdict $.text_check.verdict: enum
 enrolment--after-expiry $.enrolled_at: expires_at
 enrolment--already-enrolled $.credential_id: credential: already enrolled
 enrolment--impossible-day $.enrolled_at: instant: not a real time
+enrolment--attestation-nested-too-deep $.attestation_object: attestation: CBOR: nested more than
 enrolment--credential-not-attested $.credential_id: credential: differs from the attested
 enrolment--key-mismatch $.public_key_spki: key
 enrolment--other-challenge $.client_data_json: challenge
