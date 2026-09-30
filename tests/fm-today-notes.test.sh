@@ -413,7 +413,8 @@ test_retry_settled_later_in_the_collect_is_not_pending() {
   chmod 700 "$home/data/today-notes"
   [ "$CODE" -eq 0 ] || fail "a retry settled in the same collect exited $CODE: $(cat "$ERR")"
   [ ! -s "$ERR" ] || fail "a settled retry was reported as pending: $(cat "$ERR")"
-  grep -qF "$c on bravo" "$OUT" && grep -qF "$b on alpha" "$OUT" || fail "both notes were not reported: $(cat "$OUT")"
+  grep -qF "$c on bravo" "$OUT" || fail "the note recorded first was not reported: $(cat "$OUT")"
+  grep -qF "$b on alpha" "$OUT" || fail "the retried note was not reported: $(cat "$OUT")"
   [ "$(jq -r .outcome <<< "$(receipt_for "$stub" "$b")")" = recorded ] || fail "the retried note was not receipted"
   pass "a note retried in one exchange and recorded in the next is not reported as pending"
 }
