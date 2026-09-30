@@ -13,7 +13,8 @@
 # and one with nothing charted are refused; a receipt survives a failed call;
 # a note whose record cannot be written is not receipted, and the rest of its
 # answer is still recorded and reported; a note whose receipt cannot be written
-# is still reported once and only receipted on redelivery; an unreadable
+# is still reported once and only receipted on redelivery; a retry settled by
+# a later exchange of the same collect is not pending; an unreadable
 # document wakes the standing check once, not on every poll;
 # the standing check reports once and arms, refuses a secondmate home, and
 # disarms; the portal's ajv accepts the shapes when a portal checkout is named;
@@ -390,6 +391,33 @@ test_failed_receipt_still_reports_the_record() {
   pass "a receipt that cannot be written still reports the recorded note once, and redelivery only receipts it"
 }
 
+test_retry_settled_later_in_the_collect_is_not_pending() {
+  local home stub=$TMP_ROOT/stub-settle bin=$TMP_ROOT/settle-bin b c
+  if [ "$(id -u)" = 0 ]; then
+    echo "skip - an unwritable record directory: running as root"
+    return 0
+  fi
+  home=$(make_home home-settle)
+  mkdir -p "$home/data/today-notes" "$bin"
+  printf '#!/bin/sh\nif [ -e %q ]; then chmod 700 %q; else : > %q; chmod 500 %q; fi\n' \
+    "$bin/called" "$home/data/today-notes" "$bin/called" "$home/data/today-notes" > "$bin/tasks-axi"
+  chmod +x "$bin/tasks-axi"
+  doc note-on-task '.note_id = "note_UmV0cmllZFRoZW5SZWNvcm" | .task_id = "alpha"' "$TMP_ROOT/settle-b.json"
+  doc note-on-task '.note_id = "note_UmVjb3JkZWRGaXJzdFRpbW" | .task_id = "bravo"' "$TMP_ROOT/settle-c.json"
+  b=$(jq -r .note_id "$TMP_ROOT/settle-b.json")
+  c=$(jq -r .note_id "$TMP_ROOT/settle-c.json")
+  queue "$stub" "$TMP_ROOT/settle-b.json" "$TMP_ROOT/settle-c.json"
+  start_stub "$stub"
+  PATH="$bin:$PATH" notes "$home" collect
+  stop_stub
+  chmod 700 "$home/data/today-notes"
+  [ "$CODE" -eq 0 ] || fail "a retry settled in the same collect exited $CODE: $(cat "$ERR")"
+  [ ! -s "$ERR" ] || fail "a settled retry was reported as pending: $(cat "$ERR")"
+  grep -qF "$c on bravo" "$OUT" && grep -qF "$b on alpha" "$OUT" || fail "both notes were not reported: $(cat "$OUT")"
+  [ "$(jq -r .outcome <<< "$(receipt_for "$stub" "$b")")" = recorded ] || fail "the retried note was not receipted"
+  pass "a note retried in one exchange and recorded in the next is not reported as pending"
+}
+
 test_unreadable_document_wakes_once() {
   local home stub=$TMP_ROOT/stub-unread
   home=$(make_home home-unread)
@@ -519,6 +547,7 @@ test_receipt_survives_a_failed_call
 test_failed_record_leaves_the_note_unreceipted
 test_failed_record_spares_the_rest_of_the_answer
 test_failed_receipt_still_reports_the_record
+test_retry_settled_later_in_the_collect_is_not_pending
 test_unreadable_document_wakes_once
 test_settings_are_required
 test_standing_check
