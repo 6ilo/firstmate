@@ -391,13 +391,14 @@ if not (isinstance(response, dict) and set(response) == {"notes", "dispatch_orde
     print(json.dumps({"malformed": True}))
     sys.exit(0)
 
-summary = {"recorded": [], "refused": [], "duplicates": 0, "unreadable": 0, "retry": []}
+summary = {"recorded": [], "refused": [], "duplicates": 0, "unreadable": 0, "retry": [], "seen": []}
 for key, kind, id_key, id_re, schema in SHAPES:
     for doc in response[key]:
         ident = doc.get(id_key) if isinstance(doc, dict) else None
         if not isinstance(ident, str) or not id_re.match(ident):
             summary["unreadable"] += 1
             continue
+        summary["seen"].append(ident)
         try:
             if os.path.exists(os.path.join(RECORDS, ident + ".json")):
                 receipt(ident, "duplicate")
@@ -483,8 +484,10 @@ cmd_collect() {
   line=$(summary_line "${summaries[@]}") || line=
   [ -z "$line" ] || { fm_cap_line_var "$line" "$MAX_LINE"; printf '%s\n' "$FM_LINE_CAP_LINE"; }
   pending=$(jq -rs '
-    [ (map(.retry) | add | unique_by(.id)[] | .id + " (" + .why + ")"),
-      (map(.unreadable) | max | if . > 0 then tostring + " unreadable" else empty end) ]
+    [ (reduce .[] as $s ({}; (reduce $s.seen[] as $i (.; del(.[$i])))
+                             + (reduce $s.retry[] as $r ({}; .[$r.id] = $r.why)))
+       | to_entries[] | .key + " (" + .value + ")"),
+      (last.unreadable | if . > 0 then tostring + " unreadable" else empty end) ]
     | join(", ")' "${summaries[@]}")
   [ -z "$pending" ] || die "not receipted, delivered again on the next collect: $pending"
   return 0
