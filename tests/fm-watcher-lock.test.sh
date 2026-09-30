@@ -172,6 +172,108 @@ test_live_stale_watch_lock_is_actionable() {
   pass "live watcher lock with stale heartbeat is actionable"
 }
 
+# Host sleep freezes every process, so a healthy watcher's beacon ages through
+# it without the loop ever getting a chance to run. On 29 Sep a 290s sleep right
+# after a beat left the beacon 314s old seconds after wake, and the Stop
+# auto-arm's re-arm refused the healthy holder as "heartbeat is stale". The
+# beacon's age must be read in awake time; FM_HOST_SLEEP_WINDOW stands in for
+# the host's own sleep record so the case runs the same on every platform.
+test_host_sleep_does_not_stale_a_live_watcher() {
+  local dir state fakebin out err status holder identity now beat window
+  dir=$(make_case host-sleep-beacon)
+  state="$dir/state"
+  fakebin="$dir/fakebin"
+  out="$dir/watch.out"
+  err="$dir/watch.err"
+  sleep 300 &
+  holder=$!
+  identity=$(FM_STATE_OVERRIDE="$state" bash -c '. "$1"; fm_pid_identity "$2"' _ "$LIB" "$holder") || fail "could not identify the fake holder"
+  mkdir -p "$state/.watch.lock"
+  printf '%s\n' "$holder" > "$state/.watch.lock/pid"
+  printf '%s\n' "$dir" > "$state/.watch.lock/fm-home"
+  printf '%s\n' "$WATCH" > "$state/.watch.lock/watcher-path"
+  printf '%s\n' "$identity" > "$state/.watch.lock/pid-identity"
+  now=$(date +%s)
+  beat=$((now - 314))
+  fm_touch_epoch "$beat" "$state/.last-watcher-beat"
+
+  # Counterfactual first: the same beacon with no sleep is genuinely stale.
+  status=0
+  PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_HOST_SLEEP_WINDOW='' FM_GUARD_GRACE=300 FM_WATCHER_STALL_BOUND=9999999999 FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" 2> "$err" || status=$?
+  if [ "$status" -eq 0 ] || ! grep -F 'heartbeat is stale' "$err" >/dev/null; then
+    fail "a 314s-old beacon with no host sleep was not refused as stale"
+  fi
+  FM_STATE_OVERRIDE="$state" FM_HOST_SLEEP_WINDOW='' bash -c '. "$1"; fm_watcher_healthy "$2" "$3" 300 "$4"' \
+    _ "$LIB" "$state" "$WATCH" "$dir" && fail "fm_watcher_healthy accepted a 314s-old beacon with no host sleep"
+
+  # A sleep that began before the beat is not time the beacon slept through.
+  status=0
+  PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_HOST_SLEEP_WINDOW="$((beat - 400)) $((beat - 10))" FM_GUARD_GRACE=300 FM_WATCHER_STALL_BOUND=9999999999 FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" 2> "$err" || status=$?
+  if [ "$status" -eq 0 ] || ! grep -F 'heartbeat is stale' "$err" >/dev/null; then
+    fail "a host sleep that ended before the last beat hid a stale beacon"
+  fi
+
+  # The incident: the host slept 290s starting 14s after the beat.
+  status=0
+  PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_HOST_SLEEP_WINDOW="$((beat + 14)) $((beat + 304))" FM_GUARD_GRACE=300 FM_WATCHER_STALL_BOUND=9999999999 FM_POLL=5 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" 2> "$err" || status=$?
+  [ "$status" -eq 0 ] || fail "re-arm refused a live holder whose beacon only aged through host sleep: $(cat "$err")"
+  grep -F "watcher: already running pid $holder" "$out" >/dev/null \
+    || fail "re-arm did not recognise the live holder after host sleep: $(cat "$out" "$err")"
+  FM_STATE_OVERRIDE="$state" FM_HOST_SLEEP_WINDOW="$((beat + 14)) $((beat + 304))" bash -c '. "$1"; fm_watcher_healthy "$2" "$3" 300 "$4"' \
+    _ "$LIB" "$state" "$WATCH" "$dir" || fail "fm_watcher_healthy read host sleep as a stale beacon"
+  is_live_non_zombie "$holder" || fail "the live holder was signalled"
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+  # On macOS the real host record must parse, or the discount silently never applies.
+  if [ "$(uname)" = Darwin ]; then
+    # shellcheck disable=SC2016  # the child shell expands its own positional parameters
+    window=$(env -u FM_HOST_SLEEP_WINDOW bash -c '. "$1"; fm_host_last_sleep_window' _ "$ROOT/bin/fm-beacon-lib.sh") \
+      || fail "macOS kern.sleeptime/kern.waketime could not be read"
+    case "$window" in
+      [0-9]*' '[0-9]*) ;;
+      *) fail "macOS sleep record did not parse to '<slept> <woke>': '$window'" ;;
+    esac
+  fi
+  pass "host sleep after the last beat does not read as a stale live watcher"
+}
+
+# The beacon is refreshed once every stage of a cycle has finished, before the
+# terminal wait, so a healthy cycle's beacon ages by one stage pass or one
+# POLL rather than their sum. A slow registered check stands in for a slow
+# stage; the beacon must postdate the check's finish while the loop waits.
+test_beacon_refreshes_after_stages_before_terminal_wait() {
+  local dir state fakebin out err check_file mark pid i beat_m mark_m
+  dir=$(make_case beacon-after-stages)
+  state="$dir/state"
+  fakebin="$dir/fakebin"
+  out="$dir/watch.out"
+  err="$dir/watch.err"
+  mark="$dir/check-finished"
+  check_file="$state/slow.check.sh"
+  printf '#!/usr/bin/env bash\nsleep 3\ntouch %s\n' "$mark" > "$check_file"
+  chmod 0700 "$check_file"
+  FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-check-register.sh" slow >/dev/null \
+    || fail "could not register the slow check"
+  PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$state" FM_POLL=60 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=0 FM_HEARTBEAT=999999 "$WATCH" > "$out" 2> "$err" &
+  pid=$!
+  i=0
+  while [ "$i" -lt 200 ] && [ ! -e "$mark" ]; do
+    sleep 0.1
+    i=$((i + 1))
+  done
+  [ -e "$mark" ] || fail "the slow check never finished: $(cat "$out" "$err")"
+  sleep 2
+  is_live_non_zombie "$pid" || fail "watcher exited instead of waiting: $(cat "$out" "$err")"
+  beat_m=$(stat -c %Y "$state/.last-watcher-beat" 2>/dev/null || stat -f %m "$state/.last-watcher-beat" 2>/dev/null)
+  mark_m=$(stat -c %Y "$mark" 2>/dev/null || stat -f %m "$mark" 2>/dev/null)
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  [ -n "$beat_m" ] && [ -n "$mark_m" ] || fail "could not read beacon or check mtimes"
+  [ "$beat_m" -ge "$mark_m" ] \
+    || fail "beacon was last touched before the cycle's slow check finished ($beat_m < $mark_m)"
+  pass "the beacon is refreshed after a cycle's stages, before its terminal wait"
+}
+
 test_live_stalled_watch_lock_is_replaced_past_hard_bound() {
   # A live holder whose beacon is stale past the ordinary grace is refused, but
   # a beacon stale past the hard bound evicts that holder (identity-verified
@@ -1257,6 +1359,8 @@ test_msys_pid_identity_uses_proc
 test_stale_watch_lock_reclaimed
 test_stale_watch_reclaim_publishes_before_clear
 test_live_stale_watch_lock_is_actionable
+test_host_sleep_does_not_stale_a_live_watcher
+test_beacon_refreshes_after_stages_before_terminal_wait
 test_live_stalled_watch_lock_is_replaced_past_hard_bound
 test_guard_warnings
 test_lock_single_winner_under_concurrency

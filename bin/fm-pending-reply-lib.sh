@@ -95,11 +95,21 @@
 # (bin/fm-backlog-handoff.sh's receiver wake) stayed refused forever once the
 # watcher escalated between the lost transport and the next resume.
 #
+# Retention: a resolved record whose escalation, if any, is closed is settled
+# history, and the watcher tick deletes it with its delivery confirmation once
+# its resolved_epoch is older than the retention window. Nothing reads a settled
+# record as authority: a resolved correlation is never reusable, and a later
+# correlated line for it has no open expectation left to settle. An unresolved
+# record, or a resolved one whose escalation close has not landed yet, is never
+# pruned, so the missed-report and escalation guarantees above are unaffected.
+#
 # Sourced by bin/fm-send.sh, bin/fm-watch.sh, bin/fm-secondmate-report.sh, and
 # tests. No side effects on source. set -u / set -e safe.
 #
 # Tunables (env):
 #   FM_PENDING_REPLY_GRACE_SECS   default 120
+#   FM_PENDING_REPLY_RETENTION_SECS  age of a settled resolved record before the
+#                                 tick prunes it; default 86400 (one day)
 #   FM_PENDING_REPLY_DIR_OVERRIDE override the pending-replies directory (tests)
 #   FM_PENDING_REPLY_SEND_HOOK    optional command template for recovery delivery
 #                                 (tests); receives task_id and full message as args
@@ -119,6 +129,7 @@ _FM_PENDING_REPLY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/n
 FM_PENDING_REPLY_SCHEMA='fm-pending-reply.v1'
 FM_PENDING_REPLY_CORR_RE='corr=[A-Fa-f0-9]{16}'
 FM_PENDING_REPLY_GRACE_DEFAULT=120
+FM_PENDING_REPLY_RETENTION_DEFAULT=86400
 
 fm_pending_reply_now() {
   if [ -n "${FM_PENDING_REPLY_NOW:-}" ]; then
@@ -201,6 +212,39 @@ fm_pending_reply_get() {  # <record-path> <key>
   local rec=$1 key=$2
   [ -f "$rec" ] || return 0
   grep "^${key}=" "$rec" 2>/dev/null | tail -1 | cut -d= -f2- || true
+}
+
+# Read the fields fm_pending_reply_tick triages on in one builtin pass, with the
+# same last-line-wins result fm_pending_reply_get gives for each key. The tick
+# visits every record on every watcher poll, including resolved records kept
+# for the retention window, so this read must cost no process per record:
+# forking fm_pending_reply_get for each field made settled history alone take
+# minutes per poll under load, starving the watcher's liveness beacon.
+FM_PENDING_REPLY_FIELD_CORR=
+FM_PENDING_REPLY_FIELD_TASK=
+FM_PENDING_REPLY_FIELD_PHASE=
+FM_PENDING_REPLY_FIELD_ESCALATED=
+FM_PENDING_REPLY_FIELD_CLOSED=
+FM_PENDING_REPLY_FIELD_RESOLVED=
+fm_pending_reply_read_tick_fields() {  # <record-path>
+  local rec=$1 line
+  FM_PENDING_REPLY_FIELD_CORR=
+  FM_PENDING_REPLY_FIELD_TASK=
+  FM_PENDING_REPLY_FIELD_PHASE=
+  FM_PENDING_REPLY_FIELD_ESCALATED=
+  FM_PENDING_REPLY_FIELD_CLOSED=
+  FM_PENDING_REPLY_FIELD_RESOLVED=
+  [ -f "$rec" ] || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      corr_id=*) FM_PENDING_REPLY_FIELD_CORR=${line#corr_id=} ;;
+      task_id=*) FM_PENDING_REPLY_FIELD_TASK=${line#task_id=} ;;
+      phase=*) FM_PENDING_REPLY_FIELD_PHASE=${line#phase=} ;;
+      escalated_epoch=*) FM_PENDING_REPLY_FIELD_ESCALATED=${line#escalated_epoch=} ;;
+      escalation_closed_epoch=*) FM_PENDING_REPLY_FIELD_CLOSED=${line#escalation_closed_epoch=} ;;
+      resolved_epoch=*) FM_PENDING_REPLY_FIELD_RESOLVED=${line#resolved_epoch=} ;;
+    esac
+  done < "$rec"
 }
 
 fm_pending_reply_sighting_encode() {  # <path> <line-number>
@@ -1431,28 +1475,86 @@ fm_pending_reply_tick_one() {  # <state-dir> <corr_id> <busy_state> [secondmate-
   return 0
 }
 
+fm_pending_reply_retention_secs() {
+  local v=${FM_PENDING_REPLY_RETENTION_SECS:-$FM_PENDING_REPLY_RETENTION_DEFAULT}
+  case "$v" in
+    ''|*[!0-9]*) v=$FM_PENDING_REPLY_RETENTION_DEFAULT ;;
+  esac
+  printf '%s' "$v"
+}
+
+# Delete one settled record past the retention window (see Retention above).
+# Re-checks every condition under the per-correlation lock, so a record that a
+# concurrent writer changed is left for a later tick. Returns 0 only on delete.
+fm_pending_reply_prune_settled() {  # <state-dir> <corr_id> <now> <retention-secs>
+  # The lock primitives come from bin/fm-wake-lib.sh with its globals contained
+  # to this call, the same pattern as fm_pending_reply_try_resolve.
+  local state=$1 corr=$2 lock rc=0
+  local STATE FM_WAKE_QUEUE FM_WAKE_QUEUE_LOCK
+  STATE=$state
+  lock="$state/.pending-reply-$corr.lock"
+  # shellcheck source=/dev/null
+  . "$_FM_PENDING_REPLY_LIB_DIR/fm-wake-lib.sh"
+  fm_lock_acquire_wait "$lock" || return 1
+  _fm_pending_reply_prune_settled_locked "$@" || rc=$?
+  fm_lock_release "$lock"
+  return "$rc"
+}
+
+_fm_pending_reply_prune_settled_locked() {  # <state-dir> <corr_id> <now> <retention-secs>
+  local state=$1 corr=$2 now=$3 retention=$4 rec resolved
+  rec=$(fm_pending_reply_path "$state" "$corr")
+  fm_pending_reply_read_tick_fields "$rec" || return 1
+  [ "$FM_PENDING_REPLY_FIELD_PHASE" = resolved ] || return 1
+  [ -z "$FM_PENDING_REPLY_FIELD_ESCALATED" ] || [ -n "$FM_PENDING_REPLY_FIELD_CLOSED" ] || return 1
+  resolved=$FM_PENDING_REPLY_FIELD_RESOLVED
+  case "$resolved" in ''|*[!0-9]*) return 1 ;; esac
+  [ $((now - resolved)) -ge "$retention" ] || return 1
+  rm -f "$(fm_pending_reply_delivery_confirmation_path "$state" "$corr")" 2>/dev/null || true
+  rm -f "$rec"
+}
+
 # Scan every pending record for this parent state. Safe to call every poll.
 # Never scrapes secondmate conversation; uses only parent status, backend busy
 # state, and optional secondmate-home wrong-home path checks.
 fm_pending_reply_tick() {  # <state-dir>
   local state=$1 dir rec corr task_id phase delivered meta backend target label busy sm_home harness remote_host
-  local observation observation_task found i
+  local observation observation_task found i now retention
   local -a observation_tasks=() observation_values=()
   dir=$(fm_pending_reply_dir "$state")
   [ -d "$dir" ] || return 0
+  now=$(fm_pending_reply_now)
+  retention=$(fm_pending_reply_retention_secs)
   for rec in "$dir"/*; do
     [ -f "$rec" ] || continue
-    case "$(basename "$rec")" in
+    case "${rec##*/}" in
       .*) continue ;;
     esac
-    corr=$(fm_pending_reply_get "$rec" corr_id)
-    [ -n "$corr" ] || corr=$(basename "$rec")
-    task_id=$(fm_pending_reply_get "$rec" task_id)
-    phase=$(fm_pending_reply_get "$rec" phase)
+    fm_pending_reply_read_tick_fields "$rec" || continue
+    corr=$FM_PENDING_REPLY_FIELD_CORR
+    [ -n "$corr" ] || corr=${rec##*/}
+    task_id=$FM_PENDING_REPLY_FIELD_TASK
+    phase=$FM_PENDING_REPLY_FIELD_PHASE
     if [ "$phase" = resolved ]; then
-      # Cheap no-op unless an escalation for this record is still open; this is
-      # the retry that makes the close converge after a transient write failure.
-      fm_pending_reply_close_escalation "$state" "$corr" || true
+      # Only a resolved record whose escalation is still open needs the locked
+      # close; this is the retry that makes the close converge after a transient
+      # write failure. The close re-reads the record under its lock, so this
+      # unlocked read only decides whether to take that lock, and settled
+      # history costs this poll nothing.
+      if [ -n "$FM_PENDING_REPLY_FIELD_ESCALATED" ] && [ -z "$FM_PENDING_REPLY_FIELD_CLOSED" ]; then
+        fm_pending_reply_close_escalation "$state" "$corr" || true
+        continue
+      fi
+      # Settled history past the retention window is deleted here, and the
+      # same unlocked read decides whether that locked delete is worth taking.
+      case "$FM_PENDING_REPLY_FIELD_RESOLVED" in
+        ''|*[!0-9]*) ;;
+        *)
+          if [ $((now - FM_PENDING_REPLY_FIELD_RESOLVED)) -ge "$retention" ]; then
+            fm_pending_reply_prune_settled "$state" "$corr" "$now" "$retention" || true
+          fi
+          ;;
+      esac
       continue
     fi
     fm_pending_reply_reconcile_delivery "$state" "$corr" || true

@@ -157,7 +157,8 @@
 # For normal supervision, resume the session-start primary-harness protocol
 # after each printed reason. Direct duplicate invocations of this script still
 # no-op through the watcher singleton lock. A live holder whose beacon is stale
-# past the grace (FM_WATCHER_STALE_GRACE, default max(300, FM_POLL+60)) is
+# past the grace (FM_WATCHER_STALE_GRACE, default max(300, FM_POLL+60)), measured
+# in awake time so host sleep does not count (bin/fm-beacon-lib.sh), is
 # refused with "lock held by live pid ... but heartbeat is stale"; one stale past
 # the hard bound FM_WATCHER_STALL_BOUND (default 3x that grace) is instead
 # evicted with TERM after its recorded identity is re-verified, and this arm
@@ -270,11 +271,12 @@ fi
 # turn-ended signature, annotation staleness checks, and guarded bookkeeping writes.
 
 POLL=${FM_POLL:-15}                   # seconds between cycles
-# The liveness beacon is touched once per cycle, immediately before the
-# terminal wait below (event_wait_or_sleep) as well as at the top of the next
-# one, so a healthy cycle's beacon can legitimately age up to POLL seconds
-# between touches. fm_poll_derived_grace (bin/fm-wake-lib.sh, already sourced
-# transitively above) is the single owner of the max(300, poll+60)
+# The liveness beacon is touched once every stage of a cycle has finished,
+# immediately before the terminal wait below (event_wait_or_sleep), as well as
+# at the top of the next one, so a healthy cycle's beacon can legitimately age
+# by up to POLL seconds or one pass of the cycle's stages between touches.
+# fm_poll_derived_grace (bin/fm-wake-lib.sh, already sourced transitively
+# above) is the single owner of the max(300, poll+60)
 # derivation - see docs/turnend-guard.md "Guard grace and the poll cadence".
 # This recomputes the library default above now that the real configured
 # POLL is known.
@@ -2459,7 +2461,7 @@ BEAT="$STATE/.last-watcher-beat"
 while ! fm_lock_try_acquire "$WATCH_LOCK"; do
   if [ -n "${FM_LOCK_HELD_PID:-}" ]; then
     if [ -e "$BEAT" ]; then
-      beat_age=$(fm_path_age "$BEAT")
+      beat_age=$(fm_watcher_beat_age "$STATE")
       if [ "$beat_age" -ge "$WATCHER_STALE_GRACE" ]; then
         # One eviction per arm: the retry re-reads the lock and beacon, so a
         # holder that exited leaves a dead-pid lock the normal reclaim takes,
@@ -3324,6 +3326,12 @@ EOF
       triage_log "absorbed heartbeat (no captain-relevant change)"
     fi
   fi
+
+  # Every stage above finished, so this cycle has progressed: refresh the
+  # beacon before the terminal wait, as the POLL comment above describes, so a
+  # healthy cycle's beacon ages by at most one stage pass or one POLL, never
+  # their sum. A stage that wedges never reaches this touch.
+  touch "$STATE/.last-watcher-beat"
 
   # Terminal wait: a bounded native-event wait for push-capable homes (herdr),
   # else the blind poll sleep. See event_wait_or_sleep.

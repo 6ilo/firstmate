@@ -12,6 +12,9 @@
 # live watcher process means per supervision model. The status fields here retain
 # the beacon-age details used in their messages.
 
+# shellcheck source=bin/fm-beacon-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fm-beacon-lib.sh"
+
 # Portable mtime; Linux stat lacks -f, macOS stat lacks -c.
 fm_sup_stat_mtime() {
   if [ "$(uname)" = Darwin ]; then
@@ -39,7 +42,8 @@ fm_sup_stat_mtime() {
 #                         registered event source (a source is a wait on an
 #                         external process, not a task, so it has no metadata),
 #                         or a registered custom check
-#   FM_SUP_WATCHER_FRESH  true/false - a watcher beacon within the grace window
+#   FM_SUP_WATCHER_FRESH  true/false - a watcher beacon within the grace window,
+#                         in awake time (bin/fm-beacon-lib.sh)
 #   FM_SUP_BEACON_DESC    human-readable beacon age, for banners ("never" if absent)
 #   FM_SUP_QUEUE_PENDING  true/false - state/.wake-queue has unread records
 # grace-seconds defaults to $FM_GUARD_GRACE, then 300, matching fm-guard.sh.
@@ -85,7 +89,9 @@ fm_supervision_status() {
     if [ -n "$m" ]; then
       age=$(( $(date +%s) - m ))
       FM_SUP_BEACON_DESC="${age}s ago"
-      [ "$age" -lt "$grace" ] && FM_SUP_WATCHER_FRESH=true
+      # Freshness is judged in awake time (bin/fm-beacon-lib.sh), so host sleep
+      # does not read as a lapsed watcher; the description keeps wall-clock age.
+      [ "$(fm_beacon_age "$beat")" -lt "$grace" ] && FM_SUP_WATCHER_FRESH=true
     else
       # shellcheck disable=SC2034 # Read by callers (fm-guard.sh) after sourcing.
       FM_SUP_BEACON_DESC=unknown

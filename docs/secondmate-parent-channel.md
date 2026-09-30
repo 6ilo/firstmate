@@ -55,6 +55,7 @@ A missed-reply escalation includes the complete first sighting path and line num
 `tests/fm-teardown.test.sh` covers teardown delivering a child's final line and refusing when the channel cannot be written.
 `tests/fm-brief.test.sh` pins the charter's channel rule.
 `tests/fm-pending-reply.test.sh` covers helper-selected local routing, remote-channel classification, same-basename restatement before false escalation, readable wrong-home diagnostics, and the rule that arbitrary mate-home sightings never acknowledge a reply.
+It also pins that settled (resolved) records add no process work to the watcher's per-poll tick, which visits every record, and that the tick prunes settled records older than one day while never pruning an unresolved record or one whose escalation is still open.
 
 ## Live verification
 
