@@ -146,7 +146,11 @@ test_a_call_marked_unsure_requires_the_opening_page() {
   out=$(render "$(edit '(.items[] | select(.id == "T6") | .links) = [] | (.items[] | select(.id == "Q2") | .unsure) = true')")
   printf '%s' "$out" | jq -e '.error == null and .opening.hidden == false and .opening.plainHidden == true' >/dev/null \
     || fail "a plan with a not-sure call did not open on its opening page: $out"
-  pass "a call recorded as not sure requires and opens the opening page"
+  f=$(edit 'del(.opening) | (.items[] | select(.id == "T6") | .links) = [] | (.items[] | select(.id == "Q2")) |= . + {status: "decided", pick: "A", unsure: true}')
+  out=$(render "$f")
+  printf '%s' "$out" | jq -e '.error == null and .opening.hidden == true and .opening.plainHidden == false' >/dev/null \
+    || fail "a decided call that once was not sure kept the plan on its opening page: $out"
+  pass "a call recorded as not sure requires and opens the opening page until it is decided"
 }
 
 test_saved_answers_come_back_as_the_decision_text() {

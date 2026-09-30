@@ -572,7 +572,7 @@ function renderBoard(){
 
 /* ---------- start: the opening page for qualifying plans, else the ordinary start ---------- */
 const homes=new Set([P.home,...within(byId[ROOT]).flatMap(i=>i.links.map(l=>(EXT[l.to]||{}).home))].filter(Boolean));
-const openingOn=()=>!!OP&&(homes.size>=2||ITEMS.filter(i=>i.kind==="call").length>=5||ITEMS.some(i=>i.kind==="call"&&i.unsure)||Object.values(A).some(a=>a.unsure));
+const openingOn=()=>!!OP&&(homes.size>=2||ITEMS.filter(i=>i.kind==="call").length>=5||openCalls.some(c=>c.unsure||(A[c.id]||{}).unsure));
 function unlockOrder(calls){
   const done=new Set(),out=[],ids=new Set(calls.map(c=>c.id));
   const visit=c=>{if(done.has(c.id))return;done.add(c.id);c.depends.filter(d=>ids.has(d)).forEach(d=>visit(byId[d]));out.push(c);};

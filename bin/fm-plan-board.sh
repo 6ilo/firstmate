@@ -402,7 +402,7 @@ if opening is not None:
 homes = {doc.get("home")} | {plans[l["to"]].get("home") for i in by_id.values() for l in i.get("links", [])
                              if isinstance(l, dict) and l.get("to") in plans}
 homes.discard(None)
-unsure = [c["id"] for c in calls if c.get("unsure") is True]
+unsure = [c["id"] for c in calls if c.get("unsure") is True and c.get("status") == "open"]
 if opening is None and (len(homes) >= 2 or len(calls) >= 5 or unsure):
     err(f"this plan needs an opening page: it touches {len(homes)} homes, has {len(calls)} calls"
         f" and {len(unsure)} not-sure answers")
