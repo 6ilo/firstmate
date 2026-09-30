@@ -134,6 +134,21 @@ test_a_plan_with_no_trigger_opens_on_the_ordinary_start() {
   pass "a plan opens on the ordinary start until it spans two homes, has five calls, or gets a not-sure answer"
 }
 
+test_a_call_marked_unsure_requires_the_opening_page() {
+  local f err out
+  f=$(edit 'del(.opening) | (.items[] | select(.id == "T6") | .links) = [] | (.items[] | select(.id == "Q2") | .unsure) = true')
+  "$BOARD" build "$(edit '(.items[] | select(.id == "T6") | .links) = [] | del(.opening)')" "$TMP_ROOT/plain.html" >/dev/null \
+    || fail "a one-home plan with two calls and no opening did not build"
+  if err=$("$BOARD" build "$f" "$TMP_ROOT/unsure.html" 2>&1); then
+    fail "a plan with a not-sure call built without an opening page"
+  fi
+  assert_contains "$err" "this plan needs an opening page" "the refusal did not name the opening page"
+  out=$(render "$(edit '(.items[] | select(.id == "T6") | .links) = [] | (.items[] | select(.id == "Q2") | .unsure) = true')")
+  printf '%s' "$out" | jq -e '.error == null and .opening.hidden == false and .opening.plainHidden == true' >/dev/null \
+    || fail "a plan with a not-sure call did not open on its opening page: $out"
+  pass "a call recorded as not sure requires and opens the opening page"
+}
+
 test_saved_answers_come_back_as_the_decision_text() {
   local out
   out=$(render "$SAMPLE" "$SAVED")
@@ -237,6 +252,8 @@ test_invalid_items_are_refused_with_the_reason() {
 (.items[] | select(.id == "T3") | .visible) = true => T3: only a public or team change can be visible
 (.items[] | select(.id == "T2") | .links) = [] => T2: a visible change must link at least one mockup
 (.items[] | select(.id == "Q2") | .aud) = "team" => Q2: only a task carries aud
+(.items[] | select(.id == "T3") | .unsure) = true => T3: only a call carries unsure
+(.items[] | select(.id == "Q2") | .unsure) = "yes" => Q2: unsure must be true or false
 .opening.quiz[0].options[2] = "A chart" => quiz U1: options must have the same number of words
 .opening.glossary[3].parent = "Image" => glossary term Diagram: parent Image is not a term
 del(.opening) => this plan needs an opening page
@@ -250,6 +267,7 @@ test_the_sample_builds_a_valid_page
 test_changes_carry_who_notices_them_and_their_state
 test_a_qualifying_plan_opens_on_the_opening_page
 test_a_plan_with_no_trigger_opens_on_the_ordinary_start
+test_a_call_marked_unsure_requires_the_opening_page
 test_saved_answers_come_back_as_the_decision_text
 test_a_quiz_answer_teaches_and_saves_once
 test_learning_is_recorded_from_evidence_only_once

@@ -230,6 +230,8 @@ for iid, it in by_id.items():
         err(f"{iid}: urgency must be now, week or later")
     for key in ("start", "due", "until"):
         date(it, key, iid)
+    if kind != "call" and "unsure" in it:
+        err(f"{iid}: only a call carries unsure")
     if kind != "task":
         for key in ("aud", "visible", "until"):
             if key in it:
@@ -259,6 +261,8 @@ for iid, it in by_id.items():
         if it["status"] == "decided" and it.get("pick") not in keys:
             err(f"{iid}: a decided call needs the captain's pick, one of {', '.join(keys)}")
         text(it, "note", iid, required=False)
+        if not isinstance(it.get("unsure", False), bool):
+            err(f"{iid}: unsure must be true or false")
     else:
         it.setdefault("status", "decided")
         it.setdefault("state", "todo")
@@ -398,8 +402,10 @@ if opening is not None:
 homes = {doc.get("home")} | {plans[l["to"]].get("home") for i in by_id.values() for l in i.get("links", [])
                              if isinstance(l, dict) and l.get("to") in plans}
 homes.discard(None)
-if opening is None and (len(homes) >= 2 or len(calls) >= 5):
-    err(f"this plan needs an opening page: it touches {len(homes)} homes and has {len(calls)} calls")
+unsure = [c["id"] for c in calls if c.get("unsure") is True]
+if opening is None and (len(homes) >= 2 or len(calls) >= 5 or unsure):
+    err(f"this plan needs an opening page: it touches {len(homes)} homes, has {len(calls)} calls"
+        f" and {len(unsure)} not-sure answers")
 
 # ---- what-you-know record ----
 def read_record(path):

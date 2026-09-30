@@ -46,6 +46,7 @@ Top level: `schema` ("fm-plan-board.v1"), `date` (day 0 of the Timeline), `round
 | `type`, `urgency`, `size` | `build plan fix content upkeep`; `now week later`; tasks sized `S M L` worker sessions |
 | `options`, `rec` | Calls: 2 to 4 `{label, consequence}` (keys A to D) and the recommended key, required while open |
 | `pick`, `note` | Decided calls: the captain's key and note, verbatim |
+| `unsure` | Calls: `true` once the captain answered "not sure, draw it for me"; it makes the plan open on the opening page |
 | `depends` | Calls and tasks it waits on, its blockers |
 | `start`, `due` | Sourced dates only, never invented |
 | `links` | `[{to, why}]` to a `plans` id or `concept:<id>` |
@@ -83,4 +84,4 @@ Pass the record to every build with `--known`: the opening page lists known conc
 3. Run `bin/fm-plan-board.sh learn <items.json> <dir> data/what-you-know.jsonl` to record the quiz results and decided calls.
 4. Load `captain-hold-lifecycle`, then record once every open call has a pick: `bin/fm-captain-hold.sh answer <task> --decision-file <dir>/decision.txt`, adding `--release` when the held task is work that resumes.
    A call left blank or marked "not sure, draw it for me" keeps the hold and returns next round with its options drawn.
-5. Update the items file: answered calls become `decided` with the captain's `pick` and `note`, change requests reopen their call or add an item in the fog, then rebuild and republish.
+5. Update the items file: answered calls become `decided` with the captain's `pick` and `note`, a call answered "not sure" gets `unsure: true` (the build then requires an `opening` block), change requests reopen their call or add an item in the fog, then rebuild and republish.
