@@ -1,0 +1,34 @@
+ok - the snapshot passes the contract and each rule family's call is withheld whole
+ok - the snapshot carries underway, charted, and landed work from bearings
+ok - every card carries the contract's card_hash
+ok - every card and work row carries repo, null when no repository is found
+ok - every main-home card and work row carries owner (main)
+ok - second mates' calls and work travel under their owner, keyed with the task id, owner hashed
+skip - portal cross-check: FM_TODAY_PORTAL_DIR is not set
+ok - text bearings cut short loses its trailing partial word before the check
+ok - a cut field with a number in the five words before the cut is withheld
+ok - a cut in the middle of a hold-noted summary loses its partial word before the check
+ok - the day comes from the day file, titles unchecked but capped, and is empty when missing or stale
+ok - an open review board goes out as owner, state, round, change time, and link only
+ok - a still-open board whose source was retired keeps its owner's state; ended, unarmed, unowned, ambiguous, and doubly linked ones stay out
+ok - push sends a valid snapshot with the bearer token and prints heard_at
+ok - push reads the URL and token from the home .env
+ok - push refuses an invalid snapshot and sends nothing
+ok - push exits non-zero naming the portal's status
+ok - push refuses a portal URL that is neither https nor loopback http
+ok - a missing URL or token exits 2 naming it
+ok - --dry-run writes the checked snapshot and sends nothing
+ok - a held merge, go, or credential call is raised as a card of that kind
+ok - a decision card offers the hold's recorded options, then reconcile
+ok - a decision answer closes its question, held work is refused for proof, a malformed answer is refused, and one receipt each follows
+ok - a home whose Today source is not bound refuses every answer and applies nothing
+ok - a merge or go answer is recorded and refused for proof, and nothing is merged, released, or closed
+ok - a stale card is set aside with its current hash; a closed call, unoffered value, bad shape, or long note is refused
+ok - later defers the call, reconcile files a request, and seen is recorded; none closes it
+ok - a second mate's answer, reconcile included, is recorded and refused, and changes nothing in either home
+ok - a receipt survives a failed call and is re-sent, and a repeated answer is answered duplicate
+ok - poll carries answers, sends their receipts, and reports one round the adapter reads
+ok - the answers calls refuse a missing URL and plain http off loopback, sending nothing
+ok - armed as a process-event source, the long-poll carries answers and wakes firstmate
+ok - the token never appears in any output
+all fm-today-bridge tests passed

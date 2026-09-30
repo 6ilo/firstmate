@@ -1,0 +1,3 @@
+registered: today-answers (today-answers)
+armed: today-answers
+portal: http://127.0.0.1:54871

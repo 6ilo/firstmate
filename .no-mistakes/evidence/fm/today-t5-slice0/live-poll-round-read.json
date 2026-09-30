@@ -1,0 +1,68 @@
+{
+  "status": "answers",
+  "detail": null,
+  "answers": [
+    {
+      "answer_id": "live2-merge-1",
+      "owner": "(main)",
+      "task_id": "m-fix",
+      "kind": "merge",
+      "value": "merge",
+      "outcome": "refused",
+      "action": "refused",
+      "reason": "proof_required: a merge or go answer needs the captain's passkey signature, which firstmate cannot check yet; nothing was merged, released, or started. Give this word at the machine."
+    },
+    {
+      "answer_id": "live2-recon-1",
+      "owner": "(main)",
+      "task_id": "q-pick",
+      "kind": "decision",
+      "value": "reconcile",
+      "outcome": "applied",
+      "action": "reconcile-requested",
+      "reason": "reconcile requested; firstmate re-checks the call before closing it"
+    },
+    {
+      "answer_id": "live2-later-1",
+      "owner": "(main)",
+      "task_id": "q-later",
+      "kind": "decision",
+      "value": "later",
+      "later_until": "2026-10-07T09:00:00Z",
+      "outcome": "applied",
+      "action": "deferred",
+      "reason": "deferred until 2026-10-07"
+    },
+    {
+      "answer_id": "live2-seen-01",
+      "owner": "(main)",
+      "task_id": "c-key",
+      "kind": "credential",
+      "value": "seen",
+      "note": "added it to the vault",
+      "outcome": "applied",
+      "action": "seen-recorded",
+      "reason": "seen recorded; the credential is still needed at the machine"
+    },
+    {
+      "answer_id": "live2-bad-001",
+      "owner": "(main)",
+      "task_id": "q-pick",
+      "kind": null,
+      "value": null,
+      "outcome": "refused",
+      "action": "refused",
+      "reason": "invalid answer: not an fm-today-answer.v1 with kind, value, and card_hash"
+    },
+    {
+      "answer_id": "live2-recon-2",
+      "owner": "(main)",
+      "task_id": "w-held",
+      "kind": "decision",
+      "value": "reconcile",
+      "outcome": "applied",
+      "action": "reconcile-requested",
+      "reason": "reconcile requested; firstmate re-checks the call before closing it"
+    }
+  ]
+}

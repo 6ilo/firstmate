@@ -1,0 +1,155 @@
+{
+  "schema": "fm-today-snapshot.v1",
+  "generator_version": "1.3.0",
+  "generated_at": "2026-09-30T14:50:23Z",
+  "home": "/fm-lab.DwZ1mq",
+  "sections": {
+    "calls": [
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "w-held",
+        "owner": "(main)",
+        "kind": "decision",
+        "title": "Widget work: resume or not",
+        "question": "Widget work: resume or not",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "repo": null,
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-30T14:50:23Z"
+        },
+        "card_hash": "516cd7d5e2dbaafe7dc20c07f46a5555c6a44cc17fe29ff89beb744f0fab917e"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "m-fix",
+        "owner": "(main)",
+        "kind": "merge",
+        "title": "Widget fix: merge it",
+        "question": "Widget fix: merge it",
+        "options": [
+          {
+            "value": "merge",
+            "label": "Merge",
+            "hint": "Merge this pull request once its checks are green",
+            "recommended": true
+          }
+        ],
+        "repo": "acme/widget",
+        "pr_url": "https://github.com/acme/widget/pull/9",
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-30T14:50:23Z"
+        },
+        "card_hash": "6628f2a2c4d5f353f50a9d649babab9c1e89a4bf35da3111de843004449e88f2"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "g-build",
+        "owner": "(main)",
+        "kind": "go",
+        "title": "Build the kit page: go or not",
+        "question": "Build the kit page: go or not",
+        "options": [
+          {
+            "value": "go",
+            "label": "Go",
+            "hint": "Start building",
+            "recommended": true
+          }
+        ],
+        "repo": null,
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-30T14:50:23Z"
+        },
+        "card_hash": "26550b5149016193ecb0a50790b861b5ba4349aa0e08463ce46bdff420607d25"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "q-pick",
+        "owner": "(main)",
+        "kind": "decision",
+        "title": "Choose the rail order: pick one",
+        "question": "Choose the rail order: pick one",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "repo": null,
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-30T14:50:23Z"
+        },
+        "card_hash": "17bb0513e7005c6541f09e1cb3d62347fc2dd32866834b102afb4500b2180beb"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "q-later",
+        "owner": "(main)",
+        "kind": "decision",
+        "title": "Pick a venue: pick one",
+        "question": "Pick a venue: pick one",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "repo": null,
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-30T14:50:23Z"
+        },
+        "card_hash": "bab354a84b15865f0931db7032e5e5d19671abe29e3d0079b0f3f66544ef4de9"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "c-key",
+        "owner": "(main)",
+        "kind": "credential",
+        "title": "Add the payments key: key needed",
+        "question": "Add the payments key: key needed",
+        "options": [],
+        "repo": null,
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-30T14:50:23Z"
+        },
+        "card_hash": "2614ee08302d98d5aec339aec0044b66c970a8202f0cb1df8cf098c9327f2622"
+      }
+    ],
+    "underway": [],
+    "charted_next": [],
+    "landed": [],
+    "health": {
+      "supervision": "unknown",
+      "unhealthy": []
+    },
+    "boards": [],
+    "day": {
+      "date": "2026-09-30",
+      "ends_at": "2026-10-01T00:00:00-05:00",
+      "blocks": []
+    }
+  }
+}
