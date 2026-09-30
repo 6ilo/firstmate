@@ -1,0 +1,4 @@
+ok - live Herdr submit confirm: Claude Code (2.1.285 (Claude Code)) on herdr 0.9.1 reports empty and renders the requested reply in isolated session fm-lab-herdr-submit-con-25496-1746
+ok - live Herdr submit confirm: Claude Code (2.1.285 (Claude Code)) on herdr 0.9.1 submits a U+2063 away-supervisor payload whose read-back drops the mark
+ok - live Herdr submit confirm: Claude Code (2.1.285 (Claude Code)) on herdr 0.9.1 submits a maximal away digest whole
+ok - live Herdr submit confirm: Claude Code (2.1.285 (Claude Code)) on herdr 0.9.1 leaves nothing typed after a 1360-byte send (send-failed)

@@ -1,0 +1,10 @@
+ok - only a needs-decision, blocked, or failed status verb orders an item first
+ok - daemon shutdown stops and reaps the active notifier process group
+ok - a maximal away digest fits what Claude keeps whole and is submitted through herdr on the first attempt
+ok - a digest whose + tokens wrap onto a row edge is submitted to a Claude composer
+ok - a tail-only send is refused and its composer cleared, including text that renders after the first clear
+ok - an undelivered digest left in the composer is cleared by the next attempt, which then delivers once
+ok - a pass after afk turns off clears an undelivered digest without submitting it
+ok - daemon shutdown clears an undelivered digest even with afk off
+ok - the captain's own draft is never cleared, typed onto, or submitted by the retry
+ok - fm_backend_composer_clear_own clears only a provable piece of the typed text
