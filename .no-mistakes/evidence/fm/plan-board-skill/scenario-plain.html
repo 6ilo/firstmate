@@ -1,0 +1,704 @@
+<title>Sample plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Plan board v1. bin/fm-plan-board.sh fills the data slot below; this file is never edited per plan. */
+:root{
+  --ink:#080C10; --paper:#FFFFFF; --muted:#4B5563; --line:#D9DEE3; --wash:#F3F6F4;
+  --green:#16A34A; --green-tint:#E8F6EC; --red:#E01E37; --amber:#B45309; --amber-tint:#FDF3E3; --up:#6D28D9;
+  --pub:#16A34A; --team:#2563EB; --agent:#64748B;
+  --display:"Outfit",ui-sans-serif,system-ui,sans-serif; --body:"Inter",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ink:#E8EDF2; --paper:#080C10; --muted:#9AA5B1; --line:#27313B; --wash:#10171E;
+  --green:#34C26A; --green-tint:#0F2A1B; --red:#FF5A6E; --amber:#F2A541; --amber-tint:#2A1F0E; --up:#A78BFA;
+  --pub:#34C26A; --team:#6EA0FF; --agent:#9AA5B1; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --ink:#E8EDF2; --paper:#080C10; --muted:#9AA5B1; --line:#27313B; --wash:#10171E;
+  --green:#34C26A; --green-tint:#0F2A1B; --red:#FF5A6E; --amber:#F2A541; --amber-tint:#2A1F0E; --up:#A78BFA;
+  --pub:#34C26A; --team:#6EA0FF; --agent:#9AA5B1; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--paper);color:var(--ink);font:15px/1.55 var(--body);padding:0 16px 88px}
+.wrap{max-width:1100px;margin:0 auto;padding-block:20px}
+h1,h2,h3,h4{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:clamp(28px,5vw,44px);font-weight:700}
+h2{font-size:22px;font-weight:600} h3{font-size:17px;font-weight:600} h4{font-size:16px;font-weight:600}
+p{margin:0;max-width:68ch}
+.eyebrow{font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--green)}
+.muted{color:var(--muted)} .small{font-size:13px}
+.mono{font-family:var(--mono);font-size:12px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+header.top{display:flex;flex-direction:column;gap:10px;padding-bottom:16px;border-bottom:2px solid var(--ink)}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);display:flex;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:20px}
+nav.tabs button,.modes button{font:600 14px var(--display);background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:12px 14px;cursor:pointer;white-space:nowrap}
+nav.tabs button[aria-selected="true"],.modes button[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--green)}
+button:focus-visible,select:focus-visible,textarea:focus-visible,g.pick:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+section.view{display:flex;flex-direction:column;gap:24px}
+.lede{font-size:18px;line-height:1.5;max-width:62ch}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);border:2px solid var(--ink)}
+.grid4>div{padding:14px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.grid4>div:last-child{border-right:0}
+.big{font:700 34px var(--display);font-variant-numeric:tabular-nums}
+.grid4 .hi{background:var(--green-tint)}
+@media (max-width:720px){.grid4{grid-template-columns:1fr 1fr}.grid4>div:nth-child(2){border-right:0}.grid4>div:nth-child(-n+2){border-bottom:1px solid var(--line)}}
+.fig{border:1px solid var(--line);padding:16px;background:var(--wash);margin:0}
+.fig figcaption{font-size:13px;color:var(--muted);margin-top:10px}
+.fig svg,.fig img{max-width:100%;height:auto}
+.scroll{overflow-x:auto}
+.scroll svg{max-width:none}
+.svg-ink{fill:var(--ink)} .svg-muted{fill:var(--muted)} .svg-paper{fill:var(--paper)} .svg-green{fill:var(--green)} .svg-tint{fill:var(--green-tint)} .svg-red{fill:var(--red)} .svg-up{fill:var(--up)}
+.stroke-ink{stroke:var(--ink)} .stroke-line{stroke:var(--line)} .stroke-green{stroke:var(--green)} .stroke-muted{stroke:var(--muted)} .stroke-red{stroke:var(--red)}
+svg text{font-family:var(--body)}
+.narrow-only{display:none}
+@media (max-width:640px){.wide-only{display:none}.narrow-only{display:flex}}
+.chip{display:inline-flex;align-items:center;gap:4px;font:500 12px var(--mono);padding:2px 7px;border:1px solid var(--line);color:var(--muted);white-space:nowrap;background:var(--paper)}
+button.chip{cursor:pointer}
+.chip.ok{border-color:var(--green);color:var(--green);background:var(--green-tint)}
+.chip.you{border-color:var(--ink);color:var(--ink)}
+.chip.park{border-color:var(--amber);color:var(--amber);background:var(--amber-tint)}
+.chip.front{border-color:var(--green);color:var(--green)}
+.chip.no{border-color:var(--red);color:var(--red)}
+.tl{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;font:700 11px var(--mono);border:1px solid}
+button.lk,a.lk{font:13px var(--body);color:var(--ink);text-decoration:underline;text-decoration-color:var(--green);text-underline-offset:3px;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.crumbs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font:600 16px var(--display)}
+.crumbs button{font:inherit;background:none;border:0;color:var(--green);cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:3px}
+.index{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--ink)}
+.index>div{padding:10px 12px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:4px;font-size:13px}
+.index>div:last-child{border-right:0}
+.index ul{margin:0;padding-left:16px}
+@media (max-width:900px){.index{grid-template-columns:1fr 1fr}.index>div{border-bottom:1px solid var(--line)}.index>div:first-child{grid-column:1/-1}}
+@media (max-width:520px){.index{grid-template-columns:1fr}}
+.controls{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:end}
+.controls label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+select{font:14px var(--body);padding:6px 8px;border:1px solid var(--ink);background:var(--paper);color:var(--ink)}
+.modes{display:flex;overflow-x:auto;border-bottom:1px solid var(--line)}
+.tbtn{font:500 13px var(--body);padding:6px 10px;border:1px solid var(--ink);background:var(--paper);color:var(--ink);cursor:pointer;align-self:flex-start}
+.tbtn[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.group{display:flex;flex-direction:column;gap:10px}
+.group>h3{display:flex;gap:8px;align-items:baseline;border-bottom:1px solid var(--ink);padding-bottom:6px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:12px}
+.card{border:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:8px;background:var(--paper)}
+.card.plan{border:2px solid var(--ink)}
+.card.open{border:2px solid var(--ink);background:var(--green-tint)}
+.card .id{font:600 13px var(--mono);color:var(--green)}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{display:flex;gap:10px;align-items:flex-start;text-align:left;font:14px var(--body);padding:8px 10px;border:1px solid var(--ink);background:var(--paper);color:var(--ink);cursor:pointer}
+.opt[aria-pressed="true"]{border-width:2px;border-color:var(--green);background:var(--green-tint)}
+.opt .k{font:700 13px var(--mono);min-width:14px}
+.opt .c{display:block;font-size:12px;color:var(--muted)}
+.opt .r{font:500 11px var(--mono);color:var(--green);margin-left:4px}
+.unsure{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.roll{display:flex;height:8px;background:var(--wash)}
+.roll span{display:block;height:100%}
+.links{display:flex;flex-direction:column;gap:3px;border-top:1px dashed var(--line);padding-top:6px;font-size:13px}
+.links .k{font:500 11px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-right:6px}
+textarea{width:100%;min-height:48px;font:14px var(--body);padding:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink);resize:vertical}
+details summary{cursor:pointer;font-size:13px;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);align-items:center}
+.legend span{display:inline-flex;gap:5px;align-items:center}
+.sel-note{font-size:13px;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:7px 9px;border-bottom:1px solid var(--line)}
+th{font:600 12px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:2px solid var(--ink)}
+.src{font:12px var(--mono);color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:720px){.two{grid-template-columns:1fr}}
+.narrow-only.stack{flex-direction:column;gap:12px}
+.mapnode{border:2px solid var(--ink);padding:10px;display:flex;flex-direction:column;gap:4px}
+.mapedge{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:13px;padding:6px 0 0 10px;border-left:2px solid var(--green);margin-top:4px}
+.open-pg{border:2px solid var(--ink);display:grid;grid-template-columns:1fr 1fr}
+.open-pg>div{padding:14px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.open-pg>div.wide{grid-column:1/-1}
+@media (max-width:720px){.open-pg{grid-template-columns:1fr}}
+#refpics svg,#refpics img{max-height:220px}
+.open-pg ul.plain{margin:0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:4px}
+.gtree{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.gtree ul{list-style:none;margin:6px 0 0;padding-left:16px;border-left:2px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.gtree b{font-family:var(--display)} .gtree a{color:var(--green);font-size:12px;font-family:var(--mono)}
+.gtree li:target>b{background:var(--green-tint)}
+.chk{border:1px solid var(--ink);padding:12px;display:flex;flex-direction:column;gap:8px}
+.qopt{font:14px var(--body);text-align:left;padding:8px 10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+.qopt:disabled{cursor:default}
+.qopt.right{border-color:var(--green);background:var(--green-tint)} .qopt.wrong{border-color:var(--amber);background:var(--amber-tint)}
+.answers{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--ink);color:var(--paper);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.answers .in{max-width:1100px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.answers button{font:600 14px var(--display);padding:8px 14px;border:1px solid var(--paper);background:transparent;color:var(--paper);cursor:pointer}
+#copybox{width:100%;min-height:130px;font:12px var(--mono)}
+.dim{opacity:.22}
+g.pick{cursor:pointer}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <span class="eyebrow" id="eyebrow"></span>
+  <h1 id="title"></h1>
+  <p class="lede" id="lede"></p>
+</header>
+
+<!-- A page is one button with data-tab="<name>" plus one section with id="v-<name>"; the tab router needs nothing else. -->
+<nav class="tabs" aria-label="Pages">
+  <button data-tab="start" aria-selected="true">Start</button>
+  <button data-tab="board" aria-selected="false">Board</button>
+  <button data-tab="concepts" aria-selected="false">Concepts</button>
+  <button data-tab="evidence" aria-selected="false" id="evtab" hidden>Evidence</button>
+</nav>
+
+<section class="view" id="v-start">
+  <div class="stack" id="opening" hidden>
+    <span class="eyebrow">The opening page · read this before any call</span>
+    <div class="open-pg">
+      <div><span class="eyebrow">Mission · in your words</span><div id="mission" class="stack small"></div></div>
+      <div><span class="eyebrow">What you already ruled</span><ul class="plain" id="ruled"></ul><span class="muted small">Nothing listed here is asked again.</span></div>
+      <div><span class="eyebrow">Glossary · press a term to jump</span><ul class="gtree" id="gloss"></ul></div>
+      <div><span class="eyebrow">Understanding check</span><div class="stack" id="quiz"></div></div>
+      <div class="wide"><span class="eyebrow">Reference pictures</span><div class="two" id="refpics"></div></div>
+    </div>
+    <h2>Your calls, in unlock order</h2>
+    <div class="cards" id="opencalls"></div>
+  </div>
+  <div class="stack" id="plain">
+    <span class="eyebrow">Out of scope</span>
+    <p id="outline"></p>
+  </div>
+  <div class="grid4" id="counts"></div>
+  <div class="two" id="plainfigs">
+    <div id="startfig"></div>
+    <figure class="fig">
+      <svg viewBox="0 0 340 250" width="100%" role="img" aria-label="One item set drawn four ways">
+        <g font-size="12">
+          <rect x="110" y="6" width="120" height="44" class="svg-ink"/><text x="170" y="26" text-anchor="middle" class="svg-paper" font-weight="600">One item set</text><text x="170" y="42" text-anchor="middle" class="svg-green" font-family="JetBrains Mono" font-size="10">filtered once</text>
+          <g class="stroke-ink" stroke-width="1.5" fill="none"><path d="M140 50L45 100M160 50L130 100M180 50L216 100M200 50L299 100"/></g>
+          <rect x="4" y="100" width="80" height="80" class="svg-paper stroke-ink" stroke-width="1.5"/><text x="44" y="120" text-anchor="middle" class="svg-ink" font-weight="600">Cards</text>
+          <rect x="14" y="130" width="28" height="18" class="svg-tint stroke-green"/><rect x="46" y="130" width="28" height="18" class="svg-paper stroke-ink"/><rect x="14" y="152" width="28" height="18" class="svg-paper stroke-ink"/>
+          <rect x="90" y="100" width="80" height="80" class="svg-paper stroke-ink" stroke-width="1.5"/><text x="130" y="120" text-anchor="middle" class="svg-ink" font-weight="600">Timeline</text>
+          <rect x="98" y="130" width="30" height="10" fill="#EDE9FE" stroke="#6D28D9"/><rect x="118" y="146" width="40" height="10" fill="#DCFCE7" stroke="#15803D"/><line x1="150" y1="126" x2="150" y2="172" class="stroke-red" stroke-width="2"/>
+          <rect x="176" y="100" width="80" height="80" class="svg-paper stroke-ink" stroke-width="1.5"/><text x="216" y="120" text-anchor="middle" class="svg-ink" font-weight="600">Waits on</text>
+          <circle cx="194" cy="150" r="7" class="svg-up"/><circle cx="238" cy="140" r="7" class="svg-paper stroke-ink" stroke-width="2"/><circle cx="238" cy="162" r="7" class="svg-paper stroke-ink" stroke-width="2"/><path d="M201 150L231 140M201 150L231 162" class="stroke-ink" fill="none"/>
+          <rect x="262" y="100" width="74" height="80" class="svg-paper stroke-ink" stroke-width="1.5"/><text x="299" y="120" text-anchor="middle" class="svg-ink" font-weight="600">Map</text>
+          <rect x="270" y="132" width="24" height="14" class="svg-tint stroke-green"/><rect x="306" y="150" width="24" height="14" class="svg-paper stroke-ink"/><path d="M294 139C302 139 300 157 306 157" class="stroke-ink" fill="none"/>
+          <text x="170" y="210" text-anchor="middle" class="svg-muted" font-size="11">Timeline and Waits on use the Today page's</text>
+          <text x="170" y="227" text-anchor="middle" class="svg-muted" font-size="11">Charted next drawing: type letters, urgency stripe,</text>
+          <text x="170" y="244" text-anchor="middle" class="svg-muted" font-size="11">hatched bars, red due line, press to trace</text>
+        </g>
+      </svg>
+      <figcaption>The Board is one set of items drawn four ways, so a filter applies to all of them. Open any plan to drill in.</figcaption>
+    </figure>
+  </div>
+  <div class="stack" id="nextwrap">
+    <h2>What moves next</h2>
+    <div class="cards" id="next3"></div>
+  </div>
+  <div class="stack">
+    <label class="eyebrow" for="gnote">Anything else before work starts?</label>
+    <textarea id="gnote" placeholder="Optional. Saved as you type; firstmate reads it with your picks."></textarea>
+  </div>
+</section>
+
+<section class="view" id="v-board" hidden>
+  <div class="crumbs" id="crumbs"></div>
+  <div class="index" id="index"></div>
+  <div class="modes" role="group" aria-label="Board mode">
+    <button data-mode="cards" aria-pressed="true">Cards</button>
+    <button data-mode="time" aria-pressed="false">Timeline</button>
+    <button data-mode="deps" aria-pressed="false">What waits on what</button>
+    <button data-mode="map" aria-pressed="false">Map</button>
+  </div>
+  <div class="controls">
+    <label for="depth">Show
+      <select id="depth"><option value="level">This level</option><option value="all">Everything inside</option></select>
+    </label>
+    <label for="kindf">Items
+      <select id="kindf"><option value="all">All</option><option value="call">Calls</option><option value="task">Changes</option><option value="park">In the fog</option></select>
+    </label>
+    <label for="groupby" id="gblab">Group by
+      <select id="groupby"><option value="plan">Plan</option><option value="owner">Owner</option><option value="aud">Who notices it</option><option value="type">Type of work</option><option value="st">State</option></select>
+    </label>
+    <button class="tbtn" id="chainbtn" aria-pressed="false" hidden>Longest chain</button>
+  </div>
+  <div id="stage" class="stack" style="gap:20px"></div>
+</section>
+
+<section class="view" id="v-concepts" hidden>
+  <div class="stack"><h2>Concepts and mockups</h2><p class="muted">The pictures this plan links. Each is drawn once in the shared library and reused across plans.</p></div>
+  <div class="stack" id="conceptlist"></div>
+  <div class="stack" id="concept-answer">
+    <h3>How an answer travels</h3>
+    <figure class="fig">
+      <div class="scroll"><svg viewBox="0 0 900 110" style="min-width:600px" width="100%" role="img" aria-label="You pick, saved, firstmate reads, recorded, redrawn"><g font-size="13" id="flowboxes"></g></svg></div>
+      <figcaption>Firstmate reads the saved picks and quiz answers, never the page. If saving is off, Copy answers gives the same text for chat.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="view" id="v-evidence" hidden>
+  <div class="stack"><h2>What the plan rests on</h2><p class="muted">One row per signal, each with its source.</p></div>
+  <div class="scroll"><table><thead><tr><th>Signal</th><th>Seen</th><th>Source</th></tr></thead><tbody id="evrows"></tbody></table></div>
+</section>
+</div>
+
+<div class="answers" role="region" aria-label="Your answers">
+  <div class="in">
+    <span class="small" id="ansmsg">Loading your saved picks.</span>
+    <div class="row"><button id="copybtn">Copy answers</button><button id="sendbtn">Send round</button></div>
+  </div>
+  <div id="copywrap" hidden style="max-width:1100px;margin:8px auto 0"><textarea id="copybox" readonly aria-label="Your answers as text"></textarea></div>
+</div>
+
+<script id="plan-board-data" type="application/json">{"schema":"fm-plan-board.v1","date":"2026-10-01","round":1,"task":"sample-plan","home":"Main","plans":{"x-today":{"title":"Admin portal Today","home":"Main","owner":"Admin lane","fact":"Charted next, slice T11","open":1,"ruled":["T11 sized L"]},"x-hub":{"title":"Learner hub overhaul","home":"Learner hub","owner":"Captain","fact":"14 calls, approved"}},"concepts":[{"id":"answer-store","kind":"diagram","title":"Where a saved answer goes","caption":"The page saves each pick; firstmate reads the saved picks and records them.","used_by":["sample-plan"],"svg":"\u003csvg viewBox=\"0 0 320 90\" width=\"100%\" role=\"img\" aria-label=\"Page to store to firstmate\">\u003crect x=\"4\" y=\"20\" width=\"90\" height=\"50\" class=\"svg-paper stroke-ink\" stroke-width=\"2\"/>\u003ctext x=\"49\" y=\"50\" text-anchor=\"middle\" class=\"svg-ink\" font-size=\"13\">Page\u003c/text>\u003cpath d=\"M94 45h22\" class=\"stroke-ink\" stroke-width=\"2\"/>\u003crect x=\"116\" y=\"20\" width=\"90\" height=\"50\" class=\"svg-tint stroke-green\" stroke-width=\"2\"/>\u003ctext x=\"161\" y=\"50\" text-anchor=\"middle\" class=\"svg-ink\" font-size=\"13\">Store\u003c/text>\u003cpath d=\"M206 45h22\" class=\"stroke-ink\" stroke-width=\"2\"/>\u003crect x=\"228\" y=\"20\" width=\"90\" height=\"50\" class=\"svg-ink\"/>\u003ctext x=\"273\" y=\"50\" text-anchor=\"middle\" class=\"svg-paper\" font-size=\"13\">Firstmate\u003c/text>\u003c/svg>"},{"id":"board-card","kind":"mockup","title":"A call card on a phone","caption":"Options, the recommendation and a note box, answerable in place.","used_by":["sample-plan"],"svg":"\u003csvg viewBox=\"0 0 200 150\" width=\"100%\" role=\"img\" aria-label=\"A phone-width call card\">\u003crect x=\"40\" y=\"4\" width=\"120\" height=\"142\" class=\"svg-paper stroke-ink\" stroke-width=\"2\"/>\u003crect x=\"50\" y=\"16\" width=\"70\" height=\"8\" class=\"svg-ink\"/>\u003crect x=\"50\" y=\"34\" width=\"100\" height=\"22\" class=\"svg-tint stroke-green\" stroke-width=\"2\"/>\u003crect x=\"50\" y=\"62\" width=\"100\" height=\"22\" class=\"svg-paper stroke-ink\"/>\u003crect x=\"50\" y=\"96\" width=\"100\" height=\"36\" class=\"svg-paper stroke-muted\"/>\u003c/svg>"}],"opening":{"mission":{"why":"every large plan should reach me as one board I can answer on my phone","success":["the first pick lands in round 1","nothing is asked twice"],"out":["any real project change"]},"glossary":[{"term":"Call","def":"A decision only the captain makes: options, one recommended.","related":["Change"]},{"term":"Change","def":"Something that will be different once built.","related":["Mockup"]},{"term":"Picture","def":"A blanket term for four things. Say which one.","related":[]},{"term":"Diagram","parent":"Picture","def":"How something works or connects.","related":[]},{"term":"Mockup","parent":"Picture","def":"What a screen will look like, before it is built.","related":[]},{"term":"Chart","parent":"Picture","def":"Numbers drawn to scale.","related":[]},{"term":"Photo","parent":"Picture","def":"The real thing.","related":[]}],"concepts":["answer-store","board-card"],"quiz":[{"id":"U1","concept":"board-card","question":"Which of these is a mockup?","options":["A drawing of a screen before building","A flow of how each answer travels","A bar chart of tokens spent per board"],"answer":0,"why":"A mockup shows a screen before it is built; the flow is a diagram and the bars a chart."},{"id":"U2","concept":"answer-store","question":"Where does firstmate read your picks from?","options":["The saved store, one record per call","The page itself, read back as HTML","The chat, after you paste them in"],"answer":0,"why":"Firstmate reads the store, never the page; pasting is only the fallback."}]},"items":[{"id":"ROOT","kind":"plan","owner":"Firstmate","title":"Sample plan","dest":"A small plan that shows every part of the board.","notes":["Built from the shipped sample"],"out":["Any real project change"],"type":"plan","urgency":"later","depends":[],"links":[],"fog":[]},{"id":"PR","parent":"ROOT","kind":"plan","owner":"Captain","title":"Rules","dest":"Settle the two rules the build needs.","fog":["How rounds are numbered"],"type":"plan","urgency":"later","depends":[],"links":[],"notes":[],"out":[]},{"id":"Q1","parent":"PR","kind":"call","owner":"Captain","urgency":"now","title":"Where does the board live?","why":"Decides how answers come back.","options":[{"label":"A claude.ai page with a saved store","consequence":"Answers survive and reach firstmate"},{"label":"A local file","consequence":"Nothing is saved"}],"rec":"A","depends":["Q2"],"links":[{"to":"concept:answer-store","why":"the path an answer takes"}],"type":"plan","status":"open"},{"id":"Q2","parent":"PR","kind":"call","owner":"Captain","title":"How many statuses?","options":[{"label":"Four"},{"label":"Seven"}],"rec":"A","type":"plan","urgency":"later","depends":[],"links":[],"status":"open"},{"id":"Q3","parent":"PR","kind":"call","owner":"Captain","status":"decided","title":"Do plans nest?","options":[{"label":"Yes, to any depth"},{"label":"One level"}],"rec":"A","pick":"A","note":"like Wayfinder","links":[{"to":"concept:board-card","why":"the card each plan opens"}],"type":"plan","urgency":"later","depends":[]},{"id":"PB","parent":"ROOT","kind":"plan","owner":"Worker","title":"Build","dest":"Ship the template and the build script.","type":"plan","urgency":"later","depends":[],"links":[],"notes":[],"out":[],"fog":[]},{"id":"T1","parent":"PB","kind":"task","owner":"Worker","type":"build","urgency":"now","size":"S","state":"done","title":"Item schema","depends":["Q3"],"links":[],"status":"decided","aud":"agents","visible":false},{"id":"T2","parent":"PB","kind":"task","owner":"Worker","type":"build","urgency":"week","size":"L","aud":"team","visible":true,"title":"Template with four modes","depends":["T1","Q1"],"links":[{"to":"x-today","why":"same encodings as Charted next"},{"to":"concept:board-card","why":"the screen it draws"}],"status":"decided","state":"todo"},{"id":"T3","parent":"PB","kind":"task","owner":"Worker","type":"content","urgency":"week","size":"S","state":"underway","title":"Skill text","start":"2026-10-01","due":"2026-10-03","depends":[],"links":[],"status":"decided","aud":"agents","visible":false},{"id":"T4","parent":"PB","kind":"task","owner":"Firstmate","type":"upkeep","status":"parked","title":"Cross-home plan index","why":"Where it lives is not yet specified.","depends":["T2"],"urgency":"later","links":[],"state":"todo","size":"M","aud":"agents","visible":false},{"id":"T5","parent":"PB","kind":"task","owner":"Worker","type":"fix","status":"dropped","title":"Automatic reader","why":"Dropped: the routine sweep covers it.","urgency":"later","depends":[],"links":[],"state":"todo","size":"M","aud":"agents","visible":false},{"id":"T6","parent":"PB","kind":"task","owner":"Captain","type":"content","aud":"public","until":"2026-10-06","title":"Learner-facing notice","links":[],"urgency":"later","depends":[],"status":"decided","state":"todo","size":"M","visible":false}],"evidence":[]}</script>
+<script>
+const P=JSON.parse(document.getElementById("plan-board-data").textContent);
+const TYPES={build:["Build","B","#EDE9FE","#6D28D9"],plan:["Plan","P","#F3F4F6","#374151"],fix:["Fix","F","#FEE2E2","#B91C1C"],content:["Content","C","#DCFCE7","#15803D"],upkeep:["Upkeep","U","#FEF9C3","#854D0E"]};
+const URG={now:["Now","#E01E37"],week:["This week","#080C10","var(--ink)"],later:["Later","#9CA3AF"]};
+const AUD={public:["Public","var(--pub)","●"],team:["Team","var(--team)","■"],agents:["Agents only","var(--agent)","▲"]};
+const STATE={fog:"In the fog",planned:"Planned",building:"Building",built:"Built",deferred:"Deferred",dropped:"Dropped"};
+const CALLST={open:"Your call",decided:"Decided",parked:"In the fog",dropped:"Dropped"};
+const KINDS={diagram:"Diagram",mockup:"Mockup",chart:"Chart",photo:"Photo"};
+const SIZE={S:.5,M:1,L:2};
+const DAY0=Date.parse(P.date+"T00:00:00Z");
+const off=iso=>iso==null?null:Math.round((Date.parse(iso+"T00:00:00Z")-DAY0)/864e5);
+const day=(n,long)=>new Date(DAY0+Math.floor(n)*864e5).toLocaleDateString("en-GB",long===false?{weekday:"short",day:"numeric",timeZone:"UTC"}:{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"});
+
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cut=(s,n)=>s.length>n?s.slice(0,n-1)+"…":s;
+const ITEMS=P.items;
+const byId=Object.fromEntries(ITEMS.map(i=>[i.id,i]));
+const ROOT=ITEMS.find(i=>!i.parent).id;
+const EXT={"concept:answer":{title:"How an answer travels",kind:"diagram",dom:"concept-answer"}};
+Object.entries(P.plans||{}).forEach(([k,v])=>EXT[k]={...v,plan:1});
+(P.concepts||[]).forEach(c=>EXT["concept:"+c.id]={...c,dom:"concept-"+c.id});
+const OP=P.opening||null;
+const KNOWN=Object.fromEntries((P.known||[]).map(k=>[k.concept,k]));
+const kids=id=>ITEMS.filter(i=>i.parent===id);
+const desc=id=>kids(id).flatMap(k=>[k,...desc(k.id)]);
+const leaves=id=>desc(id).filter(i=>i.kind!=="plan");
+const within=i=>i.kind==="plan"?[i,...desc(i.id)]:[i];
+const topUnder=(i,root)=>{let p=i;while(p.parent&&p.parent!==root)p=byId[p.parent];return p;};
+const openCalls=ITEMS.filter(i=>i.kind==="call"&&i.status==="open");
+const decidedCalls=ITEMS.filter(i=>i.kind==="call"&&i.status==="decided");
+const QUIZ=OP?OP.quiz||[]:[];
+const A={},RE={},CK={};let GN="",db=null,canWrite=true;
+
+const stateOf=i=>i.status==="parked"?"fog":i.status==="dropped"?"dropped":i.until?"deferred":i.state==="done"?"built":i.state==="underway"?"building":"planned";
+const satisfied=d=>{const x=byId[d];return x.kind==="call"?x.status==="decided":x.state==="done";};
+const gated=i=>i.kind==="task"&&stateOf(i)==="planned"&&i.depends.some(d=>{const x=byId[d];return x.status==="open"||x.status==="parked";});
+const frontier=i=>i.kind==="task"&&stateOf(i)==="planned"&&i.depends.every(satisfied);
+const stWord=i=>i.kind==="plan"?"Plan":i.kind==="task"?STATE[stateOf(i)]:CALLST[i.status];
+const optOf=(c,k)=>{const o=c.options[(k||"").charCodeAt(0)-65];return o?o.label:"";};
+const mockOf=i=>(i.links.find(l=>(EXT[l.to]||{}).kind==="mockup")||{}).to;
+
+/* one box for a change: ring = who notices it, fill colour = type, fill amount = state */
+function box(i,x,y,w,h,hl){
+  const st=stateOf(i),a=AUD[i.aud],t=TYPES[i.type],ring=hl||(st==="fog"||st==="deferred"?"var(--muted)":a[1]);
+  const dash=st==="fog"?'stroke-dasharray="4 3"':st==="deferred"?'stroke-dasharray="1.5 3"':"",filled=st==="planned"||st==="building"||st==="built";
+  let r=`<rect x="${x}" y="${y}" width="${w}" height="${h}" style="fill:${filled?t[2]:"var(--paper)"};stroke:${ring}" stroke-width="${hl?2.8:2.2}" ${dash}/>`;
+  if(st==="building") r+=`<rect x="${x+1.1}" y="${y+1.1}" width="${w/2}" height="${h-2.2}" fill="${t[3]}" opacity=".35"/>`;
+  if(st==="built") r+=`<rect x="${x+1.1}" y="${y+1.1}" width="${w-2.2}" height="${h-2.2}" fill="${t[3]}" opacity=".35"/><text x="${x+w-12}" y="${y+h/2+4}" font-size="11" fill="#080C10" font-weight="700">✓</text>`;
+  return r;
+}
+const inkOn=i=>{const st=stateOf(i);return st==="fog"||st==="deferred"?"var(--ink)":"#080C10";};
+const mark=i=>i.kind==="call"?"◆":i.kind==="task"?AUD[i.aud][2]:"";
+
+/* projection from size and what each task waits on, as Charted next does */
+const S={};
+function sched(i){
+  if(S[i.id]) return S[i.id];
+  let r;const st=i.kind==="task"?stateOf(i):"";
+  if(i.kind==="call") r={s:0,e:0};
+  else if(st==="fog"||st==="dropped") r={s:null,e:null};
+  else if(st==="built") r={s:0,e:0,done:1};
+  else if(i.start!=null){const s=off(i.start);r={s,e:i.due!=null?Math.max(s+.5,off(i.due)):s+SIZE[i.size]};}
+  else{const st0=Math.max(st==="deferred"?off(i.until):0,...i.depends.map(d=>sched(byId[d]).e??0));r={s:st0,e:st0+SIZE[i.size]};}
+  return S[i.id]=r;
+}
+function roll(p){
+  const ls=leaves(p.id),c={open:0,dec:0,park:0,drop:0,task:0,done:0,vis:0,aud:{public:0,team:0,agents:0},st:{fog:0,planned:0,building:0,built:0,deferred:0}};
+  ls.forEach(i=>{if(i.status==="open")c.open++;else if(i.status==="parked")c.park++;else if(i.status==="dropped")c.drop++;else c.dec++;
+    if(i.kind==="task"&&i.status!=="dropped"){c.task++;if(i.state==="done")c.done++;c.aud[i.aud]++;c.st[stateOf(i)]++;if(i.visible)c.vis++;}});
+  const live=ls.filter(i=>i.kind==="task"&&sched(i).s!=null&&!sched(i).done);
+  const dues=ls.filter(i=>i.due!=null&&i.status!=="dropped"&&!(i.kind==="task"?i.state==="done":i.status==="decided")).map(i=>off(i.due));
+  return {...c,s:live.length?Math.min(...live.map(i=>sched(i).s)):null,e:live.length?Math.max(...live.map(i=>sched(i).e)):null,due:dues.length?Math.min(...dues):null,links:[...new Set(within(p).flatMap(i=>i.links.map(l=>l.to)))]};
+}
+const span=n=>n.kind==="plan"?roll(n):sched(n);
+const nextDate=r=>r.due!=null?`due ${day(r.due)}`:r.e!=null?`done ~${day(r.e)} (projected)`:"no date";
+
+let CUR=ROOT,MODE="cards",SEL=null,CHAIN=false;
+function visible(){
+  const k=$("#kindf").value;
+  let set=($("#depth").value==="level"?kids(CUR):leaves(CUR));
+  if(MODE!=="cards") set=set.filter(i=>i.status!=="dropped");
+  if(k==="call") set=set.filter(i=>i.kind==="call"||i.kind==="plan"&&leaves(i.id).some(x=>x.kind==="call"));
+  if(k==="task") set=set.filter(i=>i.kind==="task"||i.kind==="plan");
+  if(k==="park") set=set.filter(i=>i.status==="parked"||i.kind==="plan"&&roll(i).park);
+  return set;
+}
+/* a plan waits on another plan when anything inside it does; "~id" marks a dependency outside the set */
+function depsOf(n,set){
+  const ids=new Set(set.map(x=>x.id));
+  const rep=id=>{let p=byId[id];while(p&&!ids.has(p.id))p=byId[p.parent];return p?p.id:null;};
+  const out=new Set();
+  (n.kind==="plan"?leaves(n.id):[n]).forEach(x=>x.depends.forEach(d=>{const r=rep(d);if(r&&r!==n.id)out.add(r);else if(!r)out.add("~"+d);}));
+  return [...out];
+}
+
+/* ---------- cards ---------- */
+function extLabel(to){const x=EXT[to];
+  if(!x.plan) return `<button class="lk" data-goto="${esc(x.dom)}">${esc(x.title)}</button>`;
+  return x.url?`<a class="lk" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>`:`<span>${esc(x.title)}</span>`;}
+function linkList(i){
+  const ls=i.kind==="plan"?roll(i).links.map(t=>({to:t,why:""})):i.links;
+  if(!ls.length) return "";
+  return `<div class="links">${ls.map(l=>{const x=EXT[l.to];const k=x.plan?"Plan":KINDS[x.kind];
+    return `<div><span class="k">${k}</span>${extLabel(l.to)}${l.why?` <span class="muted">· ${esc(l.why)}</span>`:""}</div>`;}).join("")}</div>`;
+}
+const typeChip=i=>{const t=TYPES[i.type];return `<span class="tl" style="background:${t[2]};color:${t[3]};border-color:${t[3]}" title="${t[0]}">${t[1]}</span>`;};
+function rollBar(r){const tot=(r.open+r.dec+r.park+r.drop)||1,w=v=>v/tot*100;
+  return `<div class="roll" role="img" aria-label="${r.open} open, ${r.dec} decided, ${r.park} in the fog, ${r.drop} dropped"><span style="width:${w(r.dec)}%;background:var(--green)"></span><span style="width:${w(r.open)}%;background:var(--ink)"></span><span style="width:${w(r.park)}%;background:var(--amber)"></span><span style="width:${w(r.drop)}%;background:var(--line)"></span></div>`;}
+function callBody(i,where){
+  const a=A[i.id]||{},after=i.depends.length?`<span class="src">Asked after ${i.depends.map(esc).join(", ")}</span>`:"";
+  if(i.status==="open") return `${i.why?`<p class="muted small">${esc(i.why)}</p>`:""}${after}<div class="opts" role="group" aria-label="Options">${i.options.map((o,k)=>{const key=String.fromCharCode(65+k);
+      return `<button class="opt" data-pick="${esc(i.id)}" data-key="${key}" aria-pressed="${a.pick===key}"><span class="k">${key}</span><span>${esc(o.label)}${key===i.rec?'<span class="r">RECOMMENDED</span>':""}${o.consequence?`<span class="c">${esc(o.consequence)}</span>`:""}</span></button>`;}).join("")}</div>
+    <label class="unsure"><input type="checkbox" data-unsure="${esc(i.id)}" ${a.unsure?"checked":""}> Not sure, draw it for me</label>
+    <label class="mono muted" for="n-${where}-${esc(i.id)}">Note</label><textarea id="n-${where}-${esc(i.id)}" data-note="${esc(i.id)}">${esc(a.note||"")}</textarea>`;
+  if(i.status==="decided") return `<p class="small"><b>Decided ${esc(i.pick||"")} · ${esc(optOf(i,i.pick))}</b>${i.pick&&i.pick===i.rec?' <span class="muted">(recommended)</span>':""}</p>${i.note?`<p class="small">Your note: ${esc(i.note)}</p>`:""}${i.why?`<p class="muted small">${esc(i.why)}</p>`:""}
+    <details><summary>Change your mind</summary><label class="mono muted" for="re-${where}-${esc(i.id)}">What should change</label><textarea id="re-${where}-${esc(i.id)}" data-re="${esc(i.id)}">${esc(RE[i.id]||"")}</textarea></details>`;
+  return i.why?`<p class="muted small">${esc(i.why)}</p>`:"";
+}
+function card(i,where){
+  where=where||"b";
+  if(i.kind==="plan"){const r=roll(i);
+    return `<article class="card plan"><div class="row"><span class="id">${esc(i.id)}</span><span class="chip">${esc(i.owner)}</span>${r.open?`<span class="chip you">◆ ${r.open} open call${r.open>1?"s":""}</span>`:""}${r.park?`<span class="chip park">${r.park} in the fog</span>`:""}</div>
+      <h4>${esc(i.title)}</h4><p class="muted small">${esc(i.dest||"")}</p>${rollBar(r)}
+      <span class="small">${r.dec} decided · ${r.done} of ${r.task} changes built · ${nextDate(r)}</span><span class="mono muted">●${r.aud.public} ■${r.aud.team} ▲${r.aud.agents} · ◎${r.vis}</span>${linkList(i)}
+      <button class="tbtn" data-open="${esc(i.id)}">Open this plan</button></article>`;}
+  if(i.kind==="call"){const cls=i.status==="open"?"you":i.status==="parked"?"park":i.status==="dropped"?"no":"ok";
+    return `<article class="card ${i.status==="open"?"open":""}"><div class="row"><span class="id">${esc(i.id)}</span><span class="chip ${cls}">◆ ${CALLST[i.status]}</span><span class="chip">${esc(i.owner)}</span></div><h4>${esc(i.title)}</h4>${callBody(i,where)}${linkList(i)}</article>`;}
+  const sc=sched(i),st=stateOf(i),a=AUD[i.aud],t=TYPES[i.type],pct=st==="built"?100:st==="building"?50:0,mk=mockOf(i);
+  const edge=st==="fog"||st==="deferred"?"var(--muted)":a[1];
+  const style=`border-left:5px solid ${edge};${st==="fog"?"border-style:dashed;":st==="deferred"?"border-style:dotted;":""}background:linear-gradient(90deg,${t[3]} ${pct}%,transparent ${pct}%) top/100% 5px no-repeat,var(--paper)`;
+  const body=(i.why?`<p class="muted small">${esc(i.why)}</p>`:"")+(st==="deferred"?`<span class="small">Deferred until ${day(off(i.until))}</span>`:sc.s!=null&&!sc.done?`<span class="small">${Math.floor(sc.s)===Math.floor(sc.e-.01)?day(sc.s):`${day(sc.s)} to ${day(sc.e-.01)}`} <span class="muted">(projected)</span></span>`:"")+(i.due?`<span class="small" style="color:var(--red)">Due ${day(off(i.due))}</span>`:"")+(i.depends.length?`<span class="src">Waits on ${i.depends.map(d=>esc(d)+(satisfied(d)?" (settled)":"")).join(", ")}</span>`:"");
+  return `<article class="card" style="${style}"><div class="row"><span class="id">${esc(i.id)}</span><span class="chip" style="color:${a[1]};border-color:${a[1]}">${a[2]} ${a[0]}</span>${i.visible?(mk?`<button class="chip" data-goto="${esc(EXT[mk].dom)}">◎ visible</button>`:'<span class="chip">◎ visible</span>'):""}${typeChip(i)}<span class="chip ${st==="fog"?"park":st==="built"?"ok":st==="dropped"?"no":""}">${STATE[st]}</span>${i.size?`<span class="chip">${i.size}</span>`:""}${frontier(i)?'<span class="chip front">ready to start</span>':""}${gated(i)?'<span class="chip park">waiting</span>':""}<span class="chip">${esc(i.owner)}</span></div>
+    <h4>${esc(i.title)}</h4>${body}${linkList(i)}</article>`;
+}
+function renderCrumbs(){
+  const path=[];let p=byId[CUR];while(p){path.unshift(p);p=byId[p.parent];}
+  $("#crumbs").innerHTML=path.map((x,k)=>k<path.length-1?`<button data-open="${esc(x.id)}">${esc(x.title)}</button><span class="muted">/</span>`:`<span>${esc(x.title)}</span>`).join("");
+}
+function renderIndex(){
+  const p=byId[CUR],ls=leaves(CUR);
+  const dec=ls.filter(i=>i.status==="decided"&&(i.kind==="call"||i.state==="done"));
+  const fog=[...ls.filter(i=>i.status==="parked").map(i=>`${i.id} ${i.title}`),...(p.fog||[])];
+  const li=a=>a.length?`<ul>${a.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:'<span class="muted">None</span>';
+  const decL=dec.map(i=>i.kind==="call"?`${i.id}: ${optOf(i,i.pick)}`:`${i.id}: ${i.title}`);
+  $("#index").innerHTML=`<div><span class="eyebrow">Destination</span><span>${esc(p.dest||"")}</span></div>
+    <div><span class="eyebrow">Notes</span>${li(p.notes||[])}</div>
+    <div><span class="eyebrow">Decisions so far · ${dec.length}</span>${decL.length>4?`<details><summary>${esc(decL.slice(0,2).join("; "))} and ${decL.length-2} more</summary>${li(decL)}</details>`:li(decL)}</div>
+    <div><span class="eyebrow">In the fog</span>${li(fog)}</div>
+    <div><span class="eyebrow">Out of scope</span>${li(p.out||[])}</div>`;
+}
+function renderCards(set){
+  const g=$("#groupby").value;
+  const key=i=>i.kind==="plan"?"Sub-plans":g==="plan"?(topUnder(i,CUR)===i?"In this plan":topUnder(i,CUR).title):g==="owner"?i.owner:g==="aud"?(i.kind==="task"?AUD[i.aud][2]+" "+AUD[i.aud][0]:"◆ Calls"):g==="type"?(i.kind==="task"?TYPES[i.type][0]:"◆ Calls"):stWord(i);
+  const groups={};set.forEach(i=>(groups[key(i)]??=[]).push(i));
+  const body=Object.entries(groups).map(([k,v])=>`<div class="group"><h3>${esc(k)} <span class="muted mono">${v.length}</span></h3><div class="cards">${v.map(i=>card(i)).join("")}</div></div>`).join("")||'<p class="muted">Nothing matches.</p>';
+  return body+legend();
+}
+
+/* ---------- trace and chain, shared by Timeline and Waits on ---------- */
+function traceSets(set){
+  if(!SEL||!set.some(n=>n.id===SEL)) return null;
+  const D=Object.fromEntries(set.map(n=>[n.id,depsOf(n,set)])),up=new Set(),down=new Set();
+  (function u(id){(D[id]||[]).forEach(d=>{if(!up.has(d)){up.add(d);u(d);}});})(SEL);
+  (function w(id){set.forEach(n=>{if(D[n.id].includes(id)&&!down.has(n.id)){down.add(n.id);w(n.id);}});})(SEL);
+  return {up,down};
+}
+function chainSet(set){
+  const live=set.filter(n=>n.kind!=="call"&&span(n).e!=null);
+  if(!live.length) return new Set();
+  const D=n=>depsOf(n,set).filter(d=>!d.startsWith("~")).map(d=>byId[d]).filter(x=>x&&x.kind!=="call"&&span(x).e!=null);
+  let cur=live.reduce((a,b)=>span(a).e>=span(b).e?a:b);const c=new Set([cur.id]);
+  while(D(cur).length){cur=D(cur).reduce((a,b)=>span(a).e>=span(b).e?a:b);c.add(cur.id);}
+  return c;
+}
+const hatchDefs=id=>`<defs><pattern id="${id}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#6B7280" stroke-width="2"/></pattern><marker id="${id}a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" fill="#6B7280"/></marker></defs>`;
+const SAMPLE={fog:{status:"parked"},planned:{state:"todo"},building:{state:"underway"},built:{state:"done"},deferred:{until:"x"}};
+let legendN=0;
+function legend(){
+  const n=++legendN,sw=st=>`<svg width="30" height="16" aria-hidden="true">${box({aud:"team",type:"build",...SAMPLE[st]},1,1,28,14)}</svg>`;
+  return `<div class="legend">${Object.values(AUD).map(a=>`<span><b style="color:${a[1]}">${a[2]}</b>${a[0]}</span>`).join("")}<span>ring = who notices it</span><span>◎ visible, links its mockup</span><span>◆ a call</span>${Object.values(TYPES).map(t=>`<span><span class="tl" style="background:${t[2]};color:${t[3]};border-color:${t[3]}">${t[1]}</span>${t[0]}</span>`).join("")}
+   ${Object.keys(SAMPLE).map(k=>`<span>${sw(k)}${STATE[k]}</span>`).join("")}
+   <span><svg width="24" height="14" aria-hidden="true">${hatchDefs("lh"+n)}<rect x=".5" y=".5" width="23" height="13" fill="url(#lh${n})" stroke="#6B7280"/></svg>Waiting</span>
+   ${Object.values(URG).map(u=>`<span><svg width="6" height="16" aria-hidden="true"><rect width="6" height="16" style="fill:${u[2]||u[1]}"/></svg>${u[0]}</span>`).join("")}
+   <span><svg width="4" height="16" aria-hidden="true"><rect width="3" height="16" class="svg-red"/></svg>Due</span></div>`;
+}
+function sideText(set){
+  const tr=traceSets(set);
+  if(!tr) return CHAIN?"The longest chain to the latest date is drawn in bold ink.":"Press any row or box to trace it.";
+  const nm=id=>esc(id.replace("~",""));
+  return `<b>${esc(byId[SEL].title)}</b> waits on ${tr.up.size?[...tr.up].map(nm).join(", "):"nothing"}; ${tr.down.size?[...tr.down].map(nm).join(", ")+" wait on it":"nothing waits on it"}.`;
+}
+function tone(n,tr,ch){
+  if(tr&&tr.up.has(n.id)) return "var(--up)";
+  if(tr&&(n.id===SEL||tr.down.has(n.id))) return "var(--ink)";
+  if(ch&&ch.has(n.id)) return "var(--ink)";
+  return null;
+}
+
+/* ---------- timeline ---------- */
+function renderTime(set){
+  const items=set.filter(n=>!(n.kind==="call"&&n.status==="decided")&&!(n.kind==="task"&&stateOf(n)==="built"));
+  const built=set.flatMap(n=>n.kind==="plan"?leaves(n.id):[n]).filter(n=>n.kind==="task"&&stateOf(n)==="built");
+  if(!items.length) return '<p class="muted">Nothing ahead at this level. Try Show: Everything inside.</p>'+legend();
+  const grp=n=>n.kind==="plan"?"":topUnder(n,CUR)===n?"":topUnder(n,CUR).title;
+  items.sort((a,b)=>grp(a)<grp(b)?-1:grp(a)>grp(b)?1:(span(a).s??99)-(span(b).s??99));
+  const rows=[];let last=null;
+  items.forEach(n=>{const g=grp(n);if(g&&g!==last)rows.push({head:g});last=g;rows.push({n});});
+  const dues=items.map(n=>n.kind==="plan"?roll(n).due:off(n.due)).filter(x=>x!=null);
+  const days=Math.ceil(Math.max(3,...items.map(n=>span(n).e??0),...dues))+1,LW=220,PX=74,RH=30,W=LW+days*PX+10,H=30+rows.length*RH+8,X=d=>LW+d*PX;
+  const tr=traceSets(set),ch=CHAIN?chainSet(set):null;
+  let s=hatchDefs("th");
+  for(let d=0;d<days;d++){const first=d===0||new Date(DAY0+d*864e5).getUTCDate()===1;s+=`<line x1="${X(d)}" y1="22" x2="${X(d)}" y2="${H}" class="stroke-line"/><text x="${X(d)+4}" y="14" font-size="10.5" class="svg-muted">${day(d,first?undefined:false)}</text>`;}
+  const pos={};
+  rows.forEach((r,k)=>{const y=28+k*RH;
+    if(r.head){s+=`<text x="0" y="${y+20}" font-size="13" font-weight="600" font-family="Outfit" class="svg-ink">${esc(r.head)}</text>`;return;}
+    const n=r.n,sp=span(n),t=TYPES[n.type],hl=tone(n,tr,ch),dim=(tr||ch)&&!hl,mk=mark(n);
+    s+=`<g class="pick${dim?" dim":""}" data-sel="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(n.id+" "+n.title)}"><rect x="0" y="${y}" width="${W}" height="${RH}" fill="transparent"/><text x="0" y="${y+19}" font-size="12" class="svg-ink">${mk?`<tspan style="fill:${n.kind==="task"?AUD[n.aud][1]:"var(--ink)"}">${mk}</tspan> `:""}${esc(cut((n.kind==="plan"?"":n.id+" ")+n.title,28))}${n.visible?" ◎":""}</text>`;
+    if(n.kind==="call") s+=`<path d="M${X(0)+9} ${y+5}l9 10l-9 10l-9-10z" class="svg-ink"/><text x="${X(0)+24}" y="${y+19}" font-size="11" class="svg-ink">your call, open now</text>`;
+    else if(sp.s==null) s+=`<text x="${X(0)+4}" y="${y+19}" font-size="11" class="svg-muted">${n.kind==="plan"?"nothing left to schedule":"in the fog: no time yet"}</text>`;
+    else{const x1=X(sp.s),w=Math.max(12,(sp.e-sp.s)*PX-3);pos[n.id]={x1,x2:x1+w,y:y+RH/2};
+      if(n.kind==="plan") s+=`<rect x="${x1}" y="${y+4}" width="${w}" height="${RH-8}" fill="none" style="stroke:${hl||"var(--ink)"}" stroke-width="${hl?2.5:2}" stroke-dasharray="5 3"/>`;
+      else{s+=box(n,x1,y+4,w,RH-8,hl)+`<rect x="${x1}" y="${y+4}" width="4" height="${RH-8}" style="fill:${URG[n.urgency][2]||URG[n.urgency][1]}"/><text x="${x1+9}" y="${y+19}" font-size="11" font-weight="700" style="fill:${inkOn(n)==="#080C10"?t[3]:"var(--ink)"}" font-family="JetBrains Mono">${t[1]}${stateOf(n)==="deferred"?" · "+day(off(n.until)):""}</text>`;
+        if(gated(n)) s+=`<rect x="${x1}" y="${y+4}" width="${w}" height="${RH-8}" fill="url(#th)" opacity=".7"/>`;}}
+    const du=n.kind==="plan"?roll(n).due:off(n.due);
+    if(du!=null) s+=`<line x1="${X(du)}" y1="${y}" x2="${X(du)}" y2="${y+RH}" class="stroke-red" stroke-width="2.5"/><text x="${X(du)+4}" y="${y+9}" font-size="10" class="svg-red">due</text>`;
+    s+=`</g>`;});
+  set.forEach(n=>depsOf(n,set).forEach(d=>{const a=pos[d],b=pos[n.id];if(!a||!b)return;
+    const on=tr&&(tr.up.has(d)||d===SEL)&&(n.id===SEL||tr.up.has(n.id)||tr.down.has(n.id)),c=ch&&ch.has(n.id)&&ch.has(d);
+    s+=`<path d="M${a.x2} ${a.y}C${a.x2+18} ${a.y} ${b.x1-18} ${b.y} ${b.x1-2} ${b.y}" fill="none" style="stroke:${on||c?"var(--ink)":"#9CA3AF"}" stroke-width="${on?1.8:c?3.2:1}" marker-end="url(#tha)"/>`;}));
+  return `<div class="fig scroll" style="padding:12px"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Timeline">${s}</svg></div>${legend()}
+   <p class="sel-note">Projected from each change's size (one session is about half a day) and what it waits on; not a promise. Decided calls are left off. ${built.length?`Built: ${built.map(n=>esc(n.id)+" ✓").join(", ")}. `:""}${sideText(set)}</p>`;
+}
+
+/* ---------- what waits on what ---------- */
+function renderDeps(set){
+  const ghosts=new Map();
+  set.forEach(n=>depsOf(n,set).forEach(d=>{if(d.startsWith("~"))ghosts.set(d,{...byId[d.slice(1)],id:d,ghost:1});}));
+  const linked=new Set();set.forEach(n=>depsOf(n,set).forEach(d=>{linked.add(n.id);linked.add(d);}));
+  const real=set.filter(n=>linked.has(n.id)),nodes=[...real,...ghosts.values()];
+  const hidden=set.length-real.length;
+  if(!nodes.length) return `<p class="muted">Nothing at this level waits on anything. Try Show: Everything inside.</p>`+legend();
+  const D=Object.fromEntries(nodes.map(n=>[n.id,n.ghost?[]:depsOf(n,set)]));
+  const lay={};const Lr=id=>lay[id]??=(D[id]||[]).length?1+Math.max(...D[id].map(Lr)):0;
+  nodes.forEach(n=>Lr(n.id));
+  nodes.forEach(n=>{if(n.kind==="call"||n.ghost)lay[n.id]=0;else if(lay[n.id]===0)lay[n.id]=1;});
+  const cols={};nodes.forEach(n=>(cols[lay[n.id]]??=[]).push(n));
+  const NW=180,NH=44,GX=44,GY=12,pos={};
+  Object.entries(cols).forEach(([c,a])=>a.forEach((n,r)=>pos[n.id]={x:4+c*(NW+GX),y:4+r*(NH+GY)}));
+  const W=8+(Math.max(...Object.keys(cols).map(Number))+1)*(NW+GX)-GX,H=8+Math.max(...Object.values(cols).map(a=>a.length))*(NH+GY)-GY;
+  const tr=traceSets(set),ch=CHAIN?chainSet(set):null;
+  let s=hatchDefs("dh");
+  nodes.forEach(n=>D[n.id].forEach(d=>{const a=pos[d],b=pos[n.id];if(!a||!b)return;
+    const up=tr&&tr.up.has(d)&&(n.id===SEL||tr.up.has(n.id)),dn=tr&&(d===SEL||tr.down.has(d))&&tr.down.has(n.id),c=ch&&ch.has(n.id)&&ch.has(d);
+    s+=`<path d="M${a.x+NW} ${a.y+NH/2}C${a.x+NW+GX/2} ${a.y+NH/2} ${b.x-GX/2} ${b.y+NH/2} ${b.x} ${b.y+NH/2}" fill="none" style="stroke:${up?"var(--up)":dn||c?"var(--ink)":"#9CA3AF"}" stroke-width="${up||dn?2.4:c?3.4:1}" class="${(tr||ch)&&!(up||dn||c)?"dim":""}"/>`;}));
+  nodes.forEach(n=>{const p=pos[n.id],t=TYPES[n.type],hl=n.ghost?null:tone(n,tr,ch),dim=(tr||ch)&&!hl;
+    const plain=n.kind!=="task"||n.ghost;
+    const lab=n.ghost?`${n.id.slice(1)} · in ${byId[n.parent].title}`:n.kind==="call"?`◆ ${n.id} · ${n.status==="decided"?"decided "+(n.pick||""):CALLST[n.status].toLowerCase()}`:n.kind==="plan"?`${n.id} · plan`:`${AUD[n.aud][2]} ${n.id} · ${stWord(n)}${n.visible?" ◎":""}`;
+    s+=`<g class="pick${dim?" dim":""}" ${n.ghost?"":`data-sel="${esc(n.id)}" tabindex="0" role="button"`} aria-label="${esc(n.title)}">
+      ${plain?`<rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" style="fill:var(--paper);stroke:${hl||"var(--ink)"}" stroke-width="${n.id===SEL?3:hl?2.4:1.3}" ${n.ghost||n.kind==="plan"?'stroke-dasharray="4 3"':""}/>`:box(n,p.x,p.y,NW,NH,hl)+`<rect x="${p.x}" y="${p.y}" width="4" height="${NH}" style="fill:${URG[n.urgency][2]||URG[n.urgency][1]}"/>`}
+      ${!n.ghost&&gated(n)?`<rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" fill="url(#dh)" opacity=".6"/>`:""}
+      <text x="${p.x+10}" y="${p.y+17}" font-size="11" font-family="JetBrains Mono" style="fill:${plain?"var(--green)":inkOn(n)==="#080C10"?t[3]:AUD[n.aud][1]}">${esc(cut(lab,26))}</text>
+      <text x="${p.x+10}" y="${p.y+34}" font-size="12" style="fill:${plain?"var(--ink)":inkOn(n)}">${esc(cut(n.title,26))}</text></g>`;});
+  return `<div class="fig scroll" style="padding:12px"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="What waits on what">${s}</svg></div>${legend()}
+   <p class="sel-note">Calls on the left, the work they free to the right; dashed boxes sit in another plan. ${hidden?`${hidden} item${hidden>1?"s":""} with no links not drawn. `:""}${sideText(set)}</p>`;
+}
+
+/* ---------- map ---------- */
+function mapModel(set){
+  const left=set.some(n=>n.kind==="plan")?set.filter(n=>n.kind==="plan"):set.filter(n=>n.links.length);
+  const edges=[],targets=new Map();
+  left.forEach(n=>{const seen=new Set();within(n).forEach(x=>x.links.forEach(l=>{if(seen.has(l.to))return;seen.add(l.to);edges.push({from:n.id,to:l.to,why:l.why,via:x.id});targets.set(l.to,EXT[l.to]);}));});
+  const inner=[];left.forEach(n=>depsOf(n,set).forEach(d=>{if(left.some(m=>m.id===d))inner.push({from:n.id,to:d});}));
+  return {left,edges,targets:[...targets],inner};
+}
+function nodeFacts(n){
+  if(n.kind==="plan"){const r=roll(n);return [`Owner: ${n.owner}`,`◆ ${r.open} open calls · ${r.links.length} links`,`●${r.aud.public} ■${r.aud.team} ▲${r.aud.agents} · ◎${r.vis} visible`,`fog ${r.st.fog} · planned ${r.st.planned} · building ${r.st.building}`,`built ${r.st.built} · deferred ${r.st.deferred}`,`Next: ${nextDate(r)}`];}
+  const sc=sched(n);return [`Owner: ${n.owner}`,`${mark(n)} ${stWord(n)}${n.visible?" · ◎ visible":""}`,sc.s!=null?`Next: ${day(sc.s)}`:"Next: no date",`${n.links.length} links`];
+}
+const extSub=x=>x.plan?`${x.home||""}${x.owner?` · ${x.owner}`:""}${x.open?` · ${x.open} open`:""}`:`${KINDS[x.kind].toUpperCase()} · press to open`;
+function renderMap(set){
+  const M=mapModel(set);
+  if(!M.left.length) return '<p class="muted">Nothing here links to another plan, concept or mockup.</p>'+legend();
+  const LW=290,LH=120,RW=250,RH=44,GX=250,GY=14,X0=30;
+  const H=Math.max(M.left.length*(LH+GY),M.targets.length*(RH+8))+16,W=X0+LW+GX+RW+8;
+  const lp={},rp={};
+  M.left.forEach((n,k)=>lp[n.id]={x:X0,y:8+k*(LH+GY)});
+  M.targets.forEach(([id],k)=>rp[id]={x:X0+LW+GX,y:8+k*(RH+8)});
+  const sel=SEL&&lp[SEL]?SEL:M.left[0].id;
+  let s="";
+  M.inner.forEach(e=>{const y1=lp[e.from].y+LH/2,y2=lp[e.to].y+LH/2,xm=Math.max(2,X0-10-Math.abs(y1-y2)/18);
+    s+=`<path d="M${X0} ${y1}C${xm} ${y1} ${xm} ${y2} ${X0} ${y2}" fill="none" class="stroke-muted" stroke-dasharray="4 3"/>`;});
+  M.edges.forEach(e=>{const a=lp[e.from],b=rp[e.to],on=e.from===sel,y1=a.y+LH/2,y2=b.y+RH/2;
+    s+=`<path d="M${a.x+LW} ${y1}C${a.x+LW+GX/2} ${y1} ${b.x-GX/2} ${y2} ${b.x} ${y2}" fill="none" style="stroke:${on?"var(--ink)":"#9CA3AF"}" stroke-width="${on?2:1}" class="${on?"":"dim"}"/>`;});
+  M.edges.filter(e=>e.from===sel&&e.why).forEach(e=>{const b=rp[e.to],y2=b.y+RH/2,txt=cut(e.why,36);
+    s+=`<rect x="${b.x-8-txt.length*5.6}" y="${y2-15}" width="${txt.length*5.6+4}" height="14" class="svg-paper"/><text x="${b.x-6}" y="${y2-4}" text-anchor="end" font-size="10.5" class="svg-ink">${esc(txt)}</text>`;});
+  M.left.forEach(n=>{const p=lp[n.id],f=nodeFacts(n),on=n.id===sel;
+    s+=`<g class="pick" data-sel="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(n.title)}"><rect x="${p.x}" y="${p.y}" width="${LW}" height="${LH}" class="${on?"svg-tint stroke-green":"svg-paper stroke-ink"}" stroke-width="2"/>
+      <text x="${p.x+10}" y="${p.y+20}" font-size="14" font-weight="600" font-family="Outfit" class="svg-ink">${esc(cut(n.title,30))}</text>
+      ${f.map((t,k)=>`<text x="${p.x+10}" y="${p.y+37+k*14}" font-size="10" class="${k===1&&n.kind==="plan"&&roll(n).open?"svg-ink":"svg-muted"}" font-family="JetBrains Mono">${esc(cut(t,46))}</text>`).join("")}</g>`;});
+  M.targets.forEach(([id,x])=>{const p=rp[id],pic=!x.plan;
+    s+=`<g ${pic?`class="pick" data-goto="${esc(x.dom)}" tabindex="0" role="button" aria-label="Open ${esc(x.title)}"`:""}><rect x="${p.x}" y="${p.y}" width="${RW}" height="${RH}" class="${pic?"svg-tint stroke-green":"svg-paper stroke-ink"}" ${pic?'stroke-dasharray="4 3"':""} stroke-width="1.5"/>
+      <text x="${p.x+10}" y="${p.y+17}" font-size="12" font-weight="600" class="svg-ink">${esc(cut(x.title,34))}</text>
+      <text x="${p.x+10}" y="${p.y+33}" font-size="10" class="svg-muted" font-family="JetBrains Mono">${esc(cut(extSub(x),40))}</text></g>`;});
+  const table=M.edges.map(e=>`<tr><td>${esc(byId[e.from].title)}</td><td>${extLabel(e.to)}${EXT[e.to].fact?` <span class="muted small">(${esc(EXT[e.to].fact)})</span>`:""}</td><td>${esc(e.why||"")} <span class="src">${esc(e.via)}</span></td></tr>`).join("");
+  const narrow=M.left.map(n=>`<div class="mapnode"><b>${esc(n.title)}</b>${nodeFacts(n).map(t=>`<span class="mono muted">${esc(t)}</span>`).join("")}
+    <div class="mapedge">${M.edges.filter(e=>e.from===n.id).map(e=>`<span class="mono">${EXT[e.to].plan?"to":"see"}</span><span>${extLabel(e.to)}${e.why?`: ${esc(e.why)}`:""}</span>`).join("")}${M.inner.filter(e=>e.from===n.id).map(e=>`<span class="mono">waits</span><span>on ${esc(byId[e.to].title)}</span>`).join("")}</div></div>`).join("");
+  return `<div class="wide-only stack"><div class="fig scroll" style="padding:12px"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Map">${s}</svg></div>
+    <p class="sel-note">Press a plan to show why each of its links exists. Dashed arcs on the left: one plan waits on another. Dashed green boxes are pictures; press one to open it.</p></div>
+    <div class="narrow-only stack">${narrow}</div>${legend()}
+    <details><summary>Every connection and why (${M.edges.length})</summary><div class="scroll"><table><thead><tr><th>From</th><th>To</th><th>Why</th></tr></thead><tbody>${table}</tbody></table></div></details>`;
+}
+
+function renderBoard(){
+  renderCrumbs();renderIndex();
+  $$(".modes button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.mode===MODE?"true":"false"));
+  $("#gblab").hidden=MODE!=="cards";$("#chainbtn").hidden=!(MODE==="time"||MODE==="deps");
+  $("#chainbtn").setAttribute("aria-pressed",CHAIN?"true":"false");
+  const set=visible();
+  $("#stage").innerHTML=MODE==="cards"?renderCards(set):MODE==="time"?renderTime(set):MODE==="deps"?renderDeps(set):renderMap(set);
+}
+
+/* ---------- start: the opening page for qualifying plans, else the ordinary start ---------- */
+const homes=new Set([P.home,...within(byId[ROOT]).flatMap(i=>i.links.map(l=>(EXT[l.to]||{}).home))].filter(Boolean));
+const openingOn=()=>!!OP&&(homes.size>=2||ITEMS.filter(i=>i.kind==="call").length>=5||openCalls.some(c=>c.unsure||(A[c.id]||{}).unsure));
+function unlockOrder(calls){
+  const done=new Set(),out=[],ids=new Set(calls.map(c=>c.id));
+  const visit=c=>{if(done.has(c.id))return;done.add(c.id);c.depends.filter(d=>ids.has(d)).forEach(d=>visit(byId[d]));out.push(c);};
+  calls.forEach(visit);return out;
+}
+const slug=t=>"g-"+t.toLowerCase().replace(/[^a-z0-9]+/g,"-");
+function glossTree(parent){return (OP.glossary||[]).filter(g=>(g.parent||"")===parent).map(g=>{const k=glossTree(g.term);
+  return `<li id="${slug(g.term)}"><b>${esc(g.term)}</b> <span>${esc(g.def)}</span>${(g.related||[]).map(r=>` <a href="#${slug(r)}">→ ${esc(r)}</a>`).join("")}${k?`<ul>${k}</ul>`:""}</li>`;}).join("");}
+const seedOf=s=>{let h=2166136261;for(const c of s)h=Math.imul(h^c.charCodeAt(0),16777619);return (h>>>0)||1;};
+function quizOrder(q){let x=seedOf(q.id);const a=q.options.map((_,k)=>k);for(let k=a.length-1;k>0;k--){x^=x<<13;x>>>=0;x^=x>>>17;x^=x<<5;x>>>=0;const j=x%(k+1);[a[k],a[j]]=[a[j],a[k]];}return a;}
+function renderQuiz(){
+  $("#quiz").innerHTML=QUIZ.map(q=>{const a=CK[q.id],done=!!a&&a.choice!=null,c=EXT["concept:"+q.concept];
+    return `<div class="chk"><span class="small"><b>${esc(q.question)}</b></span><div class="stack" style="gap:6px">${quizOrder(q).map(k=>`<button class="qopt ${done&&a.choice===k?(k===q.answer?"right":"wrong"):""}" data-quiz="${esc(q.id)}" data-k="${k}" aria-pressed="${done&&a.choice===k}" ${done?"disabled":""}>${esc(q.options[k])}</button>`).join("")}</div>
+      ${done?`<p class="small"><b>${a.choice===q.answer?"Right.":"Not quite."}</b> ${esc(q.why)} <button class="lk" data-goto="${esc(c.dom)}">See ${esc(c.title)}</button></p>`:""}</div>`;}).join("")||'<p class="muted small">Nothing to check: every concept here is one you already know.</p>';
+}
+function renderOpening(){
+  const on=openingOn();$("#opening").hidden=!on;$("#plain").hidden=on;$("#plainfigs").hidden=on;$("#nextwrap").hidden=on;
+  if(!on) return;
+  const m=OP.mission;
+  $("#mission").innerHTML=`<p>“${esc(m.why)}”</p>${m.success.length?`<p><b>Success:</b> ${m.success.map(esc).join(" · ")}</p>`:""}${m.out.length?`<p><b>Out:</b> ${m.out.map(esc).join(" · ")}</p>`:""}`;
+  const linked=new Set(within(byId[ROOT]).flatMap(i=>i.links.map(l=>l.to)));
+  const ruled=[...decidedCalls.map(c=>`${c.id} ${c.title}: ${c.pick} · ${optOf(c,c.pick)}`),
+    ...Object.entries(P.plans||{}).filter(([k])=>linked.has(k)).flatMap(([,p])=>(p.ruled||[]).map(r=>`${p.title}: ${r}`)),
+    ...Object.values(KNOWN).filter(k=>k.state==="known").map(k=>`${(EXT["concept:"+k.concept]||{title:k.concept}).title}: known (${k.evidence})`)];
+  $("#ruled").innerHTML=ruled.map(r=>`<li>${esc(r)}</li>`).join("")||'<li class="muted">Nothing yet.</li>';
+  $("#gloss").innerHTML=glossTree("");
+  const teach=c=>(KNOWN[c.id]||{}).state==="to-teach"?0:1;
+  const pics=(OP.concepts||[]).map(id=>EXT["concept:"+id]).sort((a,b)=>teach(a)-teach(b));
+  $("#refpics").innerHTML=pics.map(c=>`<figure class="fig">${picture(c)}<figcaption><b>${esc(c.title)}</b>${teach(c)?"":' <span class="chip park">to teach again</span>'} ${esc(c.caption||"")}</figcaption></figure>`).join("");
+  renderQuiz();
+  $("#opencalls").innerHTML=unlockOrder(openCalls).map(c=>card(c,"o")).join("")||'<p class="muted">No open calls.</p>';
+}
+function renderCounts(){
+  const ls=leaves(ROOT),todo=ls.filter(i=>i.kind==="task"&&["planned","building","deferred"].includes(stateOf(i)));
+  const cell=(cls,label,n,sub)=>`<div class="${cls}"><span class="eyebrow">${label}</span><span class="big">${n}</span><span class="muted small">${sub}</span></div>`;
+  const np=new Set(todo.map(i=>i.parent)).size;
+  $("#counts").innerHTML=cell("hi","Your calls",openCalls.length,openCalls.length?"answer them on this page or the Board":"nothing waits on you")
+   +cell("","Decided",ls.filter(i=>i.status==="decided"&&(i.kind==="call"||i.state==="done")).length,"calls answered and changes built")
+   +cell("","In the fog",ls.filter(i=>i.status==="parked").length,"new asks land here")
+   +cell("","Changes ahead",todo.length,`in ${np} plan${np===1?"":"s"}`);
+}
+function renderNext(){const ls=leaves(ROOT);
+  const pick=[...unlockOrder(openCalls),...ls.filter(frontier),...ls.filter(i=>i.status==="parked")].slice(0,3);
+  $("#next3").innerHTML=pick.map(i=>card(i,"s")).join("")||'<p class="muted">Nothing is waiting.</p>';}
+function answersText(){
+  const lines=[`${byId[ROOT].title} answers, round ${P.round}`];
+  openCalls.forEach(c=>{const a=A[c.id]||{};const parts=[`${c.id} ${c.title} -> ${a.pick?`${a.pick}: ${optOf(c,a.pick)}`:"no answer"}`];
+    if(a.unsure)parts.push("not sure, draw it for me");if(a.note)parts.push(`note: ${a.note}`);lines.push(parts.join(" | "));});
+  decidedCalls.forEach(c=>{if(RE[c.id])lines.push(`${c.id} ${c.title} -> change: ${RE[c.id]}`);});
+  QUIZ.forEach(q=>{const a=CK[q.id];if(a&&a.choice!=null)lines.push(`Check ${q.id} (${q.concept}) -> ${a.choice===q.answer?"right":"missed"}`);});
+  if(GN)lines.push(`General note: ${GN}`);
+  return lines.join("\n");
+}
+function renderBar(){
+  const n=openCalls.filter(c=>A[c.id]&&(A[c.id].pick||A[c.id].unsure)).length,r=Object.values(RE).filter(Boolean).length;
+  const tail=r?` · ${r} change${r>1?"s":""} asked`:"";
+  $("#ansmsg").textContent=db&&canWrite?`${n} of ${openCalls.length} calls answered and saved${tail}.`:`${n} of ${openCalls.length} calls answered here${tail}. Saving is off in this view; use Copy answers.`;
+  $("#copybox").value=answersText();
+}
+function picture(c){return c.svg||`<img src="${esc(c.asset)}" alt="${esc(c.title)}">`;}
+function renderConcepts(){
+  const used=new Set([...ITEMS.flatMap(i=>i.links.map(l=>l.to)),...(OP?(OP.concepts||[]).concat(QUIZ.map(q=>q.concept)).map(id=>"concept:"+id):[])]);
+  const cs=(P.concepts||[]).filter(c=>used.has("concept:"+c.id));
+  const fig=c=>`<figure class="fig">${picture(c)}<figcaption>${c.kind!=="diagram"?`<b>${KINDS[c.kind]}.</b> `:""}${esc(c.caption||"")}</figcaption></figure>`;
+  $("#conceptlist").innerHTML=cs.map(c=>`<div class="stack" id="concept-${esc(c.id)}"><h3>${esc(c.title)}</h3>${fig(c)}</div>`).join("");
+  $("#startfig").innerHTML=cs.length?fig(cs[0]):"";
+}
+function renderAll(){renderOpening();renderCounts();renderNext();renderBoard();renderBar();}
+
+$("#eyebrow").textContent=`Planning board · round ${P.round} · ${day(0)}`;
+$("#title").textContent=byId[ROOT].title;
+$("#lede").textContent=byId[ROOT].dest||"";
+$("#outline").textContent=(byId[ROOT].out||[]).join(" · ")||"Nothing named yet.";
+$("#flowboxes").innerHTML=[["1 · YOU PICK","on any network"],["2 · SAVED","one record per call"],["3 · FIRSTMATE READS","the store, not the page"],["4 · RECORDED","on the task that holds it"],["5 · REDRAWN","decided; new asks to the fog"]].map((t,k)=>{const x=4+k*180;return `<rect x="${x}" y="20" width="160" height="70" class="${k===4?"svg-ink":"svg-paper stroke-ink"}" stroke-width="2"/><text x="${x+10}" y="44" class="svg-green" font-family="JetBrains Mono" font-size="11">${t[0]}</text><text x="${x+10}" y="68" class="${k===4?"svg-paper":"svg-ink"}">${t[1]}</text>${k<4?`<path d="M${x+160} 55h16" class="stroke-ink" stroke-width="2"/>`:""}`;}).join("");
+if((P.evidence||[]).length){$("#evtab").hidden=false;$("#evrows").innerHTML=P.evidence.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td class="src">${esc(r[2])}</td></tr>`).join("");}
+renderConcepts();
+
+/* saving: one document per call in answers/, per quiz question in check/, reopen/ and notes/general; a round marker in rounds/ */
+async function put(path,data){if(!db||!canWrite)return false;try{await db.doc(path).set({...data,at:new Date().toISOString()});return true;}catch(e){if(e&&e.code==="invalid_argument"){canWrite=false;renderBar();}return false;}}
+const saveAnswer=id=>{const a=A[id]||{};return put("answers/"+id,{item:id,pick:a.pick||"",note:a.note||"",unsure:!!a.unsure});};
+const timers={};
+const later=(k,fn)=>{clearTimeout(timers[k]);timers[k]=setTimeout(()=>{fn();renderBar();},900);};
+const mirror=(attr,id,t)=>$$(`[${attr}="${CSS.escape(id)}"]`).forEach(x=>{if(x!==t)x.value=t.value;});
+document.addEventListener("input",e=>{
+  const t=e.target;if(!t.dataset)return;
+  if(t.dataset.re){const id=t.dataset.re;RE[id]=t.value;mirror("data-re",id,t);later("re"+id,()=>put("reopen/"+id,{item:id,note:RE[id]}));}
+  if(t.dataset.note){const id=t.dataset.note;(A[id]??={}).note=t.value;mirror("data-note",id,t);later("n"+id,()=>saveAnswer(id));}
+  if(t.id==="gnote"){GN=t.value;later("g",()=>put("notes/general",{note:GN}));}
+});
+document.addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.unsure){const id=t.dataset.unsure;(A[id]??={}).unsure=t.checked;$$(`[data-unsure="${CSS.escape(id)}"]`).forEach(x=>x.checked=t.checked);saveAnswer(id);renderBar();}});
+function showTab(t){$$("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t?"true":"false"));$$("section.view").forEach(s=>s.hidden=s.id!=="v-"+t);try{localStorage.setItem("plan-board-tab:"+ROOT,t);}catch(_){}}
+document.addEventListener("click",e=>{
+  const pk=e.target.closest("[data-pick]");if(pk){const id=pk.dataset.pick,a=(A[id]??={});a.pick=a.pick===pk.dataset.key?"":pk.dataset.key;
+    $$(`[data-pick="${CSS.escape(id)}"]`).forEach(b=>b.setAttribute("aria-pressed",b.dataset.key===a.pick?"true":"false"));saveAnswer(id);renderBar();return;}
+  const qz=e.target.closest("[data-quiz]");if(qz){const id=qz.dataset.quiz,q=QUIZ.find(x=>x.id===id);if(!q||(CK[id]&&CK[id].choice!=null))return;const k=+qz.dataset.k;
+    CK[id]={choice:k,correct:k===q.answer};renderQuiz();renderBar();put("check/"+id,{item:id,choice:k,correct:k===q.answer});return;}
+  const g=e.target.closest("[data-goto]");if(g){const el=document.getElementById(g.dataset.goto),sec=el&&el.closest?el.closest("section.view"):null;showTab(sec?sec.id.slice(2):"concepts");if(el&&el.scrollIntoView)el.scrollIntoView({block:"start"});return;}
+  const o=e.target.closest("[data-open]");if(o){CUR=o.dataset.open;SEL=null;showTab("board");renderBoard();window.scrollTo(0,0);return;}
+  const tb=e.target.closest("[data-tab]");if(tb){showTab(tb.dataset.tab);return;}
+  const m=e.target.closest("[data-mode]");if(m){MODE=m.dataset.mode;SEL=null;if((MODE==="time"||MODE==="deps")&&CUR===ROOT)$("#depth").value="all";if(MODE==="map")$("#depth").value="level";renderBoard();return;}
+  const s=e.target.closest("[data-sel]");if(s){const id=s.dataset.sel;SEL=SEL===id?null:id;renderBoard();}
+});
+document.addEventListener("keydown",e=>{if(e.key!=="Enter"&&e.key!==" ")return;const s=e.target.closest&&e.target.closest("g[data-sel],g[data-goto]");if(s){e.preventDefault();s.dispatchEvent(new MouseEvent("click",{bubbles:true}));}});
+$("#depth").addEventListener("change",()=>{SEL=null;renderBoard();});$("#kindf").addEventListener("change",()=>{SEL=null;renderBoard();});$("#groupby").addEventListener("change",renderBoard);
+$("#chainbtn").addEventListener("click",()=>{CHAIN=!CHAIN;SEL=null;renderBoard();});
+$("#copybtn").addEventListener("click",async()=>{const w=$("#copywrap");w.hidden=!w.hidden;$("#copybox").value=answersText();if(!w.hidden){$("#copybox").select();try{await navigator.clipboard.writeText(answersText());$("#ansmsg").textContent="Answers copied.";}catch(_){}}});
+$("#sendbtn").addEventListener("click",async()=>{
+  if(!db||!canWrite){$("#copywrap").hidden=false;$("#copybox").value=answersText();$("#ansmsg").textContent="Saving is off here. Copy the text below into chat.";return;}
+  const ok=await put("rounds/r"+Date.now(),{round:P.round,answered:openCalls.filter(c=>A[c.id]&&A[c.id].pick).length,of:openCalls.length,checked:QUIZ.filter(q=>CK[q.id]&&CK[q.id].choice!=null).map(q=>q.id),changes:Object.keys(RE).filter(k=>RE[k]),general:!!GN});
+  $("#ansmsg").textContent=ok?"Round sent. Firstmate reads it on its next sweep.":"Could not send the round. Everything you typed is still saved.";
+});
+
+renderAll();
+try{const t=localStorage.getItem("plan-board-tab:"+ROOT);if(t&&document.getElementById("v-"+t)&&!document.querySelector(`[data-tab="${t}"]`).hidden)showTab(t);}catch(_){}
+
+(async()=>{
+  if(!window.claude||!window.claude.use){renderBar();return;}
+  db=await window.claude.use("db");
+  const user=await window.claude.use("user");
+  if(user){try{if(await user.can("data.write")===false)canWrite=false;}catch(_){}}
+  if(!db){renderBar();return;}
+  const typing=()=>{const el=document.activeElement;return !!el&&el.tagName==="TEXTAREA";};
+  db.collection("answers").onSnapshot(snap=>{snap.docs.forEach(d=>{const v=d.data()||{};if(byId[d.id])A[d.id]={pick:v.pick||"",note:v.note||"",unsure:!!v.unsure};});if(typing()){renderBar();return;}renderAll();},()=>{db=null;renderBar();});
+  db.collection("check").onSnapshot(snap=>{snap.docs.forEach(d=>{const v=d.data()||{};if(typeof v.choice==="number")CK[d.id]={choice:v.choice,correct:!!v.correct};});if(!typing()&&openingOn())renderQuiz();renderBar();},()=>{});
+  db.collection("reopen").onSnapshot(snap=>{snap.docs.forEach(d=>{RE[d.id]=(d.data()||{}).note||"";});if(typing()){renderBar();return;}renderAll();},()=>{});
+  try{const g=await db.doc("notes/general").get();if(g.exists&&!typing()){GN=(g.data()||{}).note||"";$("#gnote").value=GN;}}catch(_){}
+  renderBar();
+})();
+</script>
