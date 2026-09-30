@@ -26,7 +26,7 @@
 # Output is one stable, parseable, token-tight line firstmate can read every
 # heartbeat:
 #
-#   state: <working|parked|done|blocked|paused|failed|unknown> · source: <run-step|pane|status-log|remote-endpoint|none> · <detail>
+#   state: <working|parked|done|blocked|paused|failed|unknown> · source: <run-step|pane|status-log|remote-endpoint|cloud-session|none> · <detail>
 #
 # Logic, in order:
 #   1. Resolve worktree + backend target + kind from state/<id>.meta. A meta
@@ -36,7 +36,10 @@
 #      (fm-on.sh + fm-remote-secondmate-control.sh state). alive falls through
 #      to the routed status log; dead/missing report the remote verdict; an
 #      unreachable or unreadable remote reports unknown-remote, never a false
-#      gone/dead.
+#      gone/dead. A meta recording backend=cloud is a cloud task
+#      (bin/fm-cloud.sh): it has no worktree or pane, so its status log answers
+#      when it has a verb, and otherwise it reads working from source
+#      cloud-session with the session URL as its detail.
 #   2. Matching no-mistakes run for this crew's branch AND current code identity,
 #      active or terminal (from `axi status`, or the coarse `no-mistakes runs`
 #      fallback)? Branch name alone is not enough: a historical run on a reused
@@ -223,7 +226,10 @@ REMOTE_HOST=$(meta_value remote_host)
 # A torn-down (or never-created) worktree has no current state to read. A
 # remote secondmate's recorded worktree is a path on ITS host, so the local
 # probe proves nothing for it - the remote arm below reads the true source.
-if [ -z "$REMOTE_HOST" ] && { [ -z "$WT" ] || [ ! -d "$WT" ]; }; then
+# A cloud task (bin/fm-cloud.sh) never has a local worktree; its arm below reads it.
+CLOUD_SESSION=
+[ "$(meta_value backend)" != cloud ] || CLOUD_SESSION=$(meta_value cloud_session)
+if [ -z "$REMOTE_HOST" ] && [ -z "$CLOUD_SESSION" ] && { [ -z "$WT" ] || [ ! -d "$WT" ]; }; then
   emit unknown none "worktree gone (torn down?)"
 fi
 
@@ -262,6 +268,18 @@ map_log_state() {  # <line>
 
 LOG_LINE=$(status_current_line "$LOG" "$KIND")
 LOG_VERB=$(status_line_verb "$LOG_LINE")
+
+# --- cloud task: the session runs off this machine --------------------------
+# There is no run-step or pane to read here. The status log carries the ready
+# report bin/fm-cloud.sh poll appends once the session's pull request exists;
+# until then the task is under way in its cloud session.
+if [ -n "$CLOUD_SESSION" ]; then
+  [ "$LOG_VERB" != "done" ] || emit_ship_status_done "cloud session $CLOUD_SESSION"
+  if [ -n "$LOG_VERB" ] && [ "$(map_log_state "$LOG_LINE")" != unknown ]; then
+    emit "$(map_log_state "$LOG_LINE")" status-log "$(status_line_note "$LOG_LINE")${SEP}cloud session $CLOUD_SESSION"
+  fi
+  emit working cloud-session "$CLOUD_SESSION (no pull request yet)"
+fi
 
 # --- remote secondmate: the true source is the remote endpoint ---------------
 # A remote mate's recorded worktree and backend target live on its own host, so
