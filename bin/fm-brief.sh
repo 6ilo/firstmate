@@ -526,7 +526,7 @@ SHARED_INFRA_RULE=${SHARED_INFRA_RULE%$'\n'}
 HEAVY_SLOT_CMD=$(shell_quote "$FM_ROOT/bin/fm-heavy-slot.sh")
 HEAVY_SLOT_ARGS="--task $(shell_quote "$ID") --home $(shell_quote "$FM_HOME")"
 IFS= read -r -d '' SHARED_HEAVY_RULE <<EOF || true
-8. Hold a machine-wide heavy slot for every heavy command, because heavy runs across the whole fleet share three slots.
+8. Hold a machine-wide heavy slot for every heavy command, because heavy runs across the whole fleet share two slots by default.
    - Heavy: a no-mistakes validation run until it reaches its CI step, pixel or visual gates, full verify scripts,
      Playwright or any headless browser, full or multi-package test suites (vitest, jest, pytest, bin/fm-test-run.sh
      families) and full-suite walks, production builds, cold dependency installs, and local model runs.

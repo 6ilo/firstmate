@@ -630,7 +630,7 @@ A backlog-lane ship spawn refuses `--yolo on`, so backlog work always keeps the 
 ### Slots, lanes, and the ledger
 
 `bin/fm-heavy-slot.sh` keeps one ledger per machine at `~/.local/state/firstmate/heavy-slots/`, or at `FM_HEAVY_SLOT_DIR` when set, shared by every local home.
-There are 3 slots by default and 2 are reserved for asks: an ask may take any free slot, and backlog work may hold at most `heavy_total - ask_reserve` of them.
+There are 2 slots by default and 1 is reserved for asks: an ask may take any free slot, and backlog work may hold at most `heavy_total - ask_reserve` of them.
 An ask that is refused or still waiting is listed as a waiter, so backlog work can see that an ask needs a slot.
 Every ship and scout brief tells the worker to acquire a slot before a heavy command and release it when the command finishes or the validation run reaches its CI step.
 A refused acquire is a declared wait: the worker appends `paused: waiting for a heavy validation slot` and retries rather than running anyway.
@@ -642,12 +642,15 @@ A new heavy run is refused while any reading is at its limit:
 
 | Reading | Default limit | `config/lanes.json` key |
 | --- | --- | --- |
-| 1-minute load average | refuse at 16 or above | `max_load` |
-| `kern.memorystatus_vm_pressure_level` | refuse at 4 (critical) or above | `max_pressure_level` |
+| `kern.memorystatus_vm_pressure_level` | refuse at 2 (warning) or above | `max_pressure_level` |
 | Swap used, from `sysctl vm.swapusage` | refuse at 7168 MB used or above | `max_swap_used_mb` |
 | WebKit WebContent page processes | refuse above 30 | `max_browser_pages` |
+| 1-minute load average | reported only, never refuses | `max_load` |
 
-A reading the platform cannot take is reported as unknown and never refuses; load and the slot count still apply.
+Memory is the machine gate because load is a poor proxy on macOS: system daemons such as `fairplaydeviceidentityd` and `syspolicyd` hold the load average at 30-90 with no fleet work running, so a load gate starves validation for no benefit.
+The load average is still read and shown in `list` and `gates` with limit `off`, and a home that wants a load gate sets `max_load` to refuse at that value or above.
+The ledger never chooses between waiters, since the first to find a free slot takes it, so load is not used as a tie-breaker either.
+A reading the platform cannot take is reported as unknown and never refuses; the other readings and the slot count still apply.
 Workers close Playwright browsers and preview or Lavish tabs when a check finishes, which keeps browser page processes under the cap.
 
 ### What counts as heavy
@@ -657,7 +660,7 @@ Not heavy: single affected test files, lint, one-package typecheck, git, CI wait
 
 ### config/lanes.json
 
-The optional local, gitignored `config/lanes.json` is a JSON object whose keys all default when absent: `heavy_total` (3), `ask_reserve` (2), and the gate keys above.
+The optional local, gitignored `config/lanes.json` is a JSON object whose keys all default when absent: `heavy_total` (2), `ask_reserve` (1), and the gate keys above.
 The ledger reads the file from the home that runs the acquire and never creates it.
 The script's header owns the subcommands, exit codes, ledger record fields, and reap evidence.
 The backlog-lane gate reads the same file for its own keys; see [Work lanes](#work-lanes-configlanesjson).
