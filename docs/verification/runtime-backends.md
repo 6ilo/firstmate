@@ -2325,3 +2325,31 @@ A throwaway scout was spawned through `bin/fm-spawn.sh --scout --harness omp --m
 6. `bin/fm-control.sh <id> exit` stopped the agent and `bin/fm-teardown.sh` returned the worktree and closed the item.
 
 `FM_OMP_LIVE_E2E=1 tests/fm-omp-primary-live-e2e.test.sh` refreshes the primary evidence; the worker path above is refreshed by repeating the scout dispatch after any omp upgrade.
+
+## Cloud sessions
+
+`bin/fm-cloud.sh launch` reads the folder-trust prompt and the session URL from the rendered screen of `claude --cloud`, so its launch is harness-dependent.
+Verified on 2026-09-30 with Claude Code 2.1.285 and tmux 3.7c on macOS, from a scratch home against a small private repository with a one-file brief:
+
+```sh
+FM_HOME=<scratch-home> FM_CLOUD_LAUNCH_DIR=<scratch>/cloud-launch \
+  bin/fm-cloud.sh launch cloud-smoke <owner>/<repo> --mode direct-PR --yolo off
+FM_HOME=<scratch-home> bin/fm-crew-state.sh cloud-smoke
+FM_HOME=<scratch-home> bash <scratch-home>/state/cloud-smoke.check.sh   # repeated until the ready report
+FM_HOME=<scratch-home> bin/fm-crew-state.sh cloud-smoke
+FM_HOME=<scratch-home> bin/fm-teardown.sh cloud-smoke
+```
+
+Observed output, identifiers elided:
+
+```text
+launched cloud-smoke backend=cloud repo=<owner>/<repo> branch=fm/cloud-smoke mode=direct-PR yolo=off session=https://claude.ai/code/session_<id>
+state: working · source: cloud-session · https://claude.ai/code/session_<id> (no pull request yet)
+done [at=<epoch>]: PR https://github.com/<owner>/<repo>/pull/<n>
+state: done · source: status-log · PR https://github.com/<owner>/<repo>/pull/<n> · cloud session https://claude.ai/code/session_<id>
+teardown cloud-smoke complete (cloud task; no local endpoint or copy)
+```
+
+The session opened a ready-for-review pull request on `fm/cloud-smoke` changing only the requested file, about a minute after launch, and the backlog item closed with that pull request as its link.
+When a Claude Code release changes either rendered string, launch stops with the last screen saved and the installed version named; repeat the commands above after a Claude Code upgrade to refresh this record.
+`tests/fm-cloud.test.sh` pins the launcher, ready report, merge-poll handoff, and cleanup against a stubbed `claude` without any real launch.

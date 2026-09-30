@@ -132,6 +132,10 @@ test_cloud_task_from_launch_to_cleanup() {
 
   out=$(in_home "$home" "$ROOT/bin/fm-crew-state.sh" "$id")
   assert_contains "$out" "state: working · source: cloud-session · $SESSION_URL" "an under-way cloud task did not read as working"
+  out=$(in_home "$home" "$ROOT/bin/fm-fleet-snapshot.sh" --json \
+    | jq -r --arg id "$id" '.tasks[] | select(.id == $id) | [.backend, .current_state.state, .project, .actions.watch] | @tsv')
+  assert_equals "cloud"$'\t'"working"$'\t'"example/widgets"$'\t'"open the cloud session $SESSION_URL" "$out" \
+    "the fleet view did not show the cloud task under way with its session"
 
   # Cleanup before any pull request would lose track of work only the session holds.
   set +e

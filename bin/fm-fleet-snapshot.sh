@@ -800,6 +800,8 @@ task_json_lines() {
     mode=$(meta_value "$meta" mode)
     yolo=$(meta_value "$meta" yolo)
     project=$(meta_value "$meta" project)
+    # A cloud task (bin/fm-cloud.sh) may have no local clone; name its repository.
+    [ -n "$project" ] || project=$(meta_value "$meta" cloud_repo)
     worktree=$(meta_value "$meta" worktree)
     home=$(meta_value "$meta" home)
     projects=$(meta_value "$meta" projects)
@@ -917,6 +919,7 @@ task_json_lines() {
       --arg agent_alive "$agent_alive" \
       --arg observed_at "$SNAPSHOT_NOW" \
       --arg last_event_raw "$last_event_raw" \
+      --arg cloud_session "$(meta_value "$meta" cloud_session)" \
       --argjson current_state "$current_json" \
       --argjson meta_path "$meta_json" \
       --argjson status_log "$status_json" \
@@ -966,6 +969,10 @@ task_json_lines() {
             {send:"bin/fm-send.sh fm-\($id) \u0027<request>\u0027",
              watch:"read status/doc return channel; do not routinely fm-peek a secondmate for answers",
              return_channel_note:"Secondmate answers come back through status/doc paths after a marked fm-send request."}
+          elif $backend == "cloud" then
+            {watch:"open the cloud session \($cloud_session)",
+             steer:null,
+             return_channel_note:"A cloud session reports back only through its pull request (bin/fm-cloud.sh)."}
           else
             {watch:"bin/fm-peek.sh fm-\($id)",
              steer:"bin/fm-send.sh fm-\($id) \u0027<instruction>\u0027",

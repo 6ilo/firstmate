@@ -135,7 +135,7 @@ cloud_session_start() {  # <dir> <prompt-file>
   done
   tmux -L "$sock" kill-server 2>/dev/null || true
   if [ -z "$url" ]; then
-    echo "error: no cloud session URL after ${limit}s; the last screen is saved at $out" >&2
+    echo "error: no cloud session URL after ${limit}s from claude $(claude --version 2>/dev/null | head -1); the last screen is saved at $out" >&2
     return 1
   fi
   rm -f "$out"
