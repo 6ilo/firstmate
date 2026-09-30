@@ -1,0 +1,32 @@
+$ FM_HOME=<fixture> bin/fm-today-bridge.sh push --dry-run snap.json
+ok
+dry-run: wrote /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-today-live.K9wKIt/snap.json; nothing was sent
+exit=0
+
+# decision cards and their options, from the dry-run snapshot:
+[
+  {
+    "owner": "(main)",
+    "task_id": "portal-rail-order",
+    "kind": "decision",
+    "options": [
+      {
+        "value": "reconcile",
+        "label": "Already settled",
+        "recommended": false
+      }
+    ]
+  },
+  {
+    "owner": "(main)",
+    "task_id": "kit-order",
+    "kind": "decision",
+    "options": [
+      {
+        "value": "reconcile",
+        "label": "Already settled",
+        "recommended": false
+      }
+    ]
+  }
+]

@@ -1,0 +1,24 @@
+# live card from the bridge snapshot
+$ check card.json
+ok
+exit=0
+
+$ check a-main.json   ({"owner":null,"kind":"decision","value":"reconcile"})
+ok
+exit=0
+
+$ check a-mate.json   ({"owner":"relay-platform","kind":"decision","value":"reconcile"})
+ok
+exit=0
+
+$ check a-cred.json   ({"owner":null,"kind":"credential","value":"reconcile"})
+error: $.value: enum: "reconcile" is not one of ['seen', 'later']
+exit=1
+
+$ check a-badowner.json   ({"owner":"relay/platform","kind":"decision","value":"reconcile"})
+error: $.owner: pattern: "relay/platform" does not match
+exit=1
+
+$ check c-notlast.json   ({"owner":"(main)","kind":"decision","value":null})
+error: $.options[0].value: reconcile: only a decision card's final option
+exit=1
