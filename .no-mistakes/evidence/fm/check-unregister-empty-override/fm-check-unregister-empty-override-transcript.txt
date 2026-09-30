@@ -1,0 +1,55 @@
+== lab home: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U
+## Scenario 1: empty FM_STATE_OVERRIDE, register then unregister (fixed)
+$ env FM_HOME=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U FM_STATE_OVERRIDE= bin/fm-check-register.sh demo
+registered: state/demo.check.sh
+exit=0
+-rw-------@ 1 anwulikaanigbodesktop  staff  84 Sep 30 02:56 demo.check-trust
+-rwx------@ 1 anwulikaanigbodesktop  staff  28 Sep 30 02:56 demo.check.sh
+$ env FM_HOME=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U FM_STATE_OVERRIDE= bin/fm-check-unregister.sh demo
+unregistered: state/demo.check.sh
+exit=0
+after:
+(no demo files remain)
+
+## Scenario 2 (regression reproduction): base-commit unregister under same env
+registered: state/demo2.check.sh
+register exit=0
+$ env FM_HOME=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U FM_STATE_OVERRIDE= bin/.base-unreg.sh demo2
+error: state directory is unavailable
+exit=1
+-rw-------@ 1 anwulikaanigbodesktop  staff  84 Sep 30 02:56 demo2.check-trust
+-rwx------@ 1 anwulikaanigbodesktop  staff  28 Sep 30 02:56 demo2.check.sh
+fixed unregister of demo2:
+$ env FM_HOME=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U FM_STATE_OVERRIDE= bin/fm-check-unregister.sh demo2
+unregistered: state/demo2.check.sh
+exit=0
+
+## Scenario 3: unset override still works
+registered: state/demo3.check.sh
+register exit=0
+$ env -u FM_STATE_OVERRIDE FM_HOME=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U bin/fm-check-unregister.sh demo3
+unregistered: state/demo3.check.sh
+exit=0
+(no demo3 files remain)
+
+## Scenario 4 (adversarial): override pointing at missing dir still refused, home files untouched
+registered: state/demo4.check.sh
+register exit=0
+$ env FM_HOME=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U FM_STATE_OVERRIDE=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U/nope bin/fm-check-unregister.sh demo4
+error: state directory is unavailable
+exit=1
+-rw-------@ 1 anwulikaanigbodesktop  staff  84 Sep 30 02:56 demo4.check-trust
+-rwx------@ 1 anwulikaanigbodesktop  staff  28 Sep 30 02:56 demo4.check.sh
+## Scenario 4b: symlinked state override refused
+$ env FM_HOME=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U FM_STATE_OVERRIDE=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U/statelink bin/fm-check-unregister.sh demo4
+error: state directory is unavailable
+exit=1
+-rw-------@ 1 anwulikaanigbodesktop  staff  84 Sep 30 02:56 demo4.check-trust
+-rwx------@ 1 anwulikaanigbodesktop  staff  28 Sep 30 02:56 demo4.check.sh
+## Scenario 4c: invalid/empty id with empty override refused
+$ env FM_HOME=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U FM_STATE_OVERRIDE= bin/fm-check-unregister.sh 
+error: invalid custom check unregistration
+exit=2
+$ env FM_HOME=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.On1D9U FM_STATE_OVERRIDE= bin/fm-check-unregister.sh ../x
+error: invalid custom check unregistration
+exit=2
