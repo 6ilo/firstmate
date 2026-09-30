@@ -329,37 +329,47 @@ def cmd_confirm(home, path):
         if errs:
             print("refused: nothing was enrolled")
             return 1
+        label = home.pending()["label"]
+    spki = check.b64url_decode(enrolment["public_key_spki"])
+    pem = public_pem(spki)
+    backup_eligible, sign_count = attested_facts(enrolment)
+    summary = "\n".join([
+        "",
+        "Trust this passkey to sign the merge word and the go from Today?",
+        "  label:       %s" % printable(label),
+        "  device:      %s (as the portal reports it)" % printable(enrolment["device"]),
+        "  registered:  %s (as the portal reports it)" % printable(enrolment["enrolled_at"]),
+        "  credential:  %s" % enrolment["credential_id"],
+        "  key:         %s %s" % (ALG_NAMES[enrolment["public_key_alg"]], fingerprint(spki)),
+        "  synced:      %s" % ("yes, backup eligible" if backup_eligible else "no, this device only"),
+        "Confirm only if you registered this passkey on Today just now.",
+        "Type yes to trust it, anything else to refuse: ",
+    ])
+    answer = ask_at_machine(summary)
+    if answer is None:
+        print("refused: no terminal at this machine to confirm on; nothing was enrolled")
+        return 1
+    with home:
+        at = now()
         record = home.pending()
-        spki = check.b64url_decode(enrolment["public_key_spki"])
-        pem = public_pem(spki)
-        backup_eligible, sign_count = attested_facts(enrolment)
-        summary = "\n".join([
-            "",
-            "Trust this passkey to sign the merge word and the go from Today?",
-            "  label:       %s" % printable(record["label"]),
-            "  device:      %s (as the portal reports it)" % printable(enrolment["device"]),
-            "  registered:  %s (as the portal reports it)" % printable(enrolment["enrolled_at"]),
-            "  credential:  %s" % enrolment["credential_id"],
-            "  key:         %s %s" % (ALG_NAMES[enrolment["public_key_alg"]], fingerprint(spki)),
-            "  synced:      %s" % ("yes, backup eligible" if backup_eligible else "no, this device only"),
-            "Confirm only if you registered this passkey on Today just now.",
-            "Type yes to trust it, anything else to refuse: ",
-        ])
-        answer = ask_at_machine(summary)
-        if answer is None:
-            print("refused: no terminal at this machine to confirm on; nothing was enrolled")
-            return 1
-        record["status"] = "taken"
-        record["taken_at"] = stamp(now())
+        ours = bool(record) and record.get("enrol_id") == enrolment["enrol_id"] and record.get("status") == "open"
+        if ours:
+            record["status"] = "taken"
+            record["taken_at"] = stamp(at)
         if answer.strip() != "yes":
-            record["decision"] = "refused"
-            home.save_pending(record)
+            if ours:
+                record["decision"] = "refused"
+                home.save_pending(record)
             print("refused at the machine: nothing was enrolled")
             return 1
-        if check.instant(record["expires_at"]) < now():
-            record["decision"] = "expired"
-            home.save_pending(record)
-            print("refused: the enrolment expired while waiting for the answer; nothing was enrolled")
+        errs = enrolment_errors(home, enrolment, at)
+        if errs:
+            for err in errs:
+                print("error: " + err)
+            if ours:
+                record["decision"] = "expired" if check.instant(record["expires_at"]) < at else "refused"
+                home.save_pending(record)
+            print("refused: the enrolment changed while waiting for the answer; nothing was enrolled")
             return 1
         credentials = home.credentials()
         credentials.append({

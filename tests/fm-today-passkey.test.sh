@@ -16,10 +16,11 @@ TMP_ROOT=$(fm_test_tmproot fm-today-passkey)
 
 # Run the rest of the command line with a fresh pseudo-terminal as its
 # controlling terminal, type <answer> once it asks, and print everything it
-# wrote; exit with its status.
+# wrote; exit with its status. When WHILE_ASKING is set, it runs as a shell
+# command, within 10 seconds, while the question is open and before the answer.
 TTY_DRIVER="$TMP_ROOT/tty-driver.py"
 cat > "$TTY_DRIVER" <<'PY'
-import os, pty, select, sys
+import os, pty, select, subprocess, sys
 answer, cmd = sys.argv[1], sys.argv[2:]
 pid, fd = pty.fork()
 if pid == 0:
@@ -37,6 +38,9 @@ while True:
         break
     buf += data
     if not sent and b"Type yes" in buf:
+        if os.environ.get("WHILE_ASKING"):
+            subprocess.run(os.environ["WHILE_ASKING"], shell=True, check=True, timeout=10,
+                           stdin=subprocess.DEVNULL)
         os.write(fd, answer.encode() + b"\n")
         sent = True
 _, status = os.waitpid(pid, 0)
@@ -192,6 +196,25 @@ test_reused_enrolment_is_refused() {
   pass "an enrolment is used once"
 }
 
+test_store_is_free_while_asking() {
+  local home out code
+  home=$(new_home asking)
+  keygen "$home/k.pem"
+  register "$home" "$home/k.pem" "$home/e.json"
+  # While the question is open the snapshot feed still answers, and the captain
+  # opens a fresh enrolment that replaces the one being confirmed.
+  out=$(WHILE_ASKING="FM_HOME='$home' '$PASSKEY' blocks > '$home/during.json' && FM_HOME='$home' '$PASSKEY' enrol --label other >/dev/null" \
+    python3 "$TTY_DRIVER" yes env FM_HOME="$home" "$PASSKEY" confirm "$home/e.json"); code=$?
+  expect_code 1 "$code" "confirm of an enrolment replaced while asking"
+  assert_equals True "$(field "$home/during.json" '"enrolment" in d')" "blocks answered while the question was open"
+  assert_contains "$out" "no such enrolment" "the replaced enrolment is named"
+  [ ! -e "$home/config/today-passkeys.json" ] || fail "a replaced enrolment wrote the store"
+  pk "$home" blocks > "$home/b.json"
+  assert_equals "other open" "$(field "$home/state/today-passkey-enrolment.json" 'd["label"] + " " + d["status"]')" "the fresh enrolment is left open"
+  assert_equals True "$(field "$home/b.json" '"enrolment" in d')" "the fresh enrolment stays in the snapshot"
+  pass "the store stays usable while the machine waits for the answer, and the answer is rechecked"
+}
+
 test_expired_enrolment_is_refused() {
   local home out code
   home=$(new_home expired)
@@ -279,6 +302,7 @@ test_confirm_yes_writes_the_key
 test_refused_confirm_writes_nothing
 test_no_terminal_writes_nothing
 test_reused_enrolment_is_refused
+test_store_is_free_while_asking
 test_expired_enrolment_is_refused
 test_failed_checks_are_refused
 test_rs256_and_revoke
