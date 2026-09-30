@@ -3192,6 +3192,54 @@ test_inject_clears_its_own_undelivered_digest_then_delivers() {
   pass "an undelivered digest left in the composer is cleared by the next attempt, which then delivers once"
 }
 
+# Recovery after afk ends: a failed attempt left its digest in the composer and
+# the captain turned afk off. The next pass is gated from injecting, but still
+# removes the leftover and submits nothing.
+test_afk_off_pass_clears_an_undelivered_digest() {
+  local dir state
+  dir=$(make_supercase inject-own-leftover-afk-off)
+  state="$dir/state"
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  afk_enter "$state"
+  _afk_off_flow() {
+    touch "$dir/swallow"
+    escalate_add "$state" "needs-decision: pick A or B for the release"
+    escalate_flush "$state" && fail "a swallowed Enter must not be reported delivered"
+    assert_contains "$(cat "$dir/composer")" 'pick A or B' "the swallowed digest should sit in the composer"
+    rm -f "$dir/swallow"
+    afk_exit "$state"
+    escalate_flush "$state" && fail "an afk-off pass must not deliver"
+    return 0
+  }
+  claude_herdr_env "$dir" _afk_off_flow || fail "afk-off flow failed"
+  [ ! -s "$dir/composer" ] || fail "the afk-off pass left the digest in the composer: $(cat "$dir/composer")"
+  [ ! -s "$dir/submitted" ] || fail "the afk-off pass submitted something: $(cat "$dir/submitted")"
+  [ -s "$state/.subsuper-escalations" ] || fail "the undelivered escalation was dropped"
+  pass "a pass after afk turns off clears an undelivered digest without submitting it"
+}
+
+# Recovery at shutdown: a failed attempt left its digest in the composer, afk
+# is off, and nothing is buffered to flush; shutdown still removes the leftover.
+test_shutdown_clears_an_undelivered_digest() {
+  local dir state
+  dir=$(make_supercase inject-own-leftover-shutdown)
+  state="$dir/state"
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  afk_enter "$state"
+  _shutdown_flow() {
+    touch "$dir/swallow"
+    inject_msg "needs-decision: pick A or B for the release" "$state" && fail "a swallowed Enter must not be reported delivered"
+    assert_contains "$(cat "$dir/composer")" 'pick A or B' "the swallowed digest should sit in the composer"
+    rm -f "$dir/swallow"
+    afk_exit "$state"
+    shutdown_flush "$state"
+  }
+  claude_herdr_env "$dir" _shutdown_flow || fail "shutdown flow failed"
+  [ ! -s "$dir/composer" ] || fail "shutdown left the digest in the composer: $(cat "$dir/composer")"
+  [ ! -s "$dir/submitted" ] || fail "shutdown submitted something: $(cat "$dir/submitted")"
+  pass "daemon shutdown clears an undelivered digest even with afk off"
+}
+
 # The captain's own text is never cleared or submitted: after a failed attempt
 # the captain replaced the leftover with a draft, and the retry leaves it alone.
 test_inject_leaves_the_captains_draft_alone() {
@@ -3448,5 +3496,7 @@ test_maximal_digest_reaches_a_claude_composer_on_herdr
 test_plus_tokens_on_wrapped_rows_reach_a_claude_composer
 test_tail_only_send_is_cleared_even_when_it_renders_late
 test_inject_clears_its_own_undelivered_digest_then_delivers
+test_afk_off_pass_clears_an_undelivered_digest
+test_shutdown_clears_an_undelivered_digest
 test_inject_leaves_the_captains_draft_alone
 test_composer_clear_own_distinguishes_own_text

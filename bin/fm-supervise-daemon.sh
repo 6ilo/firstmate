@@ -1427,6 +1427,36 @@ window_for_task() {  # <task-key> [state]
   return 1
 }
 
+# inject_clear_own_leftover: an earlier attempt that reached the submit
+# primitive without a confirmed submit may have left its typed digest, or a
+# tail of it, in the supervisor composer. The backend removes exactly what is
+# left of that text; text it cannot prove is ours (a person's draft) is left
+# alone. It runs ahead of the afk gate, so a pass after afk turns off and the
+# shutdown path recover too. The record lives only in this process, so a
+# restarted daemon never clears text from a run it did not make.
+inject_clear_own_leftover() {
+  local backend target
+  [ -n "$INJECT_TYPED_TEXT" ] || return 0
+  backend="${FM_SUPERVISOR_BACKEND:-tmux}"
+  target="${FM_SUPERVISOR_TARGET:-$FM_SUPERVISOR_TARGET_DEFAULT}"
+  case "$(fm_backend_composer_clear_own "$backend" "$target" "$INJECT_TYPED_TEXT" 2>/dev/null)" in
+    empty|unsupported) INJECT_TYPED_TEXT= ;;
+    cleared)
+      INJECT_TYPED_TEXT=
+      log "inject recovered: cleared the unsubmitted text of an earlier digest from the supervisor composer"
+      ;;
+    foreign) log "inject: supervisor composer holds text that is not an earlier digest; left alone" ;;
+    *) log "inject: could not verify clearing an earlier digest's unsubmitted text from the supervisor composer" ;;
+  esac
+}
+
+# shutdown_flush: on daemon shutdown, clear an earlier digest's leftover even
+# when afk is off, then flush what is still buffered.
+shutdown_flush() {  # <state>
+  inject_clear_own_leftover
+  escalate_flush "$1"
+}
+
 # --- injection --------------------------------------------------------------
 # inject_msg: send one escalation digest to the supervisor pane.
 # Returns 0 on successful inject (or empty buffer), non-zero if the pane is
@@ -1455,6 +1485,7 @@ inject_msg() {  # <message> [state]
   # watcher triage. Escalations buffer and survive for the next catch-up flush.
   INJECT_LAST_FAILURE=
   INJECT_SUBMIT_ATTEMPTED=0
+  inject_clear_own_leftover
   afk_active "$state" || { INJECT_LAST_FAILURE="deferred: afk inactive"; log "inject $INJECT_LAST_FAILURE"; return 1; }
   # (2) Single-line digest: collapse any embedded newlines so submission via
   # send-keys + Enter is unambiguous regardless of how the TUI composer treats
@@ -1478,24 +1509,6 @@ inject_msg() {  # <message> [state]
     INJECT_LAST_FAILURE="deferred: supervisor pane busy (agent mid-turn)"
     log "inject $INJECT_LAST_FAILURE"
     return 1
-  fi
-  #   a2) Own-text recovery: an earlier attempt that reached the submit
-  #      primitive without a confirmed submit may have left its typed digest,
-  #      or a tail of it, in the composer. Before the guard below reads the
-  #      composer, the backend removes exactly what is left of that text; text
-  #      it cannot prove is ours (a person's draft) is left alone and the
-  #      guard defers as before. The record lives only in this process, so a
-  #      restarted daemon never clears text from a run it did not make.
-  if [ -n "$INJECT_TYPED_TEXT" ]; then
-    case "$(fm_backend_composer_clear_own "$backend" "$target" "$INJECT_TYPED_TEXT" 2>/dev/null)" in
-      empty|unsupported) INJECT_TYPED_TEXT= ;;
-      cleared)
-        INJECT_TYPED_TEXT=
-        log "inject recovered: cleared the unsubmitted text of an earlier digest from the supervisor composer"
-        ;;
-      foreign) log "inject: supervisor composer holds text that is not an earlier digest; left alone" ;;
-      *) log "inject: could not verify clearing an earlier digest's unsubmitted text from the supervisor composer" ;;
-    esac
   fi
   #   b) Composer-guard: inject ONLY into a confirmed-empty GENUINE agent
   #      composer. The shared classifier (fm_backend_composer_state ->
@@ -1909,7 +1922,7 @@ fm_super_main() {
   cleanup() {
     trap - TERM INT
     wedge_alarm_stop_active_notifier
-    escalate_flush "$STATE" 2>/dev/null || true
+    shutdown_flush "$STATE" 2>/dev/null || true
     if [ -n "${WATCHER_PID:-}" ]; then
       kill "$WATCHER_PID" 2>/dev/null || true
       wait "$WATCHER_PID" 2>/dev/null || true
