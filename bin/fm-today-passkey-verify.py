@@ -18,8 +18,7 @@ Usage:
       Prints one JSON object and exits 0 for `verified`, 1 for any other
       verdict, and 2 when nothing could be decided (a bad argument, an
       unreadable or malformed store or card, a missing openssl, an
-      unwritable ledger); exit 2 records nothing, except that once an answer's
-      nonce is recorded it is verified and a resend is its duplicate.
+      unwritable ledger); exit 2 records nothing.
 
 Verdict object:
   {"verdict": "verified" | "refused" | "set-aside" | "duplicate",
@@ -57,21 +56,21 @@ Checks, in order; the first failure decides (design: "How firstmate verifies"):
 
 State:
   The store (default $FM_HOME/config/today-passkeys.json) is read only.
-  It is a JSON object whose `credentials` array holds the enrolled entries
-  (a bare array of entries is read the same way); an entry carries at least
+  It is a JSON object whose `credentials` array holds the enrolled entries;
+  anything else is an unreadable store. An entry carries at least
   credential_id, public_key_pem (SPKI), alg (-7 ES256 or -257 RS256), rp_id,
   origin, label, sign_count, and status (`active` or `revoked`).
   The ledger directory (default $FM_HOME/data/today-passkey-ledger) is private
   and permanent:
-    answers.jsonl      every answer_id decided, with its verdict; the
-                       duplicate check reads it.
-    nonces.jsonl       every proof.nonce a verified answer used, so one nonce
-                       carries at most one verified answer.
-    sign-counts.json   the highest signature counter verified per credential;
-                       the stored counter is the greater of this and the
-                       store entry's sign_count.
-  One run holds the ledger's lock from the duplicate check to the last write,
-  so two answers under one nonce can never both be verified.
+    answers.jsonl      one row per answer_id decided, written in a single
+                       append: its verdict, and for a verified answer the
+                       proof.nonce, credential_id and signature counter.
+                       The duplicate check reads it; one nonce carries at
+                       most one verified row; the stored counter is the
+                       greater of the highest verified counter for the
+                       credential and the store entry's sign_count.
+  One run holds the ledger's lock from the duplicate check to the write, so
+  two answers under one nonce can never both be verified.
 """
 import base64
 import datetime
@@ -128,9 +127,9 @@ def load_json(path, what):
 
 def store_entries(path):
     store = load_json(path, "the passkey store")
-    entries = store.get("credentials") if isinstance(store, dict) else store
+    entries = store.get("credentials") if isinstance(store, dict) else None
     if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
-        raise Undecidable("the passkey store %s holds no credentials list" % path)
+        raise Undecidable('passkey: the store %s is unreadable: not a {"credentials": [...]} object' % path)
     for entry in entries:
         if entry.get("status") != "active":
             continue
@@ -176,26 +175,6 @@ class Ledger:
                 os.fsync(fh.fileno())
         except OSError as err:
             raise Undecidable("the ledger file %s is unwritable: %s" % (self.path(name), err))
-
-    def counts(self):
-        try:
-            with open(self.path("sign-counts.json"), encoding="utf-8") as fh:
-                return json.load(fh)
-        except FileNotFoundError:
-            return {}
-        except (OSError, ValueError) as err:
-            raise Undecidable("the sign-count ledger is unreadable: %s" % err)
-
-    def write_counts(self, counts):
-        try:
-            fd, tmp = tempfile.mkstemp(dir=self.dir, prefix=".sign-counts.")
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                json.dump(counts, fh, sort_keys=True)
-                fh.flush()
-                os.fsync(fh.fileno())
-            os.replace(tmp, self.path("sign-counts.json"))
-        except OSError as err:
-            raise Undecidable("the sign-count ledger is unwritable: %s" % err)
 
 
 def openssl_verify(public_key_pem, message, signature):
@@ -305,15 +284,14 @@ def verify(answer_path, card_path, store_path, ledger_dir):
     ledger = Ledger(ledger_dir)
     aid = answer["answer_id"]
     # 2. The permanent answer_id ledger.
-    for row in ledger.rows("answers.jsonl"):
+    rows = ledger.rows("answers.jsonl")
+    for row in rows:
         if row.get("answer_id") == aid:
             return {"verdict": "duplicate", "answer_id": aid, "first_verdict": row.get("verdict")}
-    for row in ledger.rows("nonces.jsonl"):
-        if row.get("answer_id") == aid:
-            return {"verdict": "duplicate", "answer_id": aid, "first_verdict": "verified"}
+    verified = [r for r in rows if r.get("verdict") == "verified"]
 
     result = {"answer_id": aid}
-    counts = ledger.counts()
+    record = {"answer_id": aid}
     try:
         # 3. The call as it stands.
         check_card(answer, card)
@@ -323,26 +301,24 @@ def verify(answer_path, card_path, store_path, ledger_dir):
                       and e.get("status") == "active"), None)
         if entry is None:
             raise Refused("passkey: unknown credential")
-        stored = max(entry.get("sign_count", 0), int(counts.get(cid, 0)))
+        stored = max([entry.get("sign_count", 0)] + [int(r.get("sign_count", 0)) for r in verified
+                                                     if r.get("credential_id") == cid])
         # 5 to 7. Client data, authenticator data, signature.
         count = check_assertion(answer, entry, stored)
         # 8. One verified answer per nonce.
         nonce = card["proof"]["nonce"]
-        if any(r.get("nonce") == nonce for r in ledger.rows("nonces.jsonl")):
+        if any(r.get("nonce") == nonce for r in verified):
             raise Refused("passkey: proof already used")
-        ledger.append("nonces.jsonl", {"nonce": nonce, "answer_id": aid, "task_id": card["task_id"],
-                                       "owner": card.get("owner"), "at": now()})
-        if count > int(counts.get(cid, 0)):
-            counts[cid] = count
-            ledger.write_counts(counts)
+        record.update(nonce=nonce, credential_id=cid, sign_count=count,
+                      task_id=card["task_id"], owner=card.get("owner"))
         result.update(verdict="verified", sign_count=count,
                       credential={"credential_id": cid, "label": entry.get("label")})
     except Refused as refusal:
         result.update(verdict="refused", reason=refusal.reason)
     except SetAside as aside:
         result.update(verdict="set-aside", current_card_hash=aside.current_card_hash)
-    ledger.append("answers.jsonl", {"answer_id": aid, "verdict": result["verdict"],
-                                    "reason": result.get("reason"), "at": now()})
+    record.update(verdict=result["verdict"], reason=result.get("reason"), at=now())
+    ledger.append("answers.jsonl", record)
     return result
 
 

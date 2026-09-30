@@ -292,7 +292,7 @@ test_undecidable_records_nothing() {
   pass "an unreadable store exits 2 and spends neither the answer nor the nonce"
 }
 
-test_unwritable_ledger_keeps_the_answer() {
+test_unwritable_ledger_records_nothing() {
   new_case
   merge_card "$CASE/card.json"
   signed_answer "$CASE/a1.json" "$CASE/card.json" es
@@ -301,12 +301,23 @@ test_unwritable_ledger_keeps_the_answer() {
   chmod 400 "$CASE/ledger/answers.jsonl"
   run_verify "$CASE/a1.json" "$CASE/card.json"
   [ "$RC" -eq 2 ] || fail "an unwritable answer ledger did not exit 2: $RC $OUT"
-  [ "$(wc -l < "$CASE/ledger/nonces.jsonl")" -eq 1 ] || fail "the nonce was not recorded before the failed write"
   chmod 600 "$CASE/ledger/answers.jsonl"
   run_verify "$CASE/a1.json" "$CASE/card.json"
-  expect_verdict duplicate - "the resent answer whose nonce was recorded"
-  [ "$(jq -r .first_verdict <<< "$OUT")" = verified ] || fail "the resent answer does not read as verified: $OUT"
-  pass "a failed answer-ledger write exits 2 and a resend reads as a duplicate of the verified answer"
+  expect_verdict verified - "the resent answer after a failed ledger write"
+  pass "a failed ledger write exits 2 and spends neither the answer nor the nonce"
+}
+
+test_store_must_be_a_credentials_object() {
+  new_case
+  merge_card "$CASE/card.json"
+  signed_answer "$CASE/a1.json" "$CASE/card.json" es
+  jq -s . "$KEYS/es.entry" > "$CASE/bare-store.json"
+  run_verify "$CASE/a1.json" "$CASE/card.json" "$CASE/bare-store.json"
+  [ "$RC" -eq 2 ] || fail "a bare-array store did not exit 2: $RC $OUT"
+  grep -q "passkey: the store" <<< "$OUT" || fail "a bare-array store was not named unreadable: $OUT"
+  run_verify "$CASE/a1.json" "$CASE/card.json"
+  expect_verdict verified - "the same answer against the credentials object"
+  pass "a store that is not a credentials object is unreadable and records nothing"
 }
 
 test_good_assertions_verify
@@ -317,6 +328,7 @@ test_replay_refusals
 test_sign_count
 test_card_refusals
 test_undecidable_records_nothing
-test_unwritable_ledger_keeps_the_answer
+test_unwritable_ledger_records_nothing
+test_store_must_be_a_credentials_object
 
 echo "all fm-today-passkey-verify tests passed"
