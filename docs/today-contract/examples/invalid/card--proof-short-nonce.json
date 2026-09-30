@@ -21,7 +21,7 @@
   "pr_url": "https://github.com/example-org/example-repo/pull/42",
   "head_sha": "3f786850e387550fdab836ed7e6dc881de23001b",
   "proof": {
-    "nonce": "vMM-gkKD5svHq8C6asxpLg",
+    "nonce": "short",
     "expires_at": "2026-09-29T14:05:00Z"
   },
   "text_check": {

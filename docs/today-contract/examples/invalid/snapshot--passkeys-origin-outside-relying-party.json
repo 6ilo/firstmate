@@ -5,7 +5,7 @@
   "home": "firstmate",
   "passkeys": {
     "rp_id": "relay-api.mmeg.us",
-    "origin": "https://relay-api.mmeg.us",
+    "origin": "https://learn.mmeg.us",
     "credentials": [
       {
         "credential_id": "O7cn84PjZqpNkGq9rT1JEeSOHms",

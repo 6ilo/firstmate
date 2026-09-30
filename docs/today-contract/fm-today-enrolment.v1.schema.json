@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/6ilo/firstmate/docs/today-contract/fm-today-enrolment.v1.schema.json",
+  "title": "fm-today-enrolment.v1",
+  "description": "A passkey the captain registered on Today for the enrolment the snapshot asked for, handed back to firstmate through the bridge. Firstmate trusts it only after the captain confirms it on the machine. docs/today-contract.md owns the meaning of every field and the checks firstmate makes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "enrol_id",
+    "credential_id",
+    "client_data_json",
+    "attestation_object",
+    "public_key_spki",
+    "public_key_alg",
+    "enrolled_at",
+    "person",
+    "device"
+  ],
+  "properties": {
+    "schema": { "const": "fm-today-enrolment.v1" },
+    "enrol_id": { "$ref": "fm-today-snapshot.v1.schema.json#/$defs/enrol_id" },
+    "credential_id": { "$ref": "fm-today-snapshot.v1.schema.json#/$defs/credential_id" },
+    "client_data_json": { "$ref": "fm-today-answer.v1.schema.json#/$defs/base64url" },
+    "attestation_object": { "$ref": "fm-today-answer.v1.schema.json#/$defs/base64url" },
+    "public_key_spki": { "$ref": "fm-today-answer.v1.schema.json#/$defs/base64url" },
+    "public_key_alg": { "enum": [-7, -257] },
+    "transports": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "type": "string", "pattern": "^[a-z-]{1,32}$" }
+    },
+    "enrolled_at": { "$ref": "fm-today-card.v1.schema.json#/$defs/timestamp" },
+    "person": { "$ref": "fm-today-answer.v1.schema.json#/properties/person" },
+    "device": { "$ref": "fm-today-answer.v1.schema.json#/properties/device" }
+  }
+}

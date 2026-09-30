@@ -1,17 +1,17 @@
 {
   "schema": "fm-today-answer.v1",
-  "answer_id": "ans_01J9ZC5N8S",
+  "answer_id": "ans_q3Vt8LmZ2xKc5Rw0NbYh7A",
   "task_id": "today-t0",
   "kind": "merge",
   "value": "hold",
-  "card_hash": "5e4ba60acc00349cb9283d6ec4fd20fd159676169a30c62b9acd46670dd78b23",
+  "card_hash": "3602e278cdc97f7ce412d6506c3f2805a08341df1a4205290c49ab30d2a544af",
   "answered_at": "2026-09-28T14:10:12Z",
   "person": "user_2captain",
   "device": "iphone-15",
   "passkey": {
-    "credential_id": "ZXhhbXBsZS1jcmVkZW50aWFsLWlkLTAwMDE",
-    "authenticator_data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFAAAABw",
-    "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiVHNGZExvaUV6OUE3RUxpaThSU0djdnpiLWlyMGhydFpCelVkZVFxQzZZcyIsIm9yaWdpbiI6Imh0dHBzOi8vYWRtaW4uZXhhbXBsZS5jb20iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
-    "signature": "cGxhY2Vob2xkZXI6IGEgcmVhbCBhc3NlcnRpb24gY2FycmllcyBhIERFUiBFQ0RTQSBvciBFZERTQSBzaWduYXR1cmUgaGVyZQ"
+    "credential_id": "O7cn84PjZqpNkGq9rT1JEeSOHms",
+    "authenticator_data": "WmRW4yO0zR4QlQ2_b41F0rV2eEJUD688VfXUd27wBYUdAAAAAA",
+    "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiOC1nY05FS3dIaWRWR0pRbU5yYUNhVUJPVjBxWFY3X0VYb3U2TFNxS3VnQSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVsYXktYXBpLm1tZWcudXMiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+    "signature": "MEQCIB3P20jQuhRypRRDKIAH9cHq0R8dWnfdtEwNUwQwlax3AiAmf5aO8PruW0iO6dI4j8p_IfuMOrBvXm_Cx2f35rCZjw"
   }
 }

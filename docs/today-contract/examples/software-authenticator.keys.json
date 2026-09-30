@@ -1,0 +1,18 @@
+{
+  "rp_id": "relay-api.mmeg.us",
+  "origin": "https://relay-api.mmeg.us",
+  "credentials": [
+    {
+      "label": "iPhone passkey",
+      "credential_id": "O7cn84PjZqpNkGq9rT1JEeSOHms",
+      "alg": -7,
+      "public_key_spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE-1Wr0h6lGoi1eu7mq5FPuioY3PR2o04PBPkp9Bu4YCUXNWvTPy_i_wTq6ZgrwgCiqhnqxwrp0richf8ZYyrr0w"
+    },
+    {
+      "label": "Backup key",
+      "credential_id": "To1OwuFAS1ANf3xfa-lSsyPFTB0",
+      "alg": -257,
+      "public_key_spki": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqePnIYCiwI2zHBBdRMstcYCj5_Q48z-cKMn9KBkTDrOzEUfSvOc5UXAZvzOKxd2H2LOHoeIicFi_VwOVSRVKAYLPV2Pjg0UqQiP4hckvY86JmPxsFWkCeBkVmIHG2E75sJZ1asLfGijBY-Z_ogtxMg7bshXEf1eL1SYxuCChZRVfZ41tCGbdNLPQQgtzrr0jTIxeKz9smtYejD7BbGOt-jSAMJE6nQRtIjnShLg_wl6NwT1EpFwwnfOzLHzCQlUKLj11Gbm38eiwRaeyYndmf3mXfDs5y8y4wj4xj4dSfjqRWMzrHkspohN-zaUVNi4hsybwUkyTZZ9aR4l6T0QbVwIDAQAB"
+    }
+  ]
+}

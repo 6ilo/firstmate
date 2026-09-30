@@ -1,18 +1,18 @@
 {
   "schema": "fm-today-answer.v1",
-  "answer_id": "ans_01J9ZC6P4T",
+  "answer_id": "ans_Jd4pW9sQe1TgUo6HkXv3Zc",
   "task_id": "today-t1",
   "kind": "go",
   "value": "later",
-  "card_hash": "5b8914a3f2b4e1f202ea6c88a21d9f5009eb48f949bdc4c6a3038e751bb1b93c",
+  "card_hash": "07adb493c2828de693f7fca412e47750c6ff19d20ed9df0bf46593f29657c887",
   "answered_at": "2026-09-28T14:10:12Z",
   "person": "user_2captain",
   "device": "iphone-15",
   "later_until": "2026-10-01T15:00:00Z",
   "passkey": {
-    "credential_id": "ZXhhbXBsZS1jcmVkZW50aWFsLWlkLTAwMDE",
-    "authenticator_data": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFAAAABw",
-    "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiSkJBYXkyZzVhYTVCSmFQTGpQVGRKR1JhOG1YNGcwSGtDSnlZMnV2RnVFRSIsIm9yaWdpbiI6Imh0dHBzOi8vYWRtaW4uZXhhbXBsZS5jb20iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
-    "signature": "cGxhY2Vob2xkZXI6IGEgcmVhbCBhc3NlcnRpb24gY2FycmllcyBhIERFUiBFQ0RTQSBvciBFZERTQSBzaWduYXR1cmUgaGVyZQ"
+    "credential_id": "To1OwuFAS1ANf3xfa-lSsyPFTB0",
+    "authenticator_data": "WmRW4yO0zR4QlQ2_b41F0rV2eEJUD688VfXUd27wBYUdAAAAAA",
+    "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiQXNNRGFCYWdZWktFUGNjb2dwdTZfQlBxVlZnU0ZGbGNiU01YSEQ5cjA3SSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVsYXktYXBpLm1tZWcudXMiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+    "signature": "AY6d1DN_K9N7ERzLm_78Mi91CBnkH3aF2ZTi9fQaDyzF7FYvxznZssh21mZbqsiKAdDvRwB6gwOKfNnyJAMRMSrwVwYMT6tjYKHcY7ZNmgiwhLOzb-_FtRSmH--ULbmmhR0zZkpT1Xf4VvLnUyklyas0lv0Gay4g5Q6BAzOgEE2jrrlI1r8WvC2bcH0e-Wtx28yS3jf1mpDaA4bwpTKa-7lxuCraPTQgncmmoMMmG97RdZA0Xgs-ATQDiHiw0Bu5oAwpWlHZZheB0G9o5nmNhMHW_clGb6ap93kB5h7ezBsvnWElK9iA3gghVs1KPt2fuYyFVUQhnhawDQU7zm792A"
   }
 }
