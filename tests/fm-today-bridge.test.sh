@@ -967,9 +967,13 @@ test_answers_later_reconcile_and_seen_never_close() {
       '{"later_until":"2031-03-04T12:00:00Z"}') \
     <(answer ans_recon_001 q-recon decision reconcile "$(hash_of "$tree" "$home" q-recon)" \
       '{"note":"I think it landed\nq-pick"}') \
+    <(answer ans_badday_001 q-later decision later "$(hash_of "$tree" "$home" q-later)" \
+      '{"later_until":"2026-02-30T00:00:00Z"}') \
     <(answer ans_seen_0001 c-key credential seen "$(hash_of "$tree" "$home" c-key)") > "$portal/answers.json"
   abridge "$tree" "$home" answers once
   [ "$CODE" -eq 0 ] || fail "answers once exited $CODE: $(cat "$ERR")"
+  [ "$(jq -r '.outcome + " " + .action' <<< "$(summary_of ans_badday_001)")" = "refused refused" ] \
+    || fail "an impossible later_until was not refused: $(summary_of ans_badday_001)"
   want=2031-03-04  # the suite runs with TZ=UTC, so the captain's local date is the UTC one
   [ "$(jq -r '.action + " " + .reason' <<< "$(summary_of ans_later_001)")" = "deferred deferred until $want" ] \
     || fail "later was not a deferral: $(summary_of ans_later_001)"
@@ -985,8 +989,12 @@ test_answers_later_reconcile_and_seen_never_close() {
   [ "$(jq -r .action <<< "$(summary_of ans_seen_0001)")" = seen-recorded ] || fail "seen was not recorded"
   row_of "$home" c-key | grep -q '^- \[ \] c-key .*(hold-kind: captain)' || fail "seen closed the credential call"
   ! grep -q 'Resolution recorded' "$home/data/backlog.md" || fail "later, reconcile, or seen wrote a resolution"
+  abridge "$tree" "$home" answers once
+  [ "$(jq -c '[.body.receipts[] | [.answer_id, .outcome]] | sort' "$portal/req-1.json")" \
+    = '[["ans_badday_001","refused"],["ans_later_001","applied"],["ans_recon_001","applied"],["ans_seen_0001","applied"]]' ] \
+    || fail "every answer beside an impossible later_until did not get its receipt: $(jq -c .body "$portal/req-1.json")"
   stop_portal
-  pass "later defers the call, reconcile files a request, and seen is recorded; none closes it"
+  pass "later defers the call, reconcile files a request, and seen is recorded; none closes it, and an impossible later_until is refused alone"
 }
 
 test_answers_second_mate_answer_is_refused_in_every_home() {

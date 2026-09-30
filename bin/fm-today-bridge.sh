@@ -1132,17 +1132,21 @@ def cmd_apply(response, cards_file, calls_file):
             continue
         seen.add(aid)
         write_json(os.path.join(DIR, "answers", aid + ".json"), answer)
-        if (answer.get("schema") != "fm-today-answer.v1"
-                or not all(isinstance(answer.get(k), str) for k in ("kind", "value", "card_hash"))):
-            why = "not an fm-today-answer.v1 with kind, value, and card_hash"
-        elif answer.get("kind") in PROOF_KINDS:
-            why = None
-        else:
-            why = schema_errors(answer)
-        if why:
-            outcome, reason, current, action = "refused", "invalid answer: " + why, None, "refused"
-        else:
-            outcome, reason, current, action = carry(answer, cards, closes)
+        try:
+            if (answer.get("schema") != "fm-today-answer.v1"
+                    or not all(isinstance(answer.get(k), str) for k in ("kind", "value", "card_hash"))):
+                why = "not an fm-today-answer.v1 with kind, value, and card_hash"
+            elif answer.get("kind") in PROOF_KINDS:
+                why = None
+            else:
+                why = schema_errors(answer)
+            if why:
+                outcome, reason, current, action = "refused", "invalid answer: " + why, None, "refused"
+            else:
+                outcome, reason, current, action = carry(answer, cards, closes)
+        except Exception as exc:
+            outcome, reason, current, action = ("refused", "could not carry the answer: %s"
+                                                % first_line(str(exc), type(exc).__name__), None, "refused")
         receipt = dict(base, outcome=outcome)
         if reason:
             receipt["reason"] = reason[:400]
