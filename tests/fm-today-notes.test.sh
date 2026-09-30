@@ -11,6 +11,8 @@
 # record, moves earlier ranks after them, leaves out work no longer charted,
 # keeps a second mate's items for routing, and starts nothing; an older order
 # and one with nothing charted are refused; a receipt survives a failed call;
+# a note whose record cannot be written is not receipted; an unreadable
+# document wakes the standing check once, not on every poll;
 # the standing check reports once and arms, refuses a secondmate home, and
 # disarms; the portal's ajv accepts the shapes when a portal checkout is named;
 # and the token never reaches output.
@@ -297,6 +299,51 @@ test_receipt_survives_a_failed_call() {
   pass "a receipt stays pending through a failed call and is delivered on the next"
 }
 
+test_failed_record_leaves_the_note_unreceipted() {
+  local home stub=$TMP_ROOT/stub-norec
+  if [ "$(id -u)" = 0 ]; then
+    echo "skip - an unwritable record directory: running as root"
+    return 0
+  fi
+  home=$(make_home home-norec)
+  mkdir -p "$home/data/today-notes"
+  chmod 500 "$home/data/today-notes"
+  queue "$stub" "$CONTRACT/examples/valid/note.json"
+  start_stub "$stub"
+  notes "$home" collect
+  chmod 700 "$home/data/today-notes"
+  [ "$CODE" -eq 1 ] || fail "a failed record exited $CODE, want 1: $(cat "$ERR")"
+  [ -z "$(ls "$home/state/today-notes/receipts")" ] || fail "a receipt was written for a note that was not recorded"
+  [ -z "$(receipt_for "$stub" "$NOTE_ID" 2>/dev/null)" ] || fail "the portal was told an unrecorded note was recorded"
+  notes "$home" collect
+  stop_stub
+  [ "$CODE" -eq 0 ] || fail "the retry exited $CODE: $(cat "$ERR")"
+  [ -f "$home/data/today-notes/$NOTE_ID.json" ] || fail "the redelivered note was not recorded"
+  [ "$(jq -r .outcome <<< "$(receipt_for "$stub" "$NOTE_ID")")" = recorded ] || fail "the redelivered note was not receipted recorded"
+  pass "a note whose record cannot be written is not receipted, and is recorded on redelivery"
+}
+
+test_unreadable_document_wakes_once() {
+  local home stub=$TMP_ROOT/stub-unread
+  home=$(make_home home-unread)
+  doc note '.note_id = "note_short"' "$TMP_ROOT/unreadable.json"
+  queue "$stub" "$TMP_ROOT/unreadable.json"
+  start_stub "$stub"
+  FM_TODAY_NOTES_WAIT=0 notes "$home" check
+  if [ "$(wc -l < "$OUT" | tr -d ' ')" != 1 ] || ! grep -q '^today-notes: .*1 unreadable' "$OUT"; then
+    fail "check did not report the unreadable document once: $(cat "$OUT")"
+  fi
+  FM_TODAY_NOTES_WAIT=0 notes "$home" check
+  [ ! -s "$OUT" ] || fail "the same unreadable document woke firstmate again: $(cat "$OUT")"
+  queue "$stub" "$TMP_ROOT/unreadable.json" "$CONTRACT/examples/valid/note.json"
+  FM_TODAY_NOTES_WAIT=0 notes "$home" check
+  stop_stub
+  if [ "$(wc -l < "$OUT" | tr -d ' ')" != 1 ] || ! grep -qF "$NOTE_ID" "$OUT"; then
+    fail "a new note alongside the unreadable one was not reported alone: $(cat "$OUT")"
+  fi
+  pass "an unreadable document is reported once, not on every poll, while new notes still wake"
+}
+
 test_settings_are_required() {
   local home
   home=$(make_home home-bare)
@@ -402,6 +449,8 @@ test_oversized_note_is_refused
 test_dispatch_order_records_ranks_and_starts_nothing
 test_older_and_empty_orders_are_refused
 test_receipt_survives_a_failed_call
+test_failed_record_leaves_the_note_unreceipted
+test_unreadable_document_wakes_once
 test_settings_are_required
 test_standing_check
 test_portal_validator_accepts_the_shapes

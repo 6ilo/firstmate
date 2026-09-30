@@ -23,7 +23,7 @@
 #          recorded it exchanges again at once with wait 0, carrying the new
 #          receipts, up to four exchanges, so the portal hears back without
 #          waiting for the next run. It prints one line naming what was
-#          recorded, and nothing when nothing was. A receipt stays pending in
+#          recorded or refused, and nothing when nothing was. A receipt stays pending in
 #          state/today-notes/receipts/ until a 200 answer to the call that
 #          carried it, so delivery is at least once and the portal's own
 #          bookkeeping makes a repeat harmless. One collect runs at a time; a
@@ -33,7 +33,8 @@
 # show     One record as JSON, including the note's words.
 # check    The watcher's standing check: runs collect within the watcher's
 #          per-check bound (FM_CHECK_TIMEOUT, default 30) and prints one line
-#          when something was recorded, or when a failure differs from the one
+#          when something was recorded or refused, or when a failure (a retry
+#          or unreadable document included) differs from the one
 #          last reported (state/.today-notes-check), so the watcher turns it
 #          into one `check:` wake. The first exchange waits
 #          FM_TODAY_NOTES_WAIT seconds (default 10, 0 to 20).
@@ -66,11 +67,13 @@
 #   A repeated id gets `duplicate` and changes nothing. A document that fails
 #   its schema gets `refused` with the failing path and rule, never a value.
 #   A receipt's reason is firstmate's own fixed wording and counts, never the
-#   note's words. The receipt is written before the record, so an
-#   interrupted intake is redone rather than answered `duplicate`.
+#   note's words. The record is written and synced before the receipt, so the
+#   portal deletes a note's words only once they are on this machine; an
+#   intake interrupted between the two is answered `duplicate` on redelivery.
 #
 # Exit status: 0 on success (including nothing new); 1 when a record cannot be
-# written or an order cannot be applied (it is retried on the next collect);
+# written, an order cannot be applied, or a document is unreadable (none of
+# them is receipted, so the portal delivers it again on the next collect);
 # 2 on a usage error or missing settings (nothing is sent); 3 when the portal
 # cannot be reached, answers anything but 200, or answers malformed JSON.
 set -u
@@ -204,7 +207,14 @@ def write_json(path, obj):
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump(obj, fh, ensure_ascii=False, indent=2)
         fh.write("\n")
+        fh.flush()
+        os.fsync(fh.fileno())
     os.replace(tmp, path)
+    dfd = os.open(os.path.dirname(path), os.O_RDONLY)
+    try:
+        os.fsync(dfd)
+    finally:
+        os.close(dfd)
 
 
 def receipt(ref, outcome, reason=None):
@@ -254,8 +264,8 @@ def note(ident, doc):
             done = run([os.path.join(BIN, "fm-tasks-axi.sh"), "show", doc["task_id"]])
             task["in_backlog"] = bool(done and done.returncode == 0)
         extra["task"] = task
-    receipt(ident, "recorded")
     record(ident, "note", doc, "recorded", **extra)
+    receipt(ident, "recorded")
     return {"id": ident, "outcome": "recorded", "task": extra.get("task")}
 
 
@@ -311,8 +321,8 @@ def order(ident, doc):
     queued = chk.instant(doc["queued_at"])
     if any(queued < other for other in recorded_orders()):
         reason = "an older order than the one already recorded"
-        receipt(ident, "refused", reason)
         record(ident, "dispatch-order", doc, "refused", reason)
+        receipt(ident, "refused", reason)
         return {"id": ident, "outcome": "refused"}
     charted = charted_here()
     ranked, left_out, second_mate = [], [], []
@@ -327,8 +337,8 @@ def order(ident, doc):
     total = len(doc["items"])
     if not ranked and not second_mate:
         reason = "none of the %d ordered items is still charted in this home" % total
-        receipt(ident, "refused", reason)
         record(ident, "dispatch-order", doc, "refused", reason, left_out=left_out)
+        receipt(ident, "refused", reason)
         return {"id": ident, "outcome": "refused"}
     for rank, task in enumerate(ranked, 1):
         if not set_order(task, rank):
@@ -352,10 +362,10 @@ def order(ident, doc):
                      % (len(second_mate), "belongs" if len(second_mate) == 1 else "belong",
                         "was" if len(second_mate) == 1 else "were"))
     reason = "; ".join(parts) or None
-    receipt(ident, "recorded", reason)
     record(ident, "dispatch-order", doc, "recorded", reason,
            ranked=[{"task_id": t, "order": r} for r, t in enumerate(ranked, 1)],
            left_out=left_out, second_mate=second_mate, moved=moved)
+    receipt(ident, "recorded", reason)
     return {"id": ident, "outcome": "recorded", "ranked": len(ranked),
             "second_mate": len(second_mate)}
 
@@ -384,8 +394,8 @@ for key, kind, id_key, id_re, schema in SHAPES:
         errs = errors(doc) if doc.get("schema") == schema else ["$.schema: const"]
         if errs:
             reason = mismatch(kind.replace("-", " "), schema, errs)
-            receipt(ident, "refused", reason)
             record(ident, kind, doc, "refused", reason)
+            receipt(ident, "refused", reason)
             summary["refused"].append({"id": ident})
             continue
         try:
@@ -398,18 +408,15 @@ print(json.dumps(summary))
 PY
 }
 
-# One line naming what an exchange recorded; empty when nothing was.
+# One line naming what an exchange recorded or refused; empty when nothing was.
 summary_line() {  # <summary-json>...
   jq -rs '
     (map(.recorded) | add) as $rec | (map(.refused) | add) as $ref
-    | (map(.retry) | add) as $retry | (map(.unreadable) | add) as $bad
     | [ ($rec[] | .id + (if .task then " on " + (if .task.owner == "(main)" then "" else .task.owner + "/" end) + .task.task_id
                          elif .ranked != null then " (" + (.ranked | tostring) + " ranked"
                            + (if .second_mate > 0 then ", " + (.second_mate | tostring) + " for a second mate" else "" end) + ")"
                          else "" end)),
-        ($ref[] | .id + " refused"),
-        ($retry[] | .id + " not recorded yet: " + .why),
-        (if $bad > 0 then ($bad | tostring) + " unreadable, not receipted" else empty end) ]
+        ($ref[] | .id + " refused") ]
     | if length == 0 then "" else
         "today-notes: evidence from Today, no authority: " + join(", ")
         + "; read with bin/fm-today-notes.sh show <id>" end
@@ -417,7 +424,7 @@ summary_line() {  # <summary-json>...
 }
 
 cmd_collect() {
-  local wait=0 exchange=0 req refs resp code summaries=() summary line retry
+  local wait=0 exchange=0 req refs resp code summaries=() summary line pending
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --wait)
@@ -464,8 +471,11 @@ cmd_collect() {
   done
   line=$(summary_line "${summaries[@]}") || line=
   [ -z "$line" ] || { fm_cap_line_var "$line" "$MAX_LINE"; printf '%s\n' "$FM_LINE_CAP_LINE"; }
-  retry=$(jq -s 'map(.retry | length) | add' "${summaries[@]}")
-  [ "$retry" = 0 ] || die "$retry not recorded yet; the portal delivers them again on the next collect"
+  pending=$(jq -rs '
+    [ (map(.retry) | add | unique_by(.id)[] | .id + " (" + .why + ")"),
+      (map(.unreadable) | max | if . > 0 then tostring + " unreadable" else empty end) ]
+    | join(", ")' "${summaries[@]}")
+  [ -z "$pending" ] || die "not recorded yet, delivered again on the next collect: $pending"
   return 0
 }
 
@@ -541,7 +551,8 @@ cmd_check() {
   else
     line=
   fi
-  # What was recorded is news every time; a failure only when it changed.
+  # What was recorded or refused is news every time; a failure, a retry or
+  # an unreadable document included, only when it changed.
   printf '%s\n' "$out" | grep '^today-notes: ' || true
   if [ -n "$line" ] && [ "$line" != "$(record_reported)" ]; then
     fm_cap_line_var "$line" "$MAX_LINE"
