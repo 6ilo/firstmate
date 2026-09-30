@@ -1,0 +1,11 @@
+[head] seeded: young-settled=400 old-settled=40 old-resolved-open-escalation=1 unresolved=2 total=443
+[head] load: { 7.53 14.51 15.26 }
+[head] beacon age per second: 1 2 3 4 5 6 0 1 3 4 0 1 2 0 1 2 3 4 0 0 1 3 4 5 1 1 2 3 4 5 1 0 1 2 3 5 1 1 2 3
+[head] max beacon age over 40s with FM_POLL=5: 6s
+[head] records remaining: 402
+[head] young settled a000000000000000: kept
+[head] old settled b000000000000000: pruned; old settled pruned count: 40/40
+[head] old resolved w/ open escalation c000000000000001: pruned (closed_epoch=-)
+[head] unresolved d000000000000001: kept; d000000000000002: kept
+[head] watcher stdout: 
+[head] watcher stderr: 

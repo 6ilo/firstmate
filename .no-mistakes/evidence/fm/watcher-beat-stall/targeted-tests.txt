@@ -1,0 +1,13 @@
+ok - same-basename self-home corr= is restated onto the parent channel and resolves
+ok - same-basename reply resolves at the recovery failure boundary
+ok - a child-file mate-home sighting is not copied and still escalates
+ok - mechanical helper writes the parent channel from verb, corr, and note
+ok - remote parent-replies.status is not classified as wrong-home
+ok - local parent-replies.status remains wrong-home evidence
+ok - an escalated correlation stays retryable only while undelivered
+ok - all pending-reply tests passed
+ok - host sleep after the last beat does not read as a stale live watcher
+ok - the beacon is refreshed after a cycle's stages, before its terminal wait
+ok - arm turns clean self-eviction without a successor into a typed failure
+ok - arm attaches to a live fresh watcher and fails loudly when that cycle has no successor
+ok - arm reports FAILED and exits non-zero when no fresh watcher can be confirmed

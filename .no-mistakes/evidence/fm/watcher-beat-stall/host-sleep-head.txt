@@ -1,0 +1,12 @@
+live watcher pid 98988; beacon backdated to 314s old (grace 300)
+--- second arm, no-sleep (FM_HOST_SLEEP_WINDOW=''): exit=1
+watcher: lock held by live pid 98992 but heartbeat is stale for 314s (>300s); inspect or stop that watcher before re-arming.
+--- second arm, sleep-before-beat (FM_HOST_SLEEP_WINDOW='1790744529 1790744919'): exit=1
+watcher: lock held by live pid 98992 but heartbeat is stale for 314s (>300s); inspect or stop that watcher before re-arming.
+--- second arm, sleep-290s-after-beat (FM_HOST_SLEEP_WINDOW='1790744943 1790745233'): exit=0
+watcher: already running pid 98992
+original watcher 98988 still alive (not evicted)
+--- real macOS sleep record via fm_host_last_sleep_window: '1790729687 1790730600'
+--- /usr/sbin/sysctl kern.sleeptime kern.waketime:
+kern.sleeptime: { sec = 1790729687, usec = 321360 } Tue Sep 29 19:54:47 2026
+kern.waketime: { sec = 1790730600, usec = 316439 } Tue Sep 29 20:10:00 2026
