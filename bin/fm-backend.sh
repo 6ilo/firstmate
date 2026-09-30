@@ -914,6 +914,21 @@ fm_backend_composer_state() {  # <backend> <target> [expected-label] -> empty|pe
   esac
 }
 
+# fm_backend_composer_clear_own: clear what is left in the composer of <typed>,
+# text the caller typed earlier and could not submit, and nothing else.
+# Echoes empty|cleared|foreign|unknown; the adapter owns what counts as ours.
+# Backends with no such primitive echo unsupported, so the caller keeps its
+# ordinary composer guard.
+fm_backend_composer_clear_own() {  # <backend> <target> <typed>
+  local backend=$1
+  shift
+  fm_backend_source "$backend" || { printf 'unknown'; return 0; }
+  case "$backend" in
+    herdr) fm_backend_herdr_composer_clear_own "$@" ;;
+    *) printf 'unsupported' ;;
+  esac
+}
+
 # fm_backend_target_exists: cheap, READ-ONLY existence check - does the
 # recorded TARGET endpoint still exist on BACKEND? Never starts a server or
 # session: for herdr this deliberately queries the pane directly instead of

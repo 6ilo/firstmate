@@ -549,8 +549,11 @@ It ignores U+2063 because Claude's Herdr read-back never shows it.
 A composer that holds a shorter suffix, or a placeholder plus a literal remainder, does not receive Enter.
 Instead:
 
-1. The adapter presses Ctrl+U until the shared classifier reads the composer as empty.
+1. The adapter presses Ctrl+U until both the shared classifier and the proof-sized composer read show it empty, and still empty after a short settle, so text Claude draws late is not left behind.
 2. It then reports `send-failed`, so a resend starts from a clean composer.
+
+Claude keeps only a fragment of an unbracketed send of about 1 KiB or more, so a longer payload always takes this refusal; [`docs/verification/supervision.md`](verification/supervision.md) "Away digest size" records the measurement.
+`fm_backend_composer_clear_own` removes what is left of text a caller typed earlier and could not submit: the composer counts as the caller's only when its whole visible text, compared the same way, is at least 32 characters and appears inside that typed text, and anything else is left alone.
 
 Ctrl+C is not used for this, because Claude documents it as interrupting a running operation.
 If the composer cannot be verified empty again, the submit reports `unknown` instead, because text may still be in the composer.
