@@ -238,7 +238,10 @@ It can never let freeform captain prose forge a task id or a mode.
 
 `bin/fm-today-bridge.sh answers` is the Today channel:
 
-- It feeds each decision answer from the admin portal's Today page to the intake as one keyed line, with the option's label and the close its card declared: `done` for a captain question, `release` for held work.
+- A decision card offers the hold's structured options when bearings records them, then `reconcile`; until options are recorded it offers only `reconcile`, and the portal adds `later`.
+- It feeds an option answer to a captain question from the admin portal's Today page to the intake as one keyed line, with the option's label and the `done` close.
+- Until firstmate checks the captain's passkey itself, an option answer on held work, whose close would be `release`, is recorded and refused for proof like a merge or go answer, whatever the hold's `--call` tag, and never reaches the intake.
+- An answer that does not declare `fm-today-answer.v1` or lacks `kind`, `value`, or `card_hash` is refused with a receipt, and the rest of the batch is still carried.
 - A Today `reconcile` answer goes to `reconcile-requests` under the bridge's own bound source id, `today-bridge`, and a `later` answer re-holds the call with `--until`.
 - Until firstmate checks the captain's passkey itself, a merge or go answer never reaches the intake; the bridge refuses it for proof.
 - A second mate's answer is recorded and refused, and fed to no home's intake.

@@ -54,10 +54,12 @@
 #           names its pull request as `pr_url` and offers `merge`, a `go` card
 #           offers `go`, a `credential` card offers nothing, and every other
 #           call is a `decision` card. A decision card offers, in order, the
-#           options the hold recorded (bearings' decisions_open options, from
-#           bin/fm-captain-hold.sh hold --option), then the standard
-#           `reconcile` option, labelled "Already settled"; a merge or go
-#           card offers its recorded options in place of its standard one. A recorded option the card cannot
+#           hold's structured options when bearings records them
+#           (decisions_open options), then the standard `reconcile` option,
+#           labelled "Already settled"; until options are recorded a decision
+#           card offers only `reconcile`, and the portal adds `later`; a merge
+#           or go card offers its recorded options in place of its standard
+#           one. A recorded option the card cannot
 #           carry is left out and named on stderr, and a withheld card shows
 #           each recorded option as `Option <n>`, its hint as neutral text.
 #           A merge call whose pull request the card cannot carry goes out as a
@@ -108,6 +110,8 @@
 # sent. A receipt is never re-derived, so a crash or a failed call re-sends the
 # stored receipt and never carries the answer again. Each new answer is
 # checked against the call as it stands now (a fresh snapshot), in this order:
+#   0. An answer that does not declare schema fm-today-answer.v1 or lacks
+#      kind, value, or card_hash is refused.
 #   1. A merge or go answer is refused with reason `proof_required: ...`
 #      before its card or any hold is read, and so is any other answer to a
 #      merge or go card. Until
@@ -133,8 +137,12 @@
 #      through bin/fm-captain-hold.sh reconcile-requests under the bound
 #      source id `today-bridge`, never a close; any other value goes to
 #      bin/fm-captain-hold.sh answers, the one keyed-answer intake, with the
-#      option's label and the card's close mode: `done` for a captain question
-#      (backlog kind captain), `release` for held work. The answer id, device,
+#      option's label and close mode `done` when the call is a captain
+#      question (backlog kind captain). An option answer on held work, whose
+#      close would be `release`, frees gated work, so until the passkey
+#      verifier lands it is recorded and refused with the same
+#      `proof_required: ...` reason as a merge or go answer, whatever the
+#      hold's --call tag, and never reaches the intake. The answer id, device,
 #      and any note are recorded as the answer's provenance; the note is the
 #      captain's words and never an instruction.
 #
@@ -1071,14 +1079,15 @@ def carry(answer, cards, closes):
                     None, "reconcile-requested")
         return ("refused", "could not record the reconcile request: %s"
                 % first_line(out if rc == 0 else (out + err), "refused"), None, "refused")
+    if closes.get((owner, task)) != "done":
+        return "refused", PROOF_REFUSAL, None, "refused"
     label = next((o["label"] for o in card["options"] if o["value"] == value), value)
-    mode = closes.get((owner, task), "release")
     if answer.get("note"):
         source += "; captain note: " + one_line(answer["note"])
     rc, out, err = run([HOLD, "answers", "--source", source],
-                       "%s\t%s\t%s\t%s\n" % (task, value, one_line(label), mode))
+                       "%s\t%s\t%s\tdone\n" % (task, value, one_line(label)))
     if rc == 0 and ("closed: %s" % task) in out.splitlines():
-        return "applied", None, None, "closed" if mode == "done" else "released"
+        return "applied", None, None, "closed"
     return ("refused", "not applied: %s" % first_line(out + err, "the hold lifecycle refused it"),
             None, "refused")
 
@@ -1122,7 +1131,13 @@ def cmd_apply(response, cards_file, calls_file):
             continue
         seen.add(aid)
         write_json(os.path.join(DIR, "answers", aid + ".json"), answer)
-        why = None if answer.get("kind") in PROOF_KINDS else schema_errors(answer)
+        if (answer.get("schema") != "fm-today-answer.v1"
+                or not all(isinstance(answer.get(k), str) for k in ("kind", "value", "card_hash"))):
+            why = "not an fm-today-answer.v1 with kind, value, and card_hash"
+        elif answer.get("kind") in PROOF_KINDS:
+            why = None
+        else:
+            why = schema_errors(answer)
         if why:
             outcome, reason, current, action = "refused", "invalid answer: " + why, None, "refused"
         else:

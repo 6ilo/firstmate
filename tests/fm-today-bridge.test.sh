@@ -808,12 +808,15 @@ test_recorded_options_lead_a_decision_card() {
   pass "a decision card offers the hold's recorded options, then reconcile"
 }
 
-test_answers_decision_closes_and_work_resumes() {
-  local tree=$TMP_ROOT/answers-tree home portal=$TMP_ROOT/portal-close s
+test_answers_decision_closes_and_held_work_needs_proof() {
+  local tree=$TMP_ROOT/answers-tree home portal=$TMP_ROOT/portal-close s held_before
   home=$(make_answers_home answers-home-close)
   start_portal "$portal"
   jq -s . <(answer ans_pick_0001 q-pick decision east "$(hash_of "$tree" "$home" q-pick)" '{"note":"East, the tracks are in."}') \
-    <(answer ans_held_0001 w-held decision resume "$(hash_of "$tree" "$home" w-held)") > "$portal/answers.json"
+    <(answer ans_held_0001 w-held decision resume "$(hash_of "$tree" "$home" w-held)") \
+    <(jq -nc '{schema: "fm-today-receipt.v1", answer_id: "ans_wrong_0001", task_id: "q-pick",
+               outcome: "applied", recorded_at: "2026-09-30T01:00:00Z"}') \
+    <(jq -nc '{schema: "fm-today-answer.v1", answer_id: "ans_bare_0001", task_id: "q-pick"}') > "$portal/answers.json"
   abridge "$tree" "$home" answers once
   [ "$CODE" -eq 0 ] || fail "answers once exited $CODE: $(cat "$ERR")"
   s=$(summary_of ans_pick_0001)
@@ -825,9 +828,15 @@ test_answers_decision_closes_and_work_resumes() {
     || fail "the option label was not recorded"
   grep -q 'Captain answered this call through Today answer ans_pick_0001 on device phone-1; captain note: East, the tracks are in.' \
     "$home/data/backlog.md" || fail "the answer's provenance and note were not recorded"
-  [ "$(jq -r '.action' <<< "$(summary_of ans_held_0001)")" = released ] || fail "held work was not released"
-  row_of "$home" w-held | grep -q 'hold-kind' && fail "held work is still held: $(row_of "$home" w-held)"
-  row_of "$home" w-held | grep -q '^- \[ \] w-held ' || fail "released work was closed: $(row_of "$home" w-held)"
+  held_before=$(row_of "$home" w-held)
+  s=$(summary_of ans_held_0001)
+  [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "refused refused" ] || fail "held work was released: $s"
+  jq -e '.reason | startswith("proof_required: ")' <<< "$s" >/dev/null || fail "held work was not refused for proof: $s"
+  [ "$(row_of "$home" w-held)" = "$held_before" ] || fail "held work changed: $(row_of "$home" w-held)"
+  row_of "$home" w-held | grep -q 'hold-kind' || fail "held work is no longer held: $(row_of "$home" w-held)"
+  s=$(summary_of ans_wrong_0001)
+  [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "refused refused" ] || fail "a receipt-shaped answer was carried: $s"
+  grep -q 'ans_bare_0001' "$OUT" || fail "an answer with no kind or value was not receipted: $(cat "$OUT")"
   [ "$(jq -c '.body.receipts' "$portal/req-0.json")" = '[]' ] || fail "the first call sent a receipt"
   [ "$(jq -r '.body.wait_seconds' "$portal/req-0.json")" = 0 ] || fail "once did not send wait_seconds 0"
   [ "$(jq -r .auth "$portal/req-0.json")" = "Bearer $TOKEN" ] || fail "the answers call did not carry the token"
@@ -837,7 +846,7 @@ test_answers_decision_closes_and_work_resumes() {
   [ ! -s "$OUT" ] || fail "an answer was carried twice: $(cat "$OUT")"
   [ "$(jq -r '.body.wait_seconds' "$portal/req-1.json")" = 3 ] || fail "--wait did not reach the body"
   [ "$(jq -c '[.body.receipts[] | [.answer_id, .outcome]] | sort' "$portal/req-1.json")" \
-    = '[["ans_held_0001","applied"],["ans_pick_0001","applied"]]' ] \
+    = '[["ans_bare_0001","refused"],["ans_held_0001","refused"],["ans_pick_0001","applied"],["ans_wrong_0001","refused"]]' ] \
     || fail "the receipts did not go out on the next call: $(jq -c .body "$portal/req-1.json")"
   jq -c '.body.receipts[]' "$portal/req-1.json" | while IFS= read -r s; do
     printf '%s' "$s" > "$TMP_ROOT/receipt.json"
@@ -846,7 +855,7 @@ test_answers_decision_closes_and_work_resumes() {
   abridge "$tree" "$home" answers once
   [ "$(jq -c '.body.receipts' "$portal/req-2.json")" = '[]' ] || fail "a sent receipt went out again"
   stop_portal
-  pass "a decision answer closes its question through the intake, held work resumes, and one receipt each follows"
+  pass "a decision answer closes its question, held work is refused for proof, a malformed answer is refused, and one receipt each follows"
 }
 
 # An unbound home applies nothing: the Today source feeds the hold lifecycle
@@ -1162,7 +1171,7 @@ test_dry_run_writes_and_sends_nothing
 test_held_calls_raise_merge_go_and_credential_cards
 make_answers_tree "$TMP_ROOT/answers-tree"
 test_recorded_options_lead_a_decision_card
-test_answers_decision_closes_and_work_resumes
+test_answers_decision_closes_and_held_work_needs_proof
 test_answers_unbound_home_applies_nothing
 test_answers_merge_and_go_are_refused_without_proof
 test_answers_that_do_not_fit_the_call_are_set_aside_or_refused

@@ -1555,6 +1555,7 @@ A portal that cannot be reached or answers anything but 200 exits 3 with its sta
 The token never appears on a command line or in the bridge's output.
 
 Until firstmate can check the captain's passkey itself, a merge word or a go to build given on Today is recorded and refused, and never merges, releases, or starts anything; give that word at the machine.
+The same holds for an option answer that would release held work.
 A second mate's answer is recorded in the main home and refused, and applied in neither home; answer a second mate's call at the machine for now.
 `bin/fm-today-bridge.sh --help` owns every other rule for carrying an answer.
 
