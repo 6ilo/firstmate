@@ -201,20 +201,27 @@ def errors(doc):
 
 
 def write_json(path, obj):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = "%s.tmp.%d" % (path, os.getpid())
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(obj, fh, ensure_ascii=False, indent=2)
-        fh.write("\n")
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.replace(tmp, path)
-    dfd = os.open(os.path.dirname(path), os.O_RDONLY)
     try:
-        os.fsync(dfd)
-    finally:
-        os.close(dfd)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(obj, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+        dfd = os.open(os.path.dirname(path), os.O_RDONLY)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise Retry("it could not be written on this machine")
 
 
 def receipt(ref, outcome, reason=None):
@@ -387,18 +394,18 @@ for key, kind, id_key, id_re, schema in SHAPES:
         if not isinstance(ident, str) or not id_re.match(ident):
             summary["unreadable"] += 1
             continue
-        if os.path.exists(os.path.join(RECORDS, ident + ".json")):
-            receipt(ident, "duplicate")
-            summary["duplicates"] += 1
-            continue
-        errs = errors(doc) if doc.get("schema") == schema else ["$.schema: const"]
-        if errs:
-            reason = mismatch(kind.replace("-", " "), schema, errs)
-            record(ident, kind, doc, "refused", reason)
-            receipt(ident, "refused", reason)
-            summary["refused"].append({"id": ident})
-            continue
         try:
+            if os.path.exists(os.path.join(RECORDS, ident + ".json")):
+                receipt(ident, "duplicate")
+                summary["duplicates"] += 1
+                continue
+            errs = errors(doc) if doc.get("schema") == schema else ["$.schema: const"]
+            if errs:
+                reason = mismatch(kind.replace("-", " "), schema, errs)
+                record(ident, kind, doc, "refused", reason)
+                receipt(ident, "refused", reason)
+                summary["refused"].append({"id": ident})
+                continue
             result = note(ident, doc) if kind == "note" else order(ident, doc)
         except Retry as why:
             summary["retry"].append({"id": ident, "why": str(why)})
