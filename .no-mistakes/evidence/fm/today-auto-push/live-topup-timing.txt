@@ -1,0 +1,4 @@
+Unchanged fleet, MIN=4s TOPUP=15s, watcher run 50s; push arrival offsets (s):
+6
+23
+39
