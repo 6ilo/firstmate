@@ -1,0 +1,13 @@
+=== Adversarial: refuse at machine (nvm) ===
+
+Trust this passkey to sign the merge word and the go from Today?
+  label:       iPhone passkey
+  device:      mac-studio (as the portal reports it)
+  registered:  2026-09-30T23:34:09Z (as the portal reports it)
+  credential:  XgkrO_Jl5K7C13eIi92MYto0mxo
+  key:         ES256 SHA256:8ac8 4acb d6fb 5a3b 785e ace4 991d f503 dadc 02cf 9f3b 4d54 6249 3381 8fa7 f551
+  synced:      yes, backup eligible
+Confirm only if you registered this passkey on Today just now.
+Type yes to trust it, anything else to refuse: nvm
+refused at the machine: nothing was enrolled
+store exists after refusal? NO

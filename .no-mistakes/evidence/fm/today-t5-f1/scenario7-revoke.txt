@@ -1,0 +1,7 @@
+=== REVOKE (warning on stderr) ===
+revoked S5z8U4HsXzympEJB5Cjlu-Bf4Z8 (iPhone passkey)
+STDERR:
+fm-today-passkey: warning: only 0 active credentials left; enrol another so Today keeps a working passkey
+=== LIST after revoke ===
+S5z8U4HsXzympEJB5Cjlu-Bf4Z8  revoked  2026-09-30T23:33:56Z  iPhone passkey
+    ES256 SHA256:c4f7 eb37 0f4b e6d3 114c 9350 7001 d6f2 f27c ec82 842e ae53 305a 3a81 b14c 91fb  revoked_at 2026-09-30T23:34:02Z

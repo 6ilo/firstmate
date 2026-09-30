@@ -1,0 +1,5 @@
+=== ENROL ===
+enrol_id: enr_nQGxabmvXNggBJsHplDHKg
+expires_at: 2026-09-30T23:48:29Z
+The next Today snapshot asks for this passkey. Register it on Today before it expires,
+then confirm it here with: bin/fm-today-passkey.sh confirm <enrolment.json>

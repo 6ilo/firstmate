@@ -1,0 +1,11 @@
+=== BLOCKS ===
+{
+  "enrolment": {
+    "enrol_id": "enr_nQGxabmvXNggBJsHplDHKg",
+    "challenge": "R5DWIZhgthVBaY3yeypr7fv42buBgTpQxYtFBfdyhQo",
+    "rp_id": "relay-api.mmeg.us",
+    "origin": "https://relay-api.mmeg.us",
+    "user_handle": "Ke-SDW5hWkctY9cypJHVdA",
+    "expires_at": "2026-09-30T23:48:29Z"
+  }
+}

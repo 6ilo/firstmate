@@ -1,0 +1,4 @@
+=== Adversarial: no terminal, answer on stdin never taken ===
+error: $.enrol_id: enrolment: already used
+refused: nothing was enrolled
+store exists after stdin/no-tty? NO

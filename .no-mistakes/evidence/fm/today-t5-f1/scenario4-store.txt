@@ -1,0 +1,20 @@
+=== STORE (config/today-passkeys.json) ===
+{
+  "credentials": [
+    {
+      "credential_id": "S5z8U4HsXzympEJB5Cjlu-Bf4Z8",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEnB8QvbIvGxjjbNjErTcherlhseNk\nuMUBEf5xl4mRuVLuozHQQfDTkIWm2QKxhfSjlztbxXx+wXjZt1+Xw2+vFw==\n-----END PUBLIC KEY-----\n",
+      "alg": -7,
+      "rp_id": "relay-api.mmeg.us",
+      "origin": "https://relay-api.mmeg.us",
+      "label": "iPhone passkey",
+      "enrolled_at": "2026-09-30T23:33:56Z",
+      "enrolled_via": "portal",
+      "backup_eligible": true,
+      "sign_count": 0,
+      "status": "active",
+      "revoked_at": null
+    }
+  ]
+}
+600

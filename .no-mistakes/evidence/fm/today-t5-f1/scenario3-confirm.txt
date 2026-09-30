@@ -1,0 +1,13 @@
+=== CONFIRM at machine (yes) ===
+
+Trust this passkey to sign the merge word and the go from Today?
+  label:       iPhone passkey
+  device:      mac-studio (as the portal reports it)
+  registered:  2026-09-30T23:33:46Z (as the portal reports it)
+  credential:  S5z8U4HsXzympEJB5Cjlu-Bf4Z8
+  key:         ES256 SHA256:c4f7 eb37 0f4b e6d3 114c 9350 7001 d6f2 f27c ec82 842e ae53 305a 3a81 b14c 91fb
+  synced:      yes, backup eligible
+Confirm only if you registered this passkey on Today just now.
+Type yes to trust it, anything else to refuse: yes
+enrolled S5z8U4HsXzympEJB5Cjlu-Bf4Z8 (iPhone passkey)
+EXIT_CODE=0

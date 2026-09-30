@@ -1,0 +1,13 @@
+=== BLOCKS after confirm ===
+{
+  "passkeys": {
+    "rp_id": "relay-api.mmeg.us",
+    "origin": "https://relay-api.mmeg.us",
+    "credentials": [
+      {
+        "credential_id": "S5z8U4HsXzympEJB5Cjlu-Bf4Z8",
+        "label": "iPhone passkey"
+      }
+    ]
+  }
+}

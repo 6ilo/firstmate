@@ -1,0 +1,3 @@
+=== No terminal: yes piped to stdin, answer never taken ===
+refused: no terminal at this machine to confirm on; nothing was enrolled
+store exists? NO
