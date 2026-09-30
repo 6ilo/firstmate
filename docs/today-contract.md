@@ -145,7 +145,10 @@ An answer is what the portal sends back for one card.
 
 **A `reconcile` answer.**
 An answer whose value is `reconcile` means "already settled, re-check".
-Firstmate routes it into its existing reconcile-request path (`bin/fm-captain-hold.sh reconcile-requests`), with the meaning [`captain-hold-lifecycle.md`](captain-hold-lifecycle.md#reconcile-re-check-reality-never-a-blind-close) gives it.
+Its route is keyed by the answer's `owner` and `task_id`, with the meaning [`captain-hold-lifecycle.md`](captain-hold-lifecycle.md#reconcile-re-check-reality-never-a-blind-close) gives it.
+An answer whose `owner` is `(main)` or absent goes to this home's reconcile-request path (`bin/fm-captain-hold.sh reconcile-requests`) for that `task_id`.
+An answer whose `owner` is a second mate is never applied in the main home: it is routed to that mate's home through the existing [parent channel](secondmate-parent-channel.md), and the mate's own reconcile-request path takes it there.
+The Today answer intake itself is built by a separate slice-0 change; this contract defines the rule that intake must follow.
 It never closes or releases a call by itself: the call stays open until firstmate re-checks it and closes it with evidence, or keeps it open with a note.
 
 **The passkey challenge.**
