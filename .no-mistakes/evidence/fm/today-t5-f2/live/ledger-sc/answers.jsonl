@@ -1,0 +1,3 @@
+{"answer_id": "ans_sig000000000000004", "at": "2026-09-30T23:52:07Z", "reason": "passkey: sign count; 5 is not above 5", "verdict": "refused"}
+{"answer_id": "ans_sc__000000000000005", "at": "2026-09-30T23:52:10Z", "credential_id": "685DzhwDrXT1UQyaFzNrTEyqb8s", "nonce": "VMXkFFVPQRPNMOeUEoYVIg", "owner": null, "reason": null, "sign_count": 6, "task_id": "today-t0", "verdict": "verified"}
+{"answer_id": "ans_sc__000000000000006", "at": "2026-09-30T23:52:10Z", "reason": "passkey: sign count; 6 is not above 6", "verdict": "refused"}

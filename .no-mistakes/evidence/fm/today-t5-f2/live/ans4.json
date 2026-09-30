@@ -1,0 +1,17 @@
+{
+  "schema": "fm-today-answer.v1",
+  "answer_id": "ans_sig000000000000003",
+  "task_id": "today-t0",
+  "kind": "merge",
+  "value": "merge",
+  "card_hash": "bf0d6007dcc553bcd358e27b54df8032c0ae9a5591c899b54e1904191d6e0545",
+  "answered_at": "2026-09-28T14:10:12Z",
+  "person": "user_2captain",
+  "device": "iphone-15",
+  "passkey": {
+    "credential_id": "685DzhwDrXT1UQyaFzNrTEyqb8s",
+    "authenticator_data": "WmRW4yO0zR4QlQ2_b41F0rV2eEJUD688VfXUd27wBYUdAAAAAA",
+    "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicjl5LWFjMnhNVjRkQ0ZyRUF4QnpRblhhalpYeENiemVOQWFrZzlPWEtIRSIsIm9yaWdpbiI6Imh0dHBzOi8vcmVsYXktYXBpLm1tZWcudXMiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+    "signature": "MEUCIFqQYk-7d2_5eK2pcpXuhDmlPEPmNCedvJbbN1kHFJFJAiEAr-GcZaG_zhBGn1RtGzg-A_ZcCaCcdRNcJ-lgp3G1gpY"
+  }
+}

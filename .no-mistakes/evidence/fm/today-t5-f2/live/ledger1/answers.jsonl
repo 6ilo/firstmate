@@ -1,0 +1,3 @@
+{"answer_id": "ans_manual000000000001", "at": "2026-09-30T23:51:52Z", "credential_id": "685DzhwDrXT1UQyaFzNrTEyqb8s", "nonce": "asHciGPH_fWAsAowvCkdkg", "owner": null, "reason": null, "sign_count": 0, "task_id": "today-t0", "verdict": "verified"}
+{"answer_id": "ans_manual000000000002", "at": "2026-09-30T23:51:54Z", "reason": "passkey: proof already used", "verdict": "refused"}
+{"answer_id": "ans_sig000000000000003", "at": "2026-09-30T23:52:00Z", "reason": "passkey: signature did not verify", "verdict": "refused"}

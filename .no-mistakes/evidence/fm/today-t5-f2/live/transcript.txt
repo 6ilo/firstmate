@@ -1,0 +1,34 @@
+FM_TODAY_PASSKEY_VERIFY live evidence transcript
+===============================================
+
+[fresh ES256 verified, exit 0]
+{"answer_id": "ans_manual000000000001", "credential": {"credential_id": "685DzhwDrXT1UQyaFzNrTEyqb8s", "label": "iPhone passkey"}, "sign_count": 0, "verdict": "verified"}
+
+[replayed answer_id -> duplicate, first_verdict=verified]
+{"answer_id": "ans_manual000000000001", "first_verdict": "verified", "verdict": "duplicate"}
+
+[reused nonce (new id, same nonce) -> refused proof already used]
+{"answer_id": "ans_manual000000000002", "reason": "passkey: proof already used", "verdict": "refused"}
+
+[bad signature (wrong key under enrolled cid) -> refused signature did not verify]
+{"answer_id": "ans_sig000000000000003", "reason": "passkey: signature did not verify", "verdict": "refused"}
+
+[bare-array store -> exit 2 unreadable]
+fm-today-passkey-verify: passkey: the store /Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3TB8QZNYD6GPXK3XNAGH99Y/live/bare-store.json is unreadable: not a {"credentials": [...]} object
+
+[r2-1 unwritable ledger -> exit 2, no row, resend verifies exit 0]
+first:
+fm-today-passkey-verify: the ledger file /Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3TB8QZNYD6GPXK3XNAGH99Y/live/ledger-uw/answers.jsonl is unwritable: [Errno 13] Permission denied: '/Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M3TB8QZNYD6GPXK3XNAGH99Y/live/ledger-uw/answers.jsonl'
+resend:
+{"answer_id": "ans_manual000000000001", "credential": {"credential_id": "685DzhwDrXT1UQyaFzNrTEyqb8s", "label": "iPhone passkey"}, "sign_count": 0, "verdict": "verified"}
+
+[sign count: 5 not above stored 5 refused]
+{"answer_id": "ans_sig000000000000004", "reason": "passkey: sign count; 5 is not above 5", "verdict": "refused"}
+
+[sign count 6 verified]
+{"answer_id": "ans_sc__000000000000005", "credential": {"credential_id": "685DzhwDrXT1UQyaFzNrTEyqb8s", "label": "Counting key"}, "sign_count": 6, "verdict": "verified"}
+
+[sign count 6 on next call refused (persisted) ]
+{"answer_id": "ans_sc__000000000000006", "reason": "passkey: sign count; 6 is not above 6", "verdict": "refused"}
+
+[contract signed merge example]

@@ -1,0 +1,18 @@
+{
+  "credentials": [
+    {
+      "credential_id": "685DzhwDrXT1UQyaFzNrTEyqb8s",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE51em98RnMy0b7IVfcbSRd58PdNJu\nOs/f+jA3vx9IHBBwyM7mtsFiWYuZC+nxYF7dfgxYYaBObU/YjuoLqiOKyA==\n-----END PUBLIC KEY-----\n",
+      "alg": -7,
+      "rp_id": "relay-api.mmeg.us",
+      "origin": "https://relay-api.mmeg.us",
+      "label": "iPhone passkey",
+      "enrolled_at": "2026-09-28T12:00:00Z",
+      "enrolled_via": "portal",
+      "backup_eligible": true,
+      "sign_count": 0,
+      "status": "active",
+      "revoked_at": null
+    }
+  ]
+}

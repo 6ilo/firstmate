@@ -1,0 +1,11 @@
+{
+  "schema": "fm-today-answer.v1",
+  "answer_id": "ans_sc__000000000000005",
+  "task_id": "today-t0",
+  "kind": "merge",
+  "value": "merge",
+  "card_hash": "d61483c6eee058508db9d8d23bc58573d71a7e393c7e04cc9c46991acb00a469",
+  "answered_at": "2026-09-28T14:10:12Z",
+  "person": "user_2captain",
+  "device": "iphone-15"
+}
