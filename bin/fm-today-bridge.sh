@@ -145,6 +145,10 @@
 #      hold's --call tag, and never reaches the intake. The answer id, device,
 #      and any note are recorded as the answer's provenance; the note is the
 #      captain's words and never an instruction.
+# Each answer is checked and carried on its own: an error while doing so, such
+# as a later_until that names no real date, refuses that answer with reason
+# `could not carry the answer: ...`, and the rest of the batch is still
+# carried, so every answer gets a receipt.
 #
 # Configuration. Each value comes from the environment when set, otherwise from
 # this home's gitignored $FM_HOME/.env (bin/fm-env-lib.sh's fmx_env_get). The
