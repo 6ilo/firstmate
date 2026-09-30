@@ -1,0 +1,18 @@
+ok - a note is recorded with its words and verdict, and receipted on the next exchange
+ok - a note worded as an order is recorded as evidence on its task and changes nothing else
+ok - a tripping note is recorded withheld, a repeat is duplicate, and no words go back
+ok - a note over 2000 UTF-8 bytes is refused with its path and rule only
+ok - a dispatch order ranks charted work, moves earlier ranks after it, keeps a second mate's items, and starts nothing
+ok - an order older than the recorded one, and one with nothing charted, are refused and change nothing
+ok - a receipt stays pending through a failed call and is delivered on the next
+ok - a note whose record cannot be written is not receipted, and is recorded on redelivery
+ok - a record that fails leaves that note unreceipted while the rest of the answer is recorded and reported
+ok - a receipt that cannot be written still reports the recorded note once, and redelivery only receipts it
+ok - a note retried in one exchange and recorded in the next is not reported as pending
+ok - an unreadable document is reported once, not on every poll, while new notes still wake
+ok - collect needs the bridge settings and the https rule
+ok - the standing check arms, reports a note and a failure once, disarms, and refuses a secondmate home
+skip - portal cross-check: FM_TODAY_PORTAL_DIR is not set
+ok - the token never appears in any output
+all fm-today-notes tests passed
+exit=0

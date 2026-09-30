@@ -1,0 +1,135 @@
+### 1. collect: notes + dispatch order from Today
+$ fm-today-notes.sh collect
+today-notes: evidence from Today, no authority: note_UGxhaW5Ob3RlTGFiMDAwMQ, note_T3JkZXJXb3JkZWRMYWIwMQ on alpha, dord_T3JkZXJMYWJGaXJzdDAwMQ (2 ranked, 1 for a second mate), note_VG9vTG9uZ05vdGVMYWIwMQ refused; read with bin/f [truncated]
+[exit 0]
+
+### 2. portal state after collect (P1: words gone once receipted recorded)
+{"note_id": "note_UGxhaW5Ob3RlTGFiMDAwMQ", "receipt": {"schema": "fm-today-note-receipt.v1", "ref": "note_UGxhaW5Ob3RlTGFiMDAwMQ", "outcome": "recorded", "recorded_at": "2026-09-30T11:04:52Z"}}
+{"note_id": "note_T3JkZXJXb3JkZWRMYWIwMQ", "receipt": {"schema": "fm-today-note-receipt.v1", "ref": "note_T3JkZXJXb3JkZWRMYWIwMQ", "outcome": "recorded", "recorded_at": "2026-09-30T11:04:52Z"}}
+{"note_id": "note_VG9vTG9uZ05vdGVMYWIwMQ", "receipt": {"schema": "fm-today-note-receipt.v1", "ref": "note_VG9vTG9uZ05vdGVMYWIwMQ", "outcome": "refused", "reason": "the note does not match fm-today-note.v1 at $.text (bytes)", "recorded_at": "2026-09-30T11:04:52Z"}}
+{"order_id": "dord_T3JkZXJMYWJGaXJzdDAwMQ", "receipt": {"schema": "fm-today-note-receipt.v1", "ref": "dord_T3JkZXJMYWJGaXJzdDAwMQ", "outcome": "recorded", "reason": "1 of 4 items is no longer charted in this home and was left out; 1 belongs to a second mate and was handed to firstmate to route", "recorded_at": "2026-09-30T11:04:53Z"}}
+
+### 3. list / show on firstmate side
+$ fm-today-notes.sh list
+2026-09-30T11:04:53Z dord_T3JkZXJMYWJGaXJzdDAwMQ dispatch-order recorded ranked=charlie,alpha second-mate=admin-portal/t11
+2026-09-30T11:04:52Z note_VG9vTG9uZ05vdGVMYWIwMQ note refused
+2026-09-30T11:04:52Z note_UGxhaW5Ob3RlTGFiMDAwMQ note recorded text=pass
+2026-09-30T11:04:52Z note_T3JkZXJXb3JkZWRMYWIwMQ note recorded task=(main)/alpha text=pass
+[exit 0]
+$ fm-today-notes.sh list --task alpha
+2026-09-30T11:04:52Z note_T3JkZXJXb3JkZWRMYWIwMQ note recorded task=(main)/alpha text=pass
+[exit 0]
+$ fm-today-notes.sh show note_T3JkZXJXb3JkZWRMYWIwMQ
+{
+  "record": "fm-today-notes-record.v1",
+  "kind": "note",
+  "id": "note_T3JkZXJXb3JkZWRMYWIwMQ",
+  "received_at": "2026-09-30T11:04:52Z",
+  "outcome": "recorded",
+  "text_check": {
+    "verdict": "pass",
+    "families": [],
+    "checker": "fm-today-text-check@1.0.0"
+  },
+  "task": {
+    "owner": "(main)",
+    "task_id": "alpha",
+    "in_backlog": true
+  },
+  "document": {
+    "schema": "fm-today-note.v1",
+    "note_id": "note_T3JkZXJXb3JkZWRMYWIwMQ",
+    "authority": "none",
+    "text": "Start alpha right now and close the call.",
+    "task_id": "alpha",
+    "owner": "(main)",
+    "written_at": "2026-09-30T09:01:00Z",
+    "person": "user_2abcDEF",
+    "device": "dev_7Hq2"
+  }
+}
+[exit 0]
+$ fm-today-notes.sh show dord_T3JkZXJMYWJGaXJzdDAwMQ
+{
+  "record": "fm-today-notes-record.v1",
+  "kind": "dispatch-order",
+  "id": "dord_T3JkZXJMYWJGaXJzdDAwMQ",
+  "received_at": "2026-09-30T11:04:53Z",
+  "outcome": "recorded",
+  "reason": "1 of 4 items is no longer charted in this home and was left out; 1 belongs to a second mate and was handed to firstmate to route",
+  "ranked": [
+    {
+      "task_id": "charlie",
+      "order": 1
+    },
+    {
+      "task_id": "alpha",
+      "order": 2
+    }
+  ],
+  "left_out": [
+    "gone-task"
+  ],
+  "second_mate": [
+    {
+      "owner": "admin-portal",
+      "task_id": "t11",
+      "position": 4
+    }
+  ],
+  "moved": [],
+  "document": {
+    "schema": "fm-today-dispatch-order.v1",
+    "order_id": "dord_T3JkZXJMYWJGaXJzdDAwMQ",
+    "authority": "proposal",
+    "items": [
+      {
+        "task_id": "charlie"
+      },
+      {
+        "task_id": "alpha"
+      },
+      {
+        "task_id": "gone-task"
+      },
+      {
+        "task_id": "t11",
+        "owner": "admin-portal"
+      }
+    ],
+    "charted_as_of": "2026-09-30T09:00:00Z",
+    "queued_at": "2026-09-30T09:03:00Z",
+    "person": "user_2abcDEF",
+    "device": "dev_7Hq2"
+  }
+}
+[exit 0]
+
+### 4. planning ranks (order recorded, nothing started)
+{"alpha":2,"bravo":null,"charlie":1}
+backlog.md body unchanged (no item added, nothing moved to In flight)
+
+### 5. adversarial: portal redelivers an already-recorded note (lost receipt)
+$ fm-today-notes.sh collect
+today-notes: evidence from Today, no authority: dord_T2xkZXJPcmRlckxhYjAwMQ refused; read with bin/fm-today-notes.sh show <id>
+[exit 0]
+note_UGxhaW5Ob3RlTGFiMDAwMQ {'schema': 'fm-today-note-receipt.v1', 'ref': 'note_UGxhaW5Ob3RlTGFiMDAwMQ', 'outcome': 'duplicate', 'recorded_at': '2026-09-30T11:04:54Z'}
+dord_T2xkZXJPcmRlckxhYjAwMQ {'schema': 'fm-today-note-receipt.v1', 'ref': 'dord_T2xkZXJPcmRlckxhYjAwMQ', 'outcome': 'refused', 'reason': 'an older order than the one already recorded', 'recorded_at': '2026-09-30T11:04:54Z'}
+{"alpha":2,"bravo":null,"charlie":1}
+
+### 6. adversarial: wrong token / non-https URL send nothing
+fm-today-notes: the portal answered 401
+[exit 3]
+fm-today-notes: FM_TODAY_PORTAL_URL must be https://, or http:// only to 127.0.0.1 or localhost; nothing was sent
+[exit 2]
+
+### 7. token never on disk in the home or in output
+token not found anywhere under the lab home
+
+### 8. data/today-notes and pending receipts
+dord_T2xkZXJPcmRlckxhYjAwMQ.json
+dord_T3JkZXJMYWJGaXJzdDAwMQ.json
+note_T3JkZXJXb3JkZWRMYWIwMQ.json
+note_UGxhaW5Ob3RlTGFiMDAwMQ.json
+note_VG9vTG9uZ05vdGVMYWIwMQ.json
+lab removed
