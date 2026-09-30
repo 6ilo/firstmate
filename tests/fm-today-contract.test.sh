@@ -53,6 +53,7 @@ answer--later-without-time required: missing later_until
 answer--malformed-card-hash $.card_hash: pattern
 answer--merge-without-passkey required: missing passkey
 answer--note-too-long $.note: maxLength
+answer--passkey-authenticator-data-not-base64url $.passkey.authenticator_data: base64url
 answer--passkey-cross-origin $.passkey.client_data_json: cross-origin
 answer--passkey-on-decision $: not:
 answer--passkey-other-origin $.passkey.client_data_json: origin
@@ -323,6 +324,17 @@ test_passkey_fields_are_additive() {
   pass "all $n cards and the snapshot stay valid without the passkey fields"
 }
 
+# The portal compiles its snapshot validator from the card and snapshot
+# schemas alone, so the snapshot schema may reference no other file.
+test_snapshot_needs_only_the_card_schema() {
+  local dir=$TMP_ROOT/card-and-snapshot out
+  mkdir -p "$dir"
+  cp "$CONTRACT/fm-today-card.v1.schema.json" "$CONTRACT/fm-today-snapshot.v1.schema.json" "$dir/"
+  out=$("${CHECK[@]}" check "$dir" "$SNAPSHOT" 2>&1) \
+    || fail "the example snapshot does not validate with only the card and snapshot schemas: $out"
+  pass "the snapshot schema resolves with only the card schema beside it"
+}
+
 # When FM_TODAY_PORTAL_DIR names a relay-platform checkout with its
 # dependencies installed, the portal's own ajv, with the options the portal's
 # validator uses, compiles every schema here without a warning and accepts
@@ -367,6 +379,7 @@ test_passkey_challenge_matches_published_definition
 test_example_signatures_verify_under_openssl
 test_fresh_keys_round_trip
 test_passkey_fields_are_additive
+test_snapshot_needs_only_the_card_schema
 test_portal_ajv_accepts_the_examples
 
 echo "all fm-today-contract tests passed"

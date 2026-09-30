@@ -351,12 +351,23 @@ def assertion_errors(answer, keys):
     if client is None:
         return out
     out += client_origin_errors("$.passkey.client_data_json", client, keys["origin"])
-    auth = b64url_decode(passkey["authenticator_data"])
+    raw = {}
+    for field in ("authenticator_data", "client_data_json", "signature"):
+        try:
+            raw[field] = b64url_decode(passkey[field])
+        except ValueError as err:
+            out.append("$.passkey.%s: base64url: %s" % (field, err))
+    if len(raw) < 3:
+        return out
+    auth = raw["authenticator_data"]
     out += authenticator_data_errors("$.passkey.authenticator_data", auth, keys["rp_id"],
                                      FLAG_UP | FLAG_UV)
-    signed = auth + hashlib.sha256(b64url_decode(passkey["client_data_json"])).digest()
-    key = spki_key(b64url_decode(credential["public_key_spki"]))
-    if not signature_ok(credential["alg"], key, signed, b64url_decode(passkey["signature"])):
+    signed = auth + hashlib.sha256(raw["client_data_json"]).digest()
+    try:
+        key = spki_key(b64url_decode(credential["public_key_spki"]))
+    except ValueError as err:
+        return out + ["$.passkey.credential_id: key: the enrolled key is unusable (%s)" % err]
+    if not signature_ok(credential["alg"], key, signed, raw["signature"]):
         out.append("$.passkey.signature: signature: does not verify with the enrolled key")
     return out
 

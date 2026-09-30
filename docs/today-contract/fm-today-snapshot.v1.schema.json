@@ -232,7 +232,7 @@
       "additionalProperties": false,
       "required": ["enrol_id", "challenge", "rp_id", "origin", "user_handle", "expires_at"],
       "properties": {
-        "enrol_id": { "$ref": "fm-today-answer.v1.schema.json#/$defs/answer_id" },
+        "enrol_id": { "$ref": "#/$defs/enrol_id" },
         "challenge": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
         "rp_id": { "$ref": "#/$defs/rp_id" },
         "origin": { "$ref": "#/$defs/origin" },
@@ -240,6 +240,7 @@
         "expires_at": { "$ref": "fm-today-card.v1.schema.json#/$defs/timestamp" }
       }
     },
+    "enrol_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$" },
     "rp_id": {
       "type": "string",
       "maxLength": 253,
