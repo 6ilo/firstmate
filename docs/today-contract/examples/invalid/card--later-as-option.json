@@ -18,7 +18,7 @@
     },
     {
       "value": "reconcile",
-      "label": "Reconcile",
+      "label": "Already settled",
       "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
       "recommended": false
     }
