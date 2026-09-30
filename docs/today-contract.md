@@ -68,7 +68,7 @@ Where a fact already exists in the bearings snapshot (`bin/fm-bearings-snapshot.
 
 | Section | Rows | Meaning |
 | --- | --- | --- |
-| `calls` | `fm-today-card.v1` | Every open captain call, each once; at most 200. |
+| `calls` | `fm-today-card.v1` | Every open captain call in the fleet, each once for its `owner` and `task_id`; at most 200. |
 | `underway` | `id`, `title`, `kind`, `state`, `doing`, `repo`, optional `owner`, `pr_url` | Work being done now, as the board's Underway: `title` is the task title or its id, and `pr_url` its open pull request. |
 | `charted_next` | `id`, `title`, `reason`, `dispatchable`, `repo`, optional `kind`, `filed`, `blocked_by`, `owner` | Work filed but not started, as the board's Charted Next; `kind` is `queued` or `warning`, and a `warning` row is never dispatchable. |
 | `landed` | `id`, `title`, `owner`, `repo`, optional `pr_url`, `landed_at`, `subject` | Recently finished work, as the board's landed rows; `owner` is `(main)` or the secondmate home that recorded it. |
