@@ -17,8 +17,9 @@ Usage:
       would show it now; pass it only while the call is open.
       Prints one JSON object and exits 0 for `verified`, 1 for any other
       verdict, and 2 when nothing could be decided (a bad argument, an
-      unreadable or malformed store or card, a missing openssl); exit 2
-      records nothing.
+      unreadable or malformed store or card, a missing openssl, an
+      unwritable ledger); exit 2 records nothing, except that once an answer's
+      nonce is recorded it is verified and a resend is its duplicate.
 
 Verdict object:
   {"verdict": "verified" | "refused" | "set-aside" | "duplicate",
@@ -167,11 +168,14 @@ class Ledger:
             raise Undecidable("the ledger file %s is unreadable: %s" % (self.path(name), err))
 
     def append(self, name, row):
-        fd = os.open(self.path(name), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
-        with os.fdopen(fd, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row, sort_keys=True) + "\n")
-            fh.flush()
-            os.fsync(fh.fileno())
+        try:
+            fd = os.open(self.path(name), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+            with os.fdopen(fd, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(row, sort_keys=True) + "\n")
+                fh.flush()
+                os.fsync(fh.fileno())
+        except OSError as err:
+            raise Undecidable("the ledger file %s is unwritable: %s" % (self.path(name), err))
 
     def counts(self):
         try:
@@ -183,12 +187,15 @@ class Ledger:
             raise Undecidable("the sign-count ledger is unreadable: %s" % err)
 
     def write_counts(self, counts):
-        fd, tmp = tempfile.mkstemp(dir=self.dir, prefix=".sign-counts.")
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(counts, fh, sort_keys=True)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, self.path("sign-counts.json"))
+        try:
+            fd, tmp = tempfile.mkstemp(dir=self.dir, prefix=".sign-counts.")
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(counts, fh, sort_keys=True)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp, self.path("sign-counts.json"))
+        except OSError as err:
+            raise Undecidable("the sign-count ledger is unwritable: %s" % err)
 
 
 def openssl_verify(public_key_pem, message, signature):
@@ -301,6 +308,9 @@ def verify(answer_path, card_path, store_path, ledger_dir):
     for row in ledger.rows("answers.jsonl"):
         if row.get("answer_id") == aid:
             return {"verdict": "duplicate", "answer_id": aid, "first_verdict": row.get("verdict")}
+    for row in ledger.rows("nonces.jsonl"):
+        if row.get("answer_id") == aid:
+            return {"verdict": "duplicate", "answer_id": aid, "first_verdict": "verified"}
 
     result = {"answer_id": aid}
     counts = ledger.counts()

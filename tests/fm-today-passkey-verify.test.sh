@@ -292,6 +292,23 @@ test_undecidable_records_nothing() {
   pass "an unreadable store exits 2 and spends neither the answer nor the nonce"
 }
 
+test_unwritable_ledger_keeps_the_answer() {
+  new_case
+  merge_card "$CASE/card.json"
+  signed_answer "$CASE/a1.json" "$CASE/card.json" es
+  mkdir -p "$CASE/ledger"
+  : > "$CASE/ledger/answers.jsonl"
+  chmod 400 "$CASE/ledger/answers.jsonl"
+  run_verify "$CASE/a1.json" "$CASE/card.json"
+  [ "$RC" -eq 2 ] || fail "an unwritable answer ledger did not exit 2: $RC $OUT"
+  [ "$(wc -l < "$CASE/ledger/nonces.jsonl")" -eq 1 ] || fail "the nonce was not recorded before the failed write"
+  chmod 600 "$CASE/ledger/answers.jsonl"
+  run_verify "$CASE/a1.json" "$CASE/card.json"
+  expect_verdict duplicate - "the resent answer whose nonce was recorded"
+  [ "$(jq -r .first_verdict <<< "$OUT")" = verified ] || fail "the resent answer does not read as verified: $OUT"
+  pass "a failed answer-ledger write exits 2 and a resend reads as a duplicate of the verified answer"
+}
+
 test_good_assertions_verify
 test_client_data_refusals
 test_authenticator_data_refusals
@@ -300,5 +317,6 @@ test_replay_refusals
 test_sign_count
 test_card_refusals
 test_undecidable_records_nothing
+test_unwritable_ledger_keeps_the_answer
 
 echo "all fm-today-passkey-verify tests passed"
