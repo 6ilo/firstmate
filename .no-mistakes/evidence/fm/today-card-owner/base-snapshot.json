@@ -1,0 +1,55 @@
+{
+  "schema": "fm-today-snapshot.v1",
+  "generator_version": "1.1.0",
+  "generated_at": "2026-09-30T01:14:15Z",
+  "home": "T/fm-lab.lgWqsT",
+  "sections": {
+    "calls": [
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "pick-order",
+        "kind": "decision",
+        "title": "Choose subscription order: captain choice pending",
+        "question": "Choose subscription order: captain choice pending",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Reconcile",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "repo": null,
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-09-30T01:14:15Z"
+        },
+        "card_hash": "75f282cfbf3fa9d80065552b2519076a1cf21e7df1ab80bb8c1301f495ad4590"
+      }
+    ],
+    "underway": [],
+    "charted_next": [
+      {
+        "id": "shared-work",
+        "title": "Main queued work",
+        "reason": "",
+        "dispatchable": true,
+        "kind": "queued",
+        "repo": null,
+        "owner": "(main)"
+      }
+    ],
+    "landed": [],
+    "health": {
+      "supervision": "unknown",
+      "unhealthy": []
+    },
+    "boards": [],
+    "day": {
+      "date": "2026-09-29",
+      "ends_at": "2026-09-30T00:00:00-05:00",
+      "blocks": []
+    }
+  }
+}

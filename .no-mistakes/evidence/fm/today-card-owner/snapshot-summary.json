@@ -1,0 +1,29 @@
+{
+  "generator": null,
+  "calls": [
+    {
+      "task_id": "pick-order",
+      "owner": "(main)",
+      "title": "Choose subscription order: captain choice pending",
+      "card_hash": "68f1baa01036c5d65efe3bb087df2b8540ab8008201b3b81420aa069e547edf1"
+    },
+    {
+      "task_id": "pick-order",
+      "owner": "mate",
+      "title": "Mate chooses release order: captain choice pending",
+      "card_hash": "7b61c0b955ca7f4724db870973a8c95454e3d5e9c16f5daa10b281f72e2313d6"
+    }
+  ],
+  "charted_next": [
+    {
+      "id": "shared-work",
+      "owner": "(main)",
+      "title": "Main queued work"
+    },
+    {
+      "id": "shared-work",
+      "owner": "mate",
+      "title": "Mate queued work"
+    }
+  ]
+}

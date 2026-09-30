@@ -1,0 +1,4 @@
+docs/today-contract/examples/invalid/card--owner-not-hashed.json: error: $.card_hash: card_hash: expected 12aab4e22e477bd746667d29d5ea088d4ee1e67259bb3bb010dbf51afbd5e744 
+docs/today-contract/examples/invalid/card--owner-qualified.json: error: $.owner: pattern: "relay-platform/portal-rail-order" does not match 
+docs/today-contract/examples/invalid/snapshot--call-listed-twice-for-owner.json: error: $.sections.calls: task_id: a call appears twice 
+docs/today-contract/examples/invalid/snapshot--work-listed-twice-for-owner.json: error: $.sections: id: a piece of work appears twice 

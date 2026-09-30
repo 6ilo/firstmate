@@ -1,0 +1,16 @@
+{
+  "calls": [
+    {
+      "task_id": "pick-order",
+      "owner": null,
+      "title": "Choose subscription order: captain choice pending"
+    }
+  ],
+  "charted_next": [
+    {
+      "id": "shared-work",
+      "owner": "(main)",
+      "title": "Main queued work"
+    }
+  ]
+}
