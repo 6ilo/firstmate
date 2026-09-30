@@ -22,7 +22,7 @@
 # Usage:
 #   fm-captain-hold.sh hold <task-id> --reason <reason> \
 #     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD] \
-#     [--due YYYY-MM-DD]
+#     [--due YYYY-MM-DD] [--call merge --pr <pull-request-url> | --call go | --call credential]
 #   fm-captain-hold.sh answer <task-id> --decision-file <path> [--release]
 #   fm-captain-hold.sh answers [<legacy-origin> | --any-origin] --source <provenance>   (keyed answers on stdin)
 #   fm-captain-hold.sh reconcile-requests --source-id <source-id> --source <provenance>   (task ids on stdin)
@@ -59,6 +59,20 @@
 # Captain's Call from its lead window until answered, and bin/fm-watch.sh
 # notifies firstmate as the window opens and on the day. Repeating an active
 # hold without `--due` keeps its due date; a new hold lifecycle drops it.
+# `--call` records what kind of call this is when it is not an ordinary
+# decision: `merge` is the captain's merge word on the pull request `--pr`
+# names (a https://github.com/<owner>/<repo>/pull/<n> URL, required with merge
+# and refused otherwise), `go` is the go to build, and `credential` is a
+# credential or login only the captain can give at the machine. It is written as a
+# `Captain hold call: <json>` line (`{"kind":..., "pr_url":...}`) under the
+# hold-set and due stamps, and bin/fm-fleet-snapshot.sh reads it as hold_call;
+# bin/fm-today-bridge.sh raises such a call as a card of that kind.
+# Repeating an active hold without `--call` keeps it, with `--call` replaces
+# it; a new hold lifecycle drops it. Recording it grants nothing: the merge
+# word still reaches a merge only through bin/fm-pr-merge.sh.
+# `--reason` may be left out only when re-holding a task already actively held
+# for the captain, which keeps its current reason (a Today `later` answer
+# re-holds with `--until` alone this way).
 #
 # `answer` records the captain's exact words and resolves the call in the same
 # act. It requires a non-empty captain decision file of at most 8192 bytes and
@@ -774,6 +788,12 @@ body_hold_due_date() {  # <body-after-the-hold-set-stamp>
     | sed -n '1s/^Captain hold due: \([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)$/\1/p'
 }
 
+# The call line follows the hold-set stamp and any due stamp. Prints it whole,
+# or nothing when the hold records no call.
+body_hold_call_line() {  # <body-after-the-hold-set-and-due-stamps>
+  printf '%s\n' "$1" | sed -n '1{/^Captain hold call: /p;}'
+}
+
 trim_leading_newlines() {  # <text>
   local text=$1
   while :; do
@@ -785,8 +805,9 @@ trim_leading_newlines() {  # <text>
   printf '%s' "$text"
 }
 
-write_hold_set_stamp() {  # <task-id> <shown-body> <timestamp> <preserve-existing-0-or-1> [<due-date>]
-  local id=$1 body=$2 hold_set=$3 preserve=$4 due=${5:-} existing existing_due='' new_body tmp
+write_hold_set_stamp() {  # <task-id> <shown-body> <timestamp> <preserve-existing-0-or-1> [<due-date>] [<call-line>]
+  local id=$1 body=$2 hold_set=$3 preserve=$4 due=${5:-} call=${6:-} existing existing_due='' existing_call=''
+  local new_body tmp
   body=$(decode_shown_value "$body") \
     || fail "could not decode the existing body for $id"
   existing=$(body_hold_set_timestamp "$body")
@@ -796,16 +817,25 @@ write_hold_set_stamp() {  # <task-id> <shown-body> <timestamp> <preserve-existin
     if [ -n "$existing_due" ]; then
       body=$(trim_leading_newlines "${body#"Captain hold due: $existing_due"}")
     fi
+    existing_call=$(body_hold_call_line "$body")
+    if [ -n "$existing_call" ]; then
+      body=$(trim_leading_newlines "${body#"$existing_call"}")
+    fi
   fi
   if [ "$preserve" = 1 ] && [ -n "$existing" ]; then
-    # An active lifecycle keeps its timestamp, and its due date unless replaced.
+    # An active lifecycle keeps its timestamp, and its due date and call
+    # unless replaced.
     [ -n "$due" ] || due=$existing_due
-    [ "$due" != "$existing_due" ] || return 0
+    [ -n "$call" ] || call=$existing_call
+    [ "$due" != "$existing_due" ] || [ "$call" != "$existing_call" ] || return 0
     hold_set=$existing
   fi
   new_body=$(printf 'Captain hold set: %s' "$hold_set")
   if [ -n "$due" ]; then
     new_body=$(printf '%s\nCaptain hold due: %s' "$new_body" "$due")
+  fi
+  if [ -n "$call" ]; then
+    new_body=$(printf '%s\n%s' "$new_body" "$call")
   fi
   if [ -n "$body" ]; then
     new_body=$(printf '%s\n\n%s' "$new_body" "$body")
@@ -843,7 +873,7 @@ verify_entry_durable() {  # <origin-or-empty> <entry>; prints "<id> <how>"
 
 command_hold() {
   local id=${1:-} title='' reason='' repo='' origin='' until='' due='' show state existing_title body='' hold_kind hold_set occurrence
-  local existing_hold_kind='' existing_held='' preserve_hold_set=0
+  local existing_hold_kind='' existing_held='' preserve_hold_set=0 call_kind='' call_pr='' call=''
   [ "$#" -ge 1 ] || { usage >&2; exit 2; }
   shift
   while [ "$#" -gt 0 ]; do
@@ -854,13 +884,30 @@ command_hold() {
       --origin) shift; origin=${1:-} ;;
       --until) shift; until=${1:-} ;;
       --due) shift; due=${1:-} ;;
+      --call) shift; call_kind=${1:-} ;;
+      --pr) shift; call_pr=${1:-} ;;
       *) usage >&2; exit 2 ;;
     esac
     shift
   done
   validate_slug task-id "$id"
-  validate_one_line reason "$reason"
-  case "$reason" in *'('*|*')'*) fail "reason must not contain parentheses (tasks-axi hold contract)" ;; esac
+  if [ -n "$reason" ]; then
+    validate_one_line reason "$reason"
+    case "$reason" in *'('*|*')'*) fail "reason must not contain parentheses (tasks-axi hold contract)" ;; esac
+  fi
+  case "$call_kind" in
+    '') [ -z "$call_pr" ] || fail "--pr names the pull request of a merge call; it needs --call merge" ;;
+    merge)
+      [[ "$call_pr" =~ ^https://github\.com/[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}/pull/[1-9][0-9]{0,9}$ ]] \
+        || fail "--call merge needs --pr https://github.com/<owner>/<repo>/pull/<number>"
+      call=$(jq -cn --arg pr "$call_pr" '{kind: "merge", pr_url: $pr} | "Captain hold call: " + tojson' -r)
+      ;;
+    go|credential)
+      [ -z "$call_pr" ] || fail "--pr names the pull request of a merge call; a $call_kind call has none"
+      call="Captain hold call: {\"kind\":\"$call_kind\"}"
+      ;;
+    *) fail "--call must be merge, go, or credential: $call_kind" ;;
+  esac
   if [ -n "$origin" ]; then
     validate_slug origin-id "$origin"
   fi
@@ -894,12 +941,15 @@ command_hold() {
     existing_held=$(show_field_value "$show" held)
     if [ "$existing_hold_kind" = captain ] && [ "$existing_held" = yes ]; then
       preserve_hold_set=1
+      [ -n "$reason" ] || reason=$(show_field_value "$show" hold_reason)
     fi
+    validate_one_line reason "$reason"
     if [ -n "$title" ]; then
       existing_title=$(show_field_value "$show" title)
       [ "$existing_title" = "$title" ] || fail "existing task $id has a different title"
     fi
   else
+    validate_one_line reason "$reason"
     [ -n "$title" ] || fail "--title is required to create task $id"
     validate_one_line title "$title"
     if [ -z "$repo" ] && [ -n "$origin" ] && [ -f "$STATE/$origin.meta" ]; then
@@ -925,7 +975,7 @@ command_hold() {
   # snapshot may see the harmless stamp by itself, but can never see a newly
   # held task without the timestamp that defines this hold lifecycle's age.
   task_show_or_fail "$id" "task $id disappeared before recording its hold-set stamp"
-  write_hold_set_stamp "$id" "$(show_field "$show" body)" "$hold_set" "$preserve_hold_set" "$due"
+  write_hold_set_stamp "$id" "$(show_field "$show" body)" "$hold_set" "$preserve_hold_set" "$due" "$call"
   task_show_or_fail "$id" "task $id disappeared while recording its hold-set stamp"
   [ -n "$(body_hold_set_timestamp "$(show_field_value "$show" body)")" ] \
     || fail "task $id did not retain its hold-set stamp"

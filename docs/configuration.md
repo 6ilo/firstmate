@@ -1526,10 +1526,9 @@ A fail-closed poll that already queued a wake, and a timeout, always print so th
 
 ## Today bridge (.env)
 
-`bin/fm-today-bridge.sh` sends the fleet's snapshot from the captain's machine to the admin portal's Today page.
-[`docs/today-contract.md`](today-contract.md) owns the document it sends, the portal endpoint, and the privacy rules; this section covers setup and the text check.
+`bin/fm-today-bridge.sh` sends the fleet's snapshot from the captain's machine to the admin portal's Today page, and carries the captain's answers from Today back into firstmate.
+[`docs/today-contract.md`](today-contract.md) owns the documents it sends and receives, the portal endpoints, and the privacy rules; this section covers setup and the text check.
 The bridge only ever opens connections outward, to the portal; nothing calls in to the machine.
-This half of the bridge sends the snapshot only; it does not fetch answers, and nothing runs it on a schedule yet.
 
 ### Settings
 
@@ -1547,14 +1546,17 @@ A value set in the environment wins over the `.env` line.
 - `bin/fm-today-bridge.sh snapshot` prints the snapshot without sending it.
 - `bin/fm-today-bridge.sh push --dry-run <file>` builds and checks the snapshot, writes it to `<file>`, and sends nothing; it needs neither setting.
 - `bin/fm-today-bridge.sh push` builds the snapshot, checks it against the contract with `tests/fm-today-contract-check.py`, and sends it, printing the portal's `heard_at` stamp.
+- `bin/fm-procevent-today-answers.sh arm` starts collecting the captain's answers: a process-event source long-polls the portal's answers endpoint outside firstmate's turn, carries each answer into the hold lifecycle, sends its receipt, and wakes firstmate with each round.
+- `bin/fm-today-bridge.sh answers once` makes one such call by hand.
 
 A snapshot that fails the check or is over 512 KiB is never sent.
 A missing URL or token exits 2 with one line naming what is missing, and sends nothing.
 A portal that cannot be reached or answers anything but 200 exits 3 with its status.
 The token never appears on a command line or in the bridge's output.
 
-v1 sends the main home's captain calls only.
-A secondmate's call carries a `<mate>/<task>` id, which a card's `task_id` cannot hold, so it is left out and named on stderr.
+Until firstmate can check the captain's passkey itself, a merge word or a go to build given on Today is recorded and refused, and never merges, releases, or starts anything; give that word at the machine.
+A second mate's answer is recorded in the main home and routed to the second mate, never applied in the main home.
+`bin/fm-today-bridge.sh --help` owns every other rule for carrying an answer.
 
 ### Calendar day file
 
