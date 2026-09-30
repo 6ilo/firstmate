@@ -218,29 +218,30 @@ update_load_state() {  # <now> <load1>
   case "$BELOW_SINCE" in *[!0-9]*) BELOW_SINCE='' ;; esac
   if [ -z "$LOAD_CEILING" ]; then
     TRIPPED=0 HIGH_STREAK=0 BELOW_SINCE=''
+  elif [ "$load" = unknown ]; then
     return 0
-  fi
-  [ "$load" != unknown ] || return 0
-  if num_ge "$load" "$LOAD_CEILING"; then
-    HIGH_STREAK=$((HIGH_STREAK + 1))
   else
-    HIGH_STREAK=0
-  fi
-  if [ "$HIGH_STREAK" -ge 2 ]; then
-    TRIPPED=1
-  fi
-  if [ "$TRIPPED" = 1 ]; then
-    if num_lt "$load" "$REOPEN_LOAD" && num_lt "$load" "$LOAD_CEILING"; then
-      [ -n "$BELOW_SINCE" ] || BELOW_SINCE=$now
-      if [ $((now - BELOW_SINCE)) -ge "${REOPEN_SECS%%.*}" ]; then
-        TRIPPED=0
+    if num_ge "$load" "$LOAD_CEILING"; then
+      HIGH_STREAK=$((HIGH_STREAK + 1))
+    else
+      HIGH_STREAK=0
+    fi
+    if [ "$HIGH_STREAK" -ge 2 ]; then
+      TRIPPED=1
+    fi
+    if [ "$TRIPPED" = 1 ]; then
+      if num_lt "$load" "$REOPEN_LOAD" && num_lt "$load" "$LOAD_CEILING"; then
+        [ -n "$BELOW_SINCE" ] || BELOW_SINCE=$now
+        if [ $((now - BELOW_SINCE)) -ge "${REOPEN_SECS%%.*}" ]; then
+          TRIPPED=0
+          BELOW_SINCE=''
+        fi
+      else
         BELOW_SINCE=''
       fi
     else
       BELOW_SINCE=''
     fi
-  else
-    BELOW_SINCE=''
   fi
   mkdir -p "$ACTIVE_HOME/state" 2>/dev/null || return 0
   tmp="$LOAD_STATE_FILE.tmp.$$"

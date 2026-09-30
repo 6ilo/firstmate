@@ -162,6 +162,20 @@ test_high_load_never_closes_by_default() {
   pass "fm-lanes: high load leaves the lane open by default; a lanes.json max_load still closes it"
 }
 
+test_stale_trip_clears_once_ceiling_is_off() {
+  local t
+  new_world stale-trip
+  t=$(at 23 00)
+  printf 'tripped=1\nhigh_streak=5\nbelow_since=\nlast_sample=%s\nlast_load1=40\n' "$((t - 300))" \
+    >"$HOME_DIR/state/lanes-load.state"
+  FM_LANES_IDLE_SECS=7200 FM_HEAVY_SLOT_LOAD1=40 FM_LANES_LOAD5=40
+  FM_LANES_NOW=$t; expect_gate "verdict=open branch=night-idle" "a trip left by the old default ceiling"
+  printf '{"max_load": 100}\n' >"$HOME_DIR/config/lanes.json"
+  FM_LANES_NOW=$((t + 300)); expect_gate "verdict=open branch=night-idle" "max_load 100 at load 40 after a stale trip"
+  FM_LANES_NOW=$((t + 600)); expect_gate "verdict=open branch=night-idle" "second sample under max_load 100"
+  pass "fm-lanes: a trip left by an old ceiling does not survive a ceiling set later"
+}
+
 test_load_ceiling_follows_max_load() {
   local t
   new_world maxload
@@ -230,6 +244,7 @@ test_calendar_cache_states
 test_closing_conditions
 test_load_ceiling_hysteresis
 test_high_load_never_closes_by_default
+test_stale_trip_clears_once_ceiling_is_off
 test_load_ceiling_follows_max_load
 test_night_window_crosses_midnight
 test_check_is_silent_and_logs
