@@ -2156,7 +2156,7 @@ test_teardown_releases_the_task_heavy_slot() {
 
   expect_code 0 "$rc" "heavy-slot-release: teardown should succeed"
   out=$(env "${slot_env[@]}" "$ROOT/bin/fm-heavy-slot.sh" list)
-  assert_contains "$out" "held=1/3" "heavy-slot-release: teardown did not free exactly the task's slot"
+  assert_contains "$out" "held=1/2" "heavy-slot-release: teardown did not free exactly the task's slot"
   assert_contains "$out" ",other-y2," "heavy-slot-release: teardown freed another task's slot"
   assert_not_contains "$out" ",task-x1," "heavy-slot-release: teardown left the task's slot held"
   pass "teardown releases the heavy validation slot the task still holds"
