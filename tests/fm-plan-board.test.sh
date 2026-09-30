@@ -92,7 +92,7 @@ test_changes_carry_who_notices_them_and_their_state() {
     (.views.PB.cards.text | contains("■ Team ◎ visible B Planned") and contains("● Public C Deferred")
       and contains("Deferred until Tue 6 Oct") and contains("▲ Agents only B Built") and contains("▲ Agents only U In the fog"))
       and (.views.ROOT.map.text | contains("●1 ■1 ▲3 · ◎1 visible")
-        and contains("fog 1 · planned 1 · building 1 · built 1 · deferred 1"))
+        and contains("fog 1 · planned 1 · building 1") and contains("built 1 · deferred 1"))
       and (.views.PB.time.text | contains("Built: T1 ✓") and contains("● T6 Learner-facing notice"))
       and (.views.PB.deps.text | contains("✓ ▲ T1 · Built") and contains("■ T2 · Planned ◎"))
   ' >/dev/null || fail "the change encoding was not drawn the same way across modes: $out"

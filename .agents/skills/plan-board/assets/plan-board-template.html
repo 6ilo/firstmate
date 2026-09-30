@@ -112,6 +112,7 @@ th{font:600 12px var(--mono);text-transform:uppercase;letter-spacing:.05em;color
 .open-pg>div{padding:14px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
 .open-pg>div.wide{grid-column:1/-1}
 @media (max-width:720px){.open-pg{grid-template-columns:1fr}}
+#refpics svg,#refpics img{max-height:220px}
 .open-pg ul.plain{margin:0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:4px}
 .gtree{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:14px}
 .gtree ul{list-style:none;margin:6px 0 0;padding-left:16px;border-left:2px solid var(--line);display:flex;flex-direction:column;gap:6px}
@@ -250,7 +251,7 @@ g.pick{cursor:pointer}
 <script>
 const P=JSON.parse(document.getElementById("plan-board-data").textContent);
 const TYPES={build:["Build","B","#EDE9FE","#6D28D9"],plan:["Plan","P","#F3F4F6","#374151"],fix:["Fix","F","#FEE2E2","#B91C1C"],content:["Content","C","#DCFCE7","#15803D"],upkeep:["Upkeep","U","#FEF9C3","#854D0E"]};
-const URG={now:["Now","#E01E37"],week:["This week","#080C10"],later:["Later","#9CA3AF"]};
+const URG={now:["Now","#E01E37"],week:["This week","#080C10","var(--ink)"],later:["Later","#9CA3AF"]};
 const AUD={public:["Public","var(--pub)","●"],team:["Team","var(--team)","■"],agents:["Agents only","var(--agent)","▲"]};
 const STATE={fog:"In the fog",planned:"Planned",building:"Building",built:"Built",deferred:"Deferred",dropped:"Dropped"};
 const CALLST={open:"Your call",decided:"Decided",parked:"In the fog",dropped:"Dropped"};
@@ -429,7 +430,7 @@ function legend(){
   return `<div class="legend">${Object.values(AUD).map(a=>`<span><b style="color:${a[1]}">${a[2]}</b>${a[0]}</span>`).join("")}<span>ring = who notices it</span><span>◎ visible, links its mockup</span><span>◆ a call</span>${Object.values(TYPES).map(t=>`<span><span class="tl" style="background:${t[2]};color:${t[3]};border-color:${t[3]}">${t[1]}</span>${t[0]}</span>`).join("")}
    ${Object.keys(SAMPLE).map(k=>`<span>${sw(k)}${STATE[k]}</span>`).join("")}
    <span><svg width="24" height="14" aria-hidden="true">${hatchDefs("lh"+n)}<rect x=".5" y=".5" width="23" height="13" fill="url(#lh${n})" stroke="#6B7280"/></svg>Waiting</span>
-   ${Object.values(URG).map(u=>`<span><svg width="6" height="16" aria-hidden="true"><rect width="6" height="16" fill="${u[1]}"/></svg>${u[0]}</span>`).join("")}
+   ${Object.values(URG).map(u=>`<span><svg width="6" height="16" aria-hidden="true"><rect width="6" height="16" style="fill:${u[2]||u[1]}"/></svg>${u[0]}</span>`).join("")}
    <span><svg width="4" height="16" aria-hidden="true"><rect width="3" height="16" class="svg-red"/></svg>Due</span></div>`;
 }
 function sideText(set){
@@ -522,14 +523,14 @@ function mapModel(set){
   return {left,edges,targets:[...targets],inner};
 }
 function nodeFacts(n){
-  if(n.kind==="plan"){const r=roll(n);return [`Owner: ${n.owner}`,`◆ ${r.open} open calls · ${r.links.length} links`,`●${r.aud.public} ■${r.aud.team} ▲${r.aud.agents} · ◎${r.vis} visible`,`fog ${r.st.fog} · planned ${r.st.planned} · building ${r.st.building} · built ${r.st.built}${r.st.deferred?` · deferred ${r.st.deferred}`:""}`,`Next: ${nextDate(r)}`];}
+  if(n.kind==="plan"){const r=roll(n);return [`Owner: ${n.owner}`,`◆ ${r.open} open calls · ${r.links.length} links`,`●${r.aud.public} ■${r.aud.team} ▲${r.aud.agents} · ◎${r.vis} visible`,`fog ${r.st.fog} · planned ${r.st.planned} · building ${r.st.building}`,`built ${r.st.built} · deferred ${r.st.deferred}`,`Next: ${nextDate(r)}`];}
   const sc=sched(n);return [`Owner: ${n.owner}`,`${mark(n)} ${stWord(n)}${n.visible?" · ◎ visible":""}`,sc.s!=null?`Next: ${day(sc.s)}`:"Next: no date",`${n.links.length} links`];
 }
 const extSub=x=>x.plan?`${x.home||""}${x.owner?` · ${x.owner}`:""}${x.open?` · ${x.open} open`:""}`:`${KINDS[x.kind].toUpperCase()} · press to open`;
 function renderMap(set){
   const M=mapModel(set);
   if(!M.left.length) return '<p class="muted">Nothing here links to another plan, concept or mockup.</p>'+legend();
-  const LW=290,LH=106,RW=250,RH=44,GX=250,GY=14,X0=30;
+  const LW=290,LH=120,RW=250,RH=44,GX=250,GY=14,X0=30;
   const H=Math.max(M.left.length*(LH+GY),M.targets.length*(RH+8))+16,W=X0+LW+GX+RW+8;
   const lp={},rp={};
   M.left.forEach((n,k)=>lp[n.id]={x:X0,y:8+k*(LH+GY)});
