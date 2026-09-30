@@ -82,6 +82,7 @@ Each effective `FM_HOME` contains private operational directories.
 - Captain preferences and optional shared captain preferences.
 - Learnings, backlog, briefs, and scout reports.
 - Explicitly installed content-addressed extension packages under `data/extensions/packages/`.
+- The Today passkey verifier's permanent answer, nonce, and signature-counter ledgers under `data/today-passkey-ledger/` (`bin/fm-today-passkey-verify.py`).
 
 `state/` holds runtime records:
 
