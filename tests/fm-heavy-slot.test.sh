@@ -168,7 +168,7 @@ test_high_load_never_refuses_by_default() {
   out=$(FM_HEAVY_SLOT_LOAD1=90 slot list)
   assert_contains "$out" "gates: load1=90/off " "list did not report the load reading with no load gate"
   # The slot cap still applies at high load.
-  acquire "$HOME_A" t2 ask >/dev/null || fail "the second slot was refused at high load"
+  FM_HEAVY_SLOT_LOAD1=90 acquire "$HOME_A" t2 ask >/dev/null || fail "the second slot was refused at high load"
   out=$(FM_HEAVY_SLOT_LOAD1=90 acquire "$HOME_A" t3 ask); status=$?
   expect_code 3 "$status" "a third heavy run was allowed at high load"
   assert_contains "$out" "all 2 heavy slots are held" "the refusal at high load did not name the slot cap"

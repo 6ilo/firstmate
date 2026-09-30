@@ -2,7 +2,7 @@
 # Behavior tests for bin/fm-lanes.sh, the backlog-lane gate: the open/closed
 # truth table across the night-idle, calendar, and daytime-quiet branches and
 # every closing condition; calendar cache freshness and malformed input; the
-# load-ceiling trip and timed reopen; the night window crossing midnight; and
+# load ceiling off by default, its trip and timed reopen when configured; the night window crossing midnight; and
 # the dry-run check printing nothing while appending one log line.
 # Every reading is injected (clock, idle, load, memory, ask waiters, calendar),
 # so the host machine's real state never decides a verdict.
@@ -123,6 +123,7 @@ test_load_ceiling_hysteresis() {
   local t
   new_world hyst
   t=$(at 23 00)
+  printf '{"load_ceiling": 16}\n' >"$HOME_DIR/config/lanes.json"
   FM_LANES_IDLE_SECS=7200 FM_HEAVY_SLOT_LOAD1=17 FM_LANES_NOW=$t
   expect_gate "verdict=open branch=night-idle" "one sample over the ceiling"
   FM_HEAVY_SLOT_LOAD1=10 FM_LANES_NOW=$((t + 300))
@@ -144,6 +145,21 @@ test_load_ceiling_hysteresis() {
   FM_LANES_NOW=$((t + 2700))
   expect_gate "verdict=open branch=night-idle" "under 12 for 15 minutes reopens"
   pass "fm-lanes: two samples at 16 trip the lane; 15 minutes under 12 reopen it"
+}
+
+# Load from system daemons alone never closes the lane by default.
+test_high_load_never_closes_by_default() {
+  local t
+  new_world highload
+  t=$(at 23 00)
+  FM_LANES_IDLE_SECS=7200 FM_HEAVY_SLOT_LOAD1=90 FM_LANES_LOAD5=90
+  FM_LANES_NOW=$t; expect_gate "verdict=open branch=night-idle" "first sample at load 90"
+  FM_LANES_NOW=$((t + 300)); expect_gate "verdict=open branch=night-idle" "second sample at load 90"
+  FM_LANES_NOW=$((t + 600)); expect_gate "load_ceiling=off" "load ceiling not reported as off"
+  printf '{"max_load": 16}\n' >"$HOME_DIR/config/lanes.json"
+  FM_LANES_NOW=$((t + 900)); expect_gate "verdict=open" "first sample over a configured max_load"
+  FM_LANES_NOW=$((t + 1200)); expect_gate "verdict=closed branch=- reason=load-ceiling" "max_load in lanes.json at load 90"
+  pass "fm-lanes: high load leaves the lane open by default; a lanes.json max_load still closes it"
 }
 
 test_load_ceiling_follows_max_load() {
@@ -213,6 +229,7 @@ test_branches_open
 test_calendar_cache_states
 test_closing_conditions
 test_load_ceiling_hysteresis
+test_high_load_never_closes_by_default
 test_load_ceiling_follows_max_load
 test_night_window_crosses_midnight
 test_check_is_silent_and_logs

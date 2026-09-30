@@ -22,8 +22,9 @@
 #     daytime-quiet  outside night_window with 1- and 5-minute load both < quiet_load
 #   Memory and ask-waiter readings come from `fm-heavy-slot.sh gates`, which
 #   owns those readings, limits, and the ledger location.
-# Load ceiling: a sample with the 1-minute load >= load_ceiling counts toward a
-#   trip; two consecutive such samples trip the lane closed. A tripped lane
+# Load ceiling: off by default (load is reported, never a gate); it applies
+#   only when config/lanes.json sets load_ceiling or max_load. A sample with
+#   the 1-minute load >= load_ceiling counts toward a trip; two consecutive such samples trip the lane closed. A tripped lane
 #   reopens once every sample has stayed under both reopen_load and
 #   load_ceiling for reopen_secs.
 #   Samples and trip state persist in <home>/state/lanes-load.state (replaced
@@ -71,7 +72,7 @@ num_lt() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a + 0 < b + 0) }'; }
 NIGHT_WINDOW=23:00-07:00
 IDLE_SECS=3600
 QUIET_LOAD=6
-LOAD_CEILING=16
+LOAD_CEILING=''
 REOPEN_LOAD=12
 REOPEN_SECS=900
 CAL_MAX_AGE=28800
@@ -215,6 +216,10 @@ update_load_state() {  # <now> <load1>
   case "$TRIPPED" in 1) ;; *) TRIPPED=0 ;; esac
   case "$HIGH_STREAK" in '' | *[!0-9]*) HIGH_STREAK=0 ;; esac
   case "$BELOW_SINCE" in *[!0-9]*) BELOW_SINCE='' ;; esac
+  if [ -z "$LOAD_CEILING" ]; then
+    TRIPPED=0 HIGH_STREAK=0 BELOW_SINCE=''
+    return 0
+  fi
   [ "$load" != unknown ] || return 0
   if num_ge "$load" "$LOAD_CEILING"; then
     HIGH_STREAK=$((HIGH_STREAK + 1))
@@ -294,7 +299,7 @@ gate_line() {
 
   printf 'verdict=%s branch=%s reason=%s now=%s local=%s night_window=%s in_night=%s idle_secs=%s/%s calendar=%s load1=%s load5=%s quiet_load=%s load_ceiling=%s reopen=%s/%ss tripped=%s high_streak=%s below_since=%s ask_waiters=%s memory=%s ledger_gates=[%s]' \
     "$verdict" "$branch" "$reason" "$now" "$hhmm" "$NIGHT_WINDOW" "$night" \
-    "$idle" "$IDLE_SECS" "$cal" "$load1" "$load5" "$QUIET_LOAD" "$LOAD_CEILING" \
+    "$idle" "$IDLE_SECS" "$cal" "$load1" "$load5" "$QUIET_LOAD" "${LOAD_CEILING:-off}" \
     "$REOPEN_LOAD" "$REOPEN_SECS" "$TRIPPED" "$HIGH_STREAK" "${BELOW_SINCE:--}" \
     "${waiters:-unknown}" "$(printf '%s' "${mem:-unknown}" | tr ' ' '_')" "$gates"
   [ -z "$CONFIG_ERROR" ] || printf ' config_error=%s' "$(printf '%s' "$CONFIG_ERROR" | tr ' ' '_')"

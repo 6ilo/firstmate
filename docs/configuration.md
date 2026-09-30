@@ -682,7 +682,8 @@ The backlog lane is open only when all of these hold:
   - `calendar`: the calendar cache is fresh and now falls inside one of its busy intervals.
   - `daytime-quiet`: local time is outside the night window and the 1- and 5-minute load averages are both under `quiet_load`.
 
-The load ceiling trips the lane closed when the 1-minute load average is at or above `load_ceiling` on two consecutive gate samples.
+The load ceiling is off by default: the load average is reported on the verdict line with `load_ceiling=off` and never closes the lane.
+When `config/lanes.json` sets `load_ceiling` or `max_load`, the load ceiling trips the lane closed when the 1-minute load average is at or above `load_ceiling` on two consecutive gate samples.
 After a trip, the lane reopens only once every sample has stayed under both `reopen_load` and `load_ceiling` for `reopen_secs`.
 The samples and trip state live in the home's `state/lanes-load.state`.
 Idle time comes from macOS `ioreg -c IOHIDSystem` `HIDIdleTime`, which `bin/fm-lanes.sh idle-seconds` prints; on other platforms idle is unknown and the `night-idle` branch stays closed.
@@ -705,7 +706,7 @@ All keys are optional, and the file is never created by the gate.
 | `night_window` | `"23:00-07:00"` | Local `HH:MM-HH:MM` window; it may cross midnight |
 | `idle_secs` | 3600 | Idle seconds that open the night branch |
 | `quiet_load` | 6 | Daytime 1- and 5-minute load averages must both be under this |
-| `load_ceiling` | `max_load`, else 16 | 1-minute load that trips the lane on two consecutive samples; when unset it follows the ledger's `max_load` from the same file |
+| `load_ceiling` | `max_load`, else off | 1-minute load that trips the lane on two consecutive samples; when unset it follows the ledger's `max_load` from the same file, and with neither set load never closes the lane |
 | `reopen_load` | 12 | Load a tripped lane must stay under, as well as `load_ceiling`, to reopen |
 | `reopen_secs` | 900 | How long load must stay under both `reopen_load` and `load_ceiling` |
 | `calendar_max_age_secs` | 28800 | Oldest calendar cache still trusted |
