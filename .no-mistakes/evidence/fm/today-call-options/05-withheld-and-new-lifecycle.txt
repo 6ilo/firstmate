@@ -1,0 +1,36 @@
+$ hold supplier with an option hint containing an email address
+supplier
+exit=0
+{
+  "task_id": "supplier",
+  "title": "A call is waiting on the machine",
+  "options": [
+    {
+      "value": "north",
+      "label": "Option 1",
+      "recommended": false,
+      "hint": "Text kept on the machine"
+    },
+    {
+      "value": "south",
+      "label": "Option 2",
+      "recommended": true
+    },
+    {
+      "value": "reconcile",
+      "label": "Reconcile",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ],
+  "text_check": "withheld"
+}
+email or 'depot' in Today snapshot: 0
+ok
+
+$ answer launch-week --release, then re-hold (new lifecycle)
+released: launch-week
+exit=0
+launch-week
+exit=0
+{"id":"launch-week","key":"launch-week","verb":"captain-hold","summary":"Choose the launch week: a second week","owner":"(main)"}

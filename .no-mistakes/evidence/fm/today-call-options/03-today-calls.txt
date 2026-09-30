@@ -1,0 +1,39 @@
+{
+  "task_id": "launch-week",
+  "kind": "decision",
+  "title": "Choose the launch week: due 2026-10-10: which week",
+  "options": [
+    {
+      "value": "week-1",
+      "label": "First week",
+      "hint": "Ships before the review",
+      "recommended": true
+    },
+    {
+      "value": "week-2",
+      "label": "Second week",
+      "recommended": false
+    },
+    {
+      "value": "reconcile",
+      "label": "Reconcile",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ],
+  "text_check": "pass"
+}
+{
+  "task_id": "pick-venue",
+  "kind": "decision",
+  "title": "Pick a venue: venue choice",
+  "options": [
+    {
+      "value": "reconcile",
+      "label": "Reconcile",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ],
+  "text_check": "pass"
+}

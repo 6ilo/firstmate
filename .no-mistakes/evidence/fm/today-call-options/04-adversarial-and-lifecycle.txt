@@ -1,0 +1,40 @@
+$ hold launch-week --option 'later|Later'
+fm-captain-hold: option value later is reserved
+exit=1
+$ hold launch-week --option 'reconcile|Re-check'
+fm-captain-hold: option value reconcile is reserved
+exit=1
+$ hold launch-week --option 'bad value|Label'
+fm-captain-hold: option value must be a non-empty privacy-safe slug: bad value
+exit=1
+$ hold launch-week --option 'week-4'
+fm-captain-hold: --option must be <value>|<label>[|<hint>]: week-4
+exit=1
+$ hold launch-week --option 'week-4|'
+fm-captain-hold: option week-4 needs a label
+exit=1
+$ hold launch-week --option 'week-4|xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+fm-captain-hold: option week-4 label must be at most 120 characters
+exit=1
+$ hold --option a|A --option a|B
+fm-captain-hold: option value a is repeated
+exit=1
+$ hold --option a|A --recommend b
+fm-captain-hold: --recommend names no --option: b
+exit=1
+$ hold --recommend a (no options)
+fm-captain-hold: --recommend needs at least one --option
+exit=1
+$ hold with 12 options
+fm-captain-hold: a call may record at most 11 options
+exit=1
+RESULT: body unchanged after all refusals
+
+$ repeat hold without --option
+launch-week
+RESULT: options kept on repeat
+$ repeat hold with --option 'week-3|Third week'
+launch-week
+  Captain hold set: 2026-09-30T01:14:06Z
+  Captain hold due: 2026-10-10
+  Captain hold option: {"value":"week-3","label":"Third week","recommended":false}

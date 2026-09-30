@@ -1,0 +1,41 @@
+$ fm-fleet-snapshot.sh (hold_options per task)
+{"id":"launch-week","hold_options":[{"value":"week-1","label":"First week","hint":"Ships before the review","recommended":true},{"value":"week-2","label":"Second week","recommended":false}]}
+{"id":"pick-venue","hold_options":null}
+
+$ fm-bearings-snapshot.sh --json --all-decisions | .decisions_open
+[
+  {
+    "id": "launch-week",
+    "key": "launch-week",
+    "verb": "captain-hold",
+    "summary": "Choose the launch week: due 2026-10-10: which week",
+    "owner": "(main)",
+    "options": [
+      {
+        "value": "week-1",
+        "label": "First week",
+        "hint": "Ships before the review",
+        "recommended": true
+      },
+      {
+        "value": "week-2",
+        "label": "Second week",
+        "recommended": false
+      }
+    ]
+  },
+  {
+    "id": "pick-venue",
+    "key": "pick-venue",
+    "verb": "captain-hold",
+    "summary": "Pick a venue: venue choice",
+    "owner": "(main)"
+  }
+]
+
+$ fm-bearings-snapshot.sh --all-decisions (TOON) | grep decisions
+decisions_open[2]{id,key,verb,summary,owner}:
+  launch-week,launch-week,captain-hold,"Choose the launch week: due 2026-10-10: which week",(main)
+  pick-venue,pick-venue,captain-hold,"Pick a venue: venue choice",(main)
+landed: []
+grep week-1 in TOON: 0
