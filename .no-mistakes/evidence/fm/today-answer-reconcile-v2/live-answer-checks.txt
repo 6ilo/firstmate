@@ -1,0 +1,49 @@
+$ checker on the dry-run snapshot the bridge wrote
+ok
+exit 0
+
+## S2 reconcile answer on the live decision card, owner absent (main)
+{"schema":"fm-today-answer.v1","answer_id":"ans_reconcile_main","task_id":"rail-order","kind":"decision","value":"reconcile","card_hash":"00221f4d240842af8384392a772b9d2a625706eb485bd47e0a1db7614504cd43","answered_at":"2026-09-30T12:00:00Z","person":"user_2captain","device":"iphone-15","note":"Settled yesterday."}
+ok
+exit 0
+
+## S3 reconcile answer carrying explicit owner (main)
+{"schema":"fm-today-answer.v1","answer_id":"ans_reconcile_own","task_id":"rail-order","owner":"(main)","kind":"decision","value":"reconcile","card_hash":"00221f4d240842af8384392a772b9d2a625706eb485bd47e0a1db7614504cd43","answered_at":"2026-09-30T12:00:00Z","person":"user_2captain","device":"iphone-15","note":"Settled yesterday."}
+ok
+exit 0
+
+## S3 reconcile answer carrying a second-mate owner
+{"schema":"fm-today-answer.v1","answer_id":"ans_reconcile_mate","task_id":"rail-order","owner":"mate2","kind":"decision","value":"reconcile","card_hash":"00221f4d240842af8384392a772b9d2a625706eb485bd47e0a1db7614504cd43","answered_at":"2026-09-30T12:00:00Z","person":"user_2captain","device":"iphone-15","note":"Settled yesterday."}
+ok
+exit 0
+
+## S3-adv owner qualified with a slash is refused
+{"schema":"fm-today-answer.v1","answer_id":"ans_bad_owner","task_id":"rail-order","owner":"mate/two","kind":"decision","value":"reconcile","card_hash":"00221f4d240842af8384392a772b9d2a625706eb485bd47e0a1db7614504cd43","answered_at":"2026-09-30T12:00:00Z","person":"user_2captain","device":"iphone-15","note":"Settled yesterday."}
+error: $.owner: pattern: "mate/two" does not match
+exit 1
+
+## S4-adv reconcile answer on a merge card (no passkey) is refused
+{"schema":"fm-today-answer.v1","answer_id":"ans_reconcile_main","task_id":"rail-order","kind":"merge","value":"reconcile","card_hash":"00221f4d240842af8384392a772b9d2a625706eb485bd47e0a1db7614504cd43","answered_at":"2026-09-30T12:00:00Z","person":"user_2captain","device":"iphone-15","note":"Settled yesterday."}
+error: $: required: missing passkey
+exit 1
+
+## S4-adv reconcile answer on a signed merge card (published invalid example)
+{"schema":"fm-today-answer.v1","answer_id":"ans_01J9ZC6P9T","task_id":"today-t0","kind":"merge","value":"reconcile","card_hash":"5e4ba60acc00349cb9283d6ec4fd20fd159676169a30c62b9acd46670dd78b23","answered_at":"2026-09-28T14:10:12Z","person":"user_2captain","device":"iphone-15","passkey":{"credential_id":"ZXhhbXBsZS1jcmVkZW50aWFsLWlkLTAwMDE","authenticator_data":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFAAAABw","client_data_json":"eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoidF9OMkdJTS0wY19aMVNZamhHYU92NXVUelBGcWdkWkFDejlyOFY3V2d5dyIsIm9yaWdpbiI6Imh0dHBzOi8vYWRtaW4uZXhhbXBsZS5jb20iLCJjcm9zc09yaWdpbiI6ZmFsc2V9","signature":"cGxhY2Vob2xkZXI6IGEgcmVhbCBhc3NlcnRpb24gY2FycmllcyBhIERFUiBFQ0RTQSBvciBFZERTQSBzaWduYXR1cmUgaGVyZQ"}}
+error: $.value: reconcile: answers only a decision card
+exit 1
+
+## S5 decision card with a real option then reconcile last is accepted
+{"schema":"fm-today-card.v1","task_id":"rail-order","owner":"(main)","kind":"decision","title":"Choose the rail order: pick one of two orders","question":"Choose the rail order: pick one of two orders","options":[{"value":"a","label":"Order A","hint":"a","recommended":true},{"value":"reconcile","label":"Already settled","hint":"Re-check the latest state, then close this with evidence or keep it open with a note","recommended":false}],"repo":null,"text_check":{"verdict":"pass","checker":"fm-today-text-check@1.0.0","checked_at":"2026-09-30T07:22:08Z"},"card_hash":"823db2fe7326bc1e6e13de79c7a94e697f03ca81469fec133dfed8e89e4fab4a"}
+ok
+exit 0
+
+## S5-adv reconcile not the final option is refused
+{"schema":"fm-today-card.v1","task_id":"rail-order","owner":"(main)","kind":"decision","title":"Choose the rail order: pick one of two orders","question":"Choose the rail order: pick one of two orders","options":[{"value":"reconcile","label":"Already settled","hint":"Re-check the latest state, then close this with evidence or keep it open with a note","recommended":false},{"value":"a","label":"Order A","hint":"a","recommended":true}],"repo":null,"text_check":{"verdict":"pass","checker":"fm-today-text-check@1.0.0","checked_at":"2026-09-30T07:22:08Z"},"card_hash":"bf9e68a627dc04832284b7b40bbfdd94e5e71b89300efdd2f501557ade96c351"}
+error: $.options[0].value: reconcile: only a decision card's final option
+exit 1
+
+## S5-adv a second reconcile option is refused
+{"schema":"fm-today-card.v1","task_id":"rail-order","owner":"(main)","kind":"decision","title":"Choose the rail order: pick one of two orders","question":"Choose the rail order: pick one of two orders","options":[{"value":"a","label":"Order A","hint":"a","recommended":true},{"value":"reconcile","label":"Already settled","hint":"Re-check the latest state, then close this with evidence or keep it open with a note","recommended":false},{"value":"reconcile","label":"dup","hint":"x","recommended":false}],"repo":null,"text_check":{"verdict":"pass","checker":"fm-today-text-check@1.0.0","checked_at":"2026-09-30T07:22:08Z"},"card_hash":"17bb8c4368390cdf41366283ccb55ccd246b40fabc6333072bbac77c630f13ff"}
+error: $.options: value: an option value appears twice
+error: $.options[1].value: reconcile: only a decision card's final option
+exit 1

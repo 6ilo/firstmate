@@ -1,0 +1,37 @@
+$ FM_HOME=$LAB bin/fm-today-bridge.sh snapshot | jq .sections.calls[]
+exit 0
+{
+  "task_id": "rail-order",
+  "owner": "(main)",
+  "kind": "decision",
+  "options": [
+    {
+      "value": "reconcile",
+      "label": "Already settled",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ],
+  "card_hash": "00221f4d240842af8384392a772b9d2a625706eb485bd47e0a1db7614504cd43"
+}
+{
+  "task_id": "vendor-pick",
+  "owner": "(main)",
+  "kind": "decision",
+  "options": [
+    {
+      "value": "reconcile",
+      "label": "Already settled",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ],
+  "card_hash": "9e0e2154a0329f5e8774a354b0ff5ef332a4717bc143b849028514b489d76214"
+}
+
+$ bin/fm-today-bridge.sh push --dry-run out.json
+ok
+dry-run: wrote /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.eaadEY/out.json; nothing was sent
+exit 0
+$ checker on dry-run snapshot
+(eval):19: no such file or directory: python3 tests/fm-today-contract-check.py check docs/today-contract

@@ -1,0 +1,21 @@
+## base b8c40f8 checker on the new invalid examples (regression: should wrongly accept)
+-- answer--reconcile-on-merge
+ok
+exit 0
+-- card--reconcile-not-last
+ok
+exit 0
+-- card--reconcile-on-go
+ok
+exit 0
+
+## head 69fae16 checker on the same files
+-- answer--reconcile-on-merge
+error: $.value: reconcile: answers only a decision card
+exit 1
+-- card--reconcile-not-last
+error: $.options[0].value: reconcile: only a decision card's final option
+exit 1
+-- card--reconcile-on-go
+error: $.options[2].value: reconcile: only a decision card's final option
+exit 1
