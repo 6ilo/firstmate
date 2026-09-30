@@ -356,6 +356,10 @@ case "$SECONDMATE_LIVENESS_SECS" in ''|*[!0-9]*|0) SECONDMATE_LIVENESS_SECS=60 ;
 # Orphaned no-mistakes run processes (bin/fm-nm-reap-run-orphans.sh owns the rule) are swept detached on this cadence, off the beacon's path.
 NM_RUN_ORPHAN_REAP_SECS=${FM_NM_RUN_ORPHAN_REAP_SECS:-}
 case "$NM_RUN_ORPHAN_REAP_SECS" in ''|*[!0-9]*|0) NM_RUN_ORPHAN_REAP_SECS=300 ;; esac
+# The Today push (bin/fm-today-autopush.sh owns its debounce, top-up, and
+# failure notice) is started detached on this cadence, off the beacon's path.
+TODAY_PUSH_CHECK_SECS=${FM_TODAY_PUSH_CHECK_SECS:-}
+case "$TODAY_PUSH_CHECK_SECS" in ''|*[!0-9]*|0) TODAY_PUSH_CHECK_SECS=60 ;; esac
 # Per-relaunch wall-clock bound, so a wedged spawn cannot stall the poll.
 SECONDMATE_LIVENESS_TIMEOUT=${FM_SECONDMATE_LIVENESS_TIMEOUT:-}
 case "$SECONDMATE_LIVENESS_TIMEOUT" in ''|*[!0-9]*|0) SECONDMATE_LIVENESS_TIMEOUT=120 ;; esac
@@ -2553,6 +2557,28 @@ nm_run_orphan_reap_detached() {
   NM_RUN_ORPHAN_REAP_PID=$!
 }
 
+# The cadence is kept in memory rather than in a marker so a home without the
+# bridge gains no state; a restarted watcher checks at once, which is harmless
+# because the push keeps its own debounce.
+TODAY_PUSH_PID=
+TODAY_PUSH_STARTED=0
+today_push_detached() {
+  local now
+  if [ -n "$TODAY_PUSH_PID" ]; then
+    if kill -0 "$TODAY_PUSH_PID" 2>/dev/null; then
+      return 0
+    fi
+    wait "$TODAY_PUSH_PID" 2>/dev/null || true
+    TODAY_PUSH_PID=
+  fi
+  now=$(date +%s)
+  [ $((now - TODAY_PUSH_STARTED)) -ge "$TODAY_PUSH_CHECK_SECS" ] || return 0
+  TODAY_PUSH_STARTED=$now
+  FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+    "$SCRIPT_DIR/fm-today-autopush.sh" tick </dev/null >/dev/null 2>&1 &
+  TODAY_PUSH_PID=$!
+}
+
 RECONCILE_REQUEST_PID=
 reconcile_requests_pending() {
   local request
@@ -2751,6 +2777,7 @@ while :; do
   fm_pending_reply_tick "$STATE" || true
 
   nm_run_orphan_reap_detached
+  today_push_detached
 
   # Endpoint liveness runs before queue observation: a positively dead or
   # missing secondmate endpoint is relaunched here on a bounded cadence, which
@@ -2796,6 +2823,13 @@ while :; do
     fi
   else
     triage_log "inactive-outcome reconciliation unavailable"
+  fi
+
+  # A Today push failure episode leaves one notice; surface it once.
+  if [ -e "$STATE/.today-push-notice" ]; then
+    today_push_notice=$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+      "$SCRIPT_DIR/fm-today-autopush.sh" take-notice 2>/dev/null) || today_push_notice=
+    [ -z "$today_push_notice" ] || wake "$today_push_notice"
   fi
 
   # Slow per-task checks (firstmate writes these, e.g. a merged-PR poll).

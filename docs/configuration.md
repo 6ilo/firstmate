@@ -1529,7 +1529,7 @@ A fail-closed poll that already queued a wake, and a timeout, always print so th
 `bin/fm-today-bridge.sh` sends the fleet's snapshot from the captain's machine to the admin portal's Today page.
 [`docs/today-contract.md`](today-contract.md) owns the document it sends, the portal endpoint, and the privacy rules; this section covers setup and the text check.
 The bridge only ever opens connections outward, to the portal; nothing calls in to the machine.
-This half of the bridge sends the snapshot only; it does not fetch answers, and nothing runs it on a schedule yet.
+This half of the bridge sends the snapshot only; it does not fetch answers.
 
 ### Settings
 
@@ -1552,6 +1552,23 @@ A snapshot that fails the check or is over 512 KiB is never sent.
 A missing URL or token exits 2 with one line naming what is missing, and sends nothing.
 A portal that cannot be reached or answers anything but 200 exits 3 with its status.
 The token never appears on a command line or in the bridge's output.
+
+### Automatic push
+
+Once both settings are present in the main home, its watcher sends the snapshot on its own; nothing else needs to be set up, and a home without them, or a secondmate home, does nothing.
+The watcher starts `bin/fm-today-autopush.sh tick` detached, so a slow or unreachable portal never delays supervision, and only one push runs at a time.
+A push goes out when the snapshot's content has changed since the last push, at most once per minimum interval, and again after the top-up interval even when nothing changed.
+A failed push, including a timeout, wakes firstmate once with `check: today-push failed (<reason>)`; later failures stay quiet until a push succeeds, and the next attempt waits for the normal interval rather than retrying at once.
+The script's header owns the exact rules.
+
+| Name | Default | Meaning |
+| --- | --- | --- |
+| `FM_TODAY_PUSH_MIN_SECS` | 180 | Least seconds between the end of one push attempt and the start of the next |
+| `FM_TODAY_PUSH_TOPUP_SECS` | 900 | Seconds after the last attempt when an unchanged snapshot is sent again |
+| `FM_TODAY_PUSH_TIMEOUT` | 60 | Seconds allowed for building the snapshot, and again for sending it |
+| `FM_TODAY_PUSH_CHECK_SECS` | 60 | Seconds between the watcher's checks for a due push |
+
+These are read from the watcher's environment; zero or invalid values use the default.
 
 v1 sends the main home's captain calls only.
 A secondmate's call carries a `<mate>/<task>` id, which a card's `task_id` cannot hold, so it is left out and named on stderr.
@@ -2534,6 +2551,7 @@ FM_PAUSE_RESURFACE_SECS=14400      # four hours between bounded rechecks of a de
 FM_SECONDMATE_WAKE_STALL_SECS=180  # minimum interval with no change of the oldest actionable foreign wake-queue row (it advances as the mate drains, and a queue reprovisioned under the same task id starts a fresh interval at whatever sequence it restarts) before an endpoint-recorded local secondmate produces one durable parent wake-loop-stall notification for that no-progress episode; a mate that is provably inside an active turn (an exact busy verdict) does not escalate until that same no-progress interval reaches FM_BUSY_TURN_MAX_SECS above; a mate whose busy class is exactly idle, whose agent is alive, and whose composer is not pending is rung once so its own home can drain, and the parent notification is withheld until that same row stays frozen for another stall interval; unknown or ring-unsafe panes keep the parent alarm; declared external-wait pause rows are excluded, and zero or invalid values use 180
 FM_SECONDMATE_LIVENESS_SECS=60   # seconds between watcher probes of each registered secondmate's recorded endpoint through bin/fm-secondmate-liveness-lib.sh, which relaunches only a positively `dead` or `missing` endpoint through the ordinary guarded fm-spawn.sh --secondmate path and emits exactly one check wake per relaunch; zero or invalid values use 60
 FM_NM_RUN_ORPHAN_REAP_SECS=300   # seconds between the watcher's detached sweeps through bin/fm-nm-reap-run-orphans.sh, whose header owns the reap rule; zero or invalid values use 300
+FM_TODAY_PUSH_CHECK_SECS=60   # seconds between the watcher's detached Today push checks; the push settings are in "Today bridge" above; zero or invalid values use 60
 FM_SECONDMATE_LIVENESS_TIMEOUT=120   # seconds bounding one watcher-driven relaunch, so a wedged spawn cannot stall the poll; zero or invalid values use 120
 FM_SECONDMATE_LIVENESS_MAX_ATTEMPTS=3   # automatic relaunch attempts allowed per mate inside the window before the watcher parks auto-relaunch behind state/.secondmate-relaunch-bound-<id> and escalates once; a later live probe clears the marker and restores the full attempt budget (the ledger keeps its history behind a `rearmed` row); zero or invalid values use 3
 FM_SECONDMATE_LIVENESS_WINDOW_SECS=3600   # window the relaunch bound counts state/.secondmate-relaunch-<id> attempt lines over; the file is also the durable per-mate relaunch record; zero or invalid values use 3600
