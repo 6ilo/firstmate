@@ -1,0 +1,10 @@
+## target: night 02:00, idle 7200s, sustained load1=90, no lanes.json
+t+0: verdict=open branch=night-idle reason=- load1=90 load_ceiling=off tripped=0 
+t+60: verdict=open branch=night-idle reason=- load1=90 load_ceiling=off tripped=0 
+t+120: verdict=open branch=night-idle reason=- load1=90 load_ceiling=off tripped=0 
+
+## base-740bbce: night 02:00, idle 7200s, sustained load1=90, no lanes.json
+t+0: verdict=open branch=night-idle reason=- load1=90 load_ceiling=16 tripped=0 
+t+60: verdict=closed branch=- reason=load-ceiling load1=90 load_ceiling=16 tripped=1 
+t+120: verdict=closed branch=- reason=load-ceiling load1=90 load_ceiling=16 tripped=1 
+

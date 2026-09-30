@@ -1,0 +1,23 @@
+## S2: stock defaults give two heavy slots fleet-wide (pressure injected 1; real load/swap)
+$ fm-heavy-slot.sh acquire --task t1 --lane ask
+acquired heavy slot task=t1 lane=ask held=1/2
+exit=0
+$ fm-heavy-slot.sh acquire --task t2 --lane ask
+acquired heavy slot task=t2 lane=ask held=2/2
+exit=0
+$ fm-heavy-slot.sh acquire --task t3 --lane ask
+refused: all 2 heavy slots are held
+exit=3
+slots: held=2/2 ask=2 backlog=0/1
+gates: load1=8.69/off pressure=1/2 swap_used_mb=3388.38/7168 browser_pages=10/30
+
+## S4: backlog may hold at most heavy_total - ask_reserve = 1; an ask still gets the reserve
+$ fm-heavy-slot.sh acquire --task b1 --lane backlog
+acquired heavy slot task=b1 lane=backlog held=1/2
+exit=0
+$ fm-heavy-slot.sh acquire --task b2 --lane backlog
+refused: backlog work may hold at most 1 of 2 heavy slots; 1 are reserved for asks
+exit=3
+$ fm-heavy-slot.sh acquire --task a1 --lane ask
+acquired heavy slot task=a1 lane=ask held=2/2
+exit=0

@@ -1,0 +1,34 @@
+## S3: load 90 (daemon-level) never refuses by default
+$ FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_LOAD1=90 fm-heavy-slot.sh acquire --task h1 --lane ask
+acquired heavy slot task=h1 lane=ask held=1/2
+exit=0
+$ FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_LOAD1=90 fm-heavy-slot.sh acquire --task h2 --lane ask
+acquired heavy slot task=h2 lane=ask held=2/2
+exit=0
+(third at load 90 is refused only for capacity, not load:)
+$ FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_LOAD1=90 fm-heavy-slot.sh acquire --task h3 --lane ask
+refused: all 2 heavy slots are held
+exit=3
+gates: load1=90/off pressure=1/2 swap_used_mb=3388.38/7168 browser_pages=10/30
+memory_refusal: none
+ask_waiters: 1
+
+## S5: memory gates refuse at warning pressure and at swap limit, even with load 1
+$ FM_HEAVY_SLOT_PRESSURE_LEVEL=2 FM_HEAVY_SLOT_LOAD1=1 fm-heavy-slot.sh acquire --task m1 --lane ask
+refused: memory pressure level 2 is at or above 2
+exit=3
+$ FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_LOAD1=1 FM_HEAVY_SLOT_SWAP_USED_MB=7168 fm-heavy-slot.sh acquire --task m2 --lane ask
+refused: swap used 7168MB is at or above 7168MB
+exit=3
+$ FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_LOAD1=1 FM_HEAVY_SLOT_SWAP_USED_MB=7167 fm-heavy-slot.sh acquire --task m3 --lane ask
+acquired heavy slot task=m3 lane=ask held=1/2
+exit=0
+
+## S6: opt-in max_load in config/lanes.json still gates
+config/lanes.json: {"max_load": 50}
+$ FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_LOAD1=90 fm-heavy-slot.sh acquire --task o1 --lane ask
+refused: load average 90 is at or above 50
+exit=3
+$ FM_HEAVY_SLOT_PRESSURE_LEVEL=1 FM_HEAVY_SLOT_LOAD1=20 fm-heavy-slot.sh acquire --task o2 --lane ask
+acquired heavy slot task=o2 lane=ask held=1/2
+exit=0

@@ -1,0 +1,17 @@
+## S7: default lane: sustained load 90 never trips load-ceiling
+sample t+0 load1=90: verdict=closed branch=- reason=no-window load1=90 load_ceiling=off tripped=0 high_streak=0 
+sample t+60 load1=90: verdict=closed branch=- reason=no-window load1=90 load_ceiling=off tripped=0 high_streak=0 
+sample t+120 load1=90: verdict=closed branch=- reason=no-window load1=90 load_ceiling=off tripped=0 high_streak=0 
+sample t+180 load1=90: verdict=closed branch=- reason=no-window load1=90 load_ceiling=off tripped=0 high_streak=0 
+state file: tripped=0 high_streak=0 below_since= last_sample=1790740980 last_load1=90 
+
+## S8: config/lanes.json max_load 50 re-enables the ceiling (trips after two samples)
+sample t+240 load1=90: verdict=closed branch=- reason=no-window load1=90 load_ceiling=50 tripped=0 high_streak=1 
+sample t+300 load1=90: verdict=closed branch=- reason=load-ceiling load1=90 load_ceiling=50 tripped=1 high_streak=2 
+
+## S9: stale tripped=1 from old default ceiling, then upgrade + later max_load 100
+seeded state: tripped=1 high_streak=5 below_since= 
+after upgrade, no ceiling: verdict=closed branch=- reason=no-window load1=60 load_ceiling=off tripped=0 high_streak=0 
+persisted state: tripped=0 high_streak=0 below_since= last_sample=1790741400 last_load1=60 
+max_load 100 set, load 60: verdict=closed branch=- reason=no-window load1=60 load_ceiling=100 tripped=0 high_streak=0 
+max_load 100 set, load 60: verdict=closed branch=- reason=no-window load1=60 load_ceiling=100 tripped=0 high_streak=0 

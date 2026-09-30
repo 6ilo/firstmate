@@ -1,0 +1,28 @@
+## S1: real machine readings, stock defaults (no lanes.json)
+$ sysctl vm.loadavg kern.memorystatus_vm_pressure_level
+vm.loadavg: { 9.57 15.05 16.00 }
+kern.memorystatus_vm_pressure_level: 2
+$ fm-heavy-slot.sh gates
+gates: load1=9.57/off pressure=2/2 swap_used_mb=3420.38/7168 browser_pages=13/30
+memory_refusal: memory pressure level 2 is at or above 2
+ask_waiters: 0
+
+## S2: default capacity is two fleet-wide asks (real readings)
+$ fm-heavy-slot.sh acquire --task t1 --lane ask
+refused: memory pressure level 2 is at or above 2
+exit=3
+$ fm-heavy-slot.sh acquire --task t2 --lane ask
+refused: memory pressure level 2 is at or above 2
+exit=3
+$ fm-heavy-slot.sh acquire --task t3 --lane ask
+refused: memory pressure level 2 is at or above 2
+exit=3
+$ fm-heavy-slot.sh list
+ledger: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.wszxe2/ledger
+slots: held=0/2 ask=0 backlog=0/1
+gates: load1=9.05/off pressure=2/2 swap_used_mb=3420.38/7168 browser_pages=13/30
+holders[0]{home,task,lane,pid,run,worktree,started}:
+ask_waiters[3]{home,task,pid,since}:
+  /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab.wszxe2,t1,93441,1790744327
+  /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab.wszxe2,t2,93602,1790744327
+  /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab.wszxe2,t3,93787,1790744327

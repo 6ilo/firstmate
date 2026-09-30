@@ -1,0 +1,4 @@
+68:8. Hold a machine-wide heavy slot for every heavy command, because heavy runs across the whole fleet share two slots by default.
+69-   - Heavy: a no-mistakes validation run until it reaches its CI step, pixel or visual gates, full verify scripts,
+70-     Playwright or any headless browser, full or multi-package test suites (vitest, jest, pytest, bin/fm-test-run.sh
+71-     families) and full-suite walks, production builds, cold dependency installs, and local model runs.

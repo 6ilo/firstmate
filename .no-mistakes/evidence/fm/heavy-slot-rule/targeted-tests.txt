@@ -1,0 +1,27 @@
+ok - fm-heavy-slot: asks may use both default slots and backlog work at most 1
+ok - fm-heavy-slot: capacity comes from the home's config/lanes.json
+ok - fm-heavy-slot: two homes racing one ledger fill exactly the cap
+ok - fm-heavy-slot: memory pressure, swap, browser pages, and a configured load cap each refuse a heavy start
+ok - fm-heavy-slot: high load alone never refuses; load is reported and the two-slot cap holds
+ok - fm-heavy-slot: the swap gate reads absolute used swap, not a percent of a growing total
+ok - fm-heavy-slot: an unknown reading is reported and never refuses
+ok - fm-heavy-slot: a refused or waiting ask is visible as a waiter until it acquires or gives up
+ok - fm-heavy-slot: gates reports readings, memory refusal without load, and ask waiters
+ok - fm-heavy-slot: the ledger lock waits for a live owner and recovers a dead or interrupted one
+ok - fm-heavy-slot: release frees only this home's task and is idempotent
+ok - fm-heavy-slot: reap frees a dead holder and keeps unknown evidence
+ok - fm-heavy-slot: reap frees a slot whose validation run reached ci or finished
+ok - fm-heavy-slot: reap keeps a slot whose record changed while its evidence was checked
+ok - fm-heavy-slot: usage errors are distinct and the lane defaults to the task record
+exit=0
+ok - fm-lanes: each branch opens the lane only on its own condition
+ok - fm-lanes: a stale, missing, or malformed calendar never opens the lane
+ok - fm-lanes: memory, an ask waiter, and invalid config each close the lane
+ok - fm-lanes: two samples at 16 trip the lane; 15 minutes under 12 reopen it
+ok - fm-lanes: high load leaves the lane open by default; a lanes.json max_load still closes it
+ok - fm-lanes: a trip left by an old ceiling does not survive a ceiling set later
+ok - fm-lanes: load_ceiling defaults to the ledger's max_load
+ok - fm-lanes: the night window spans midnight and follows config/lanes.json
+ok - fm-lanes: check prints nothing, exits 0, and appends one capped log line
+ok - fm-lanes: usage errors and idle-seconds
+exit=0
