@@ -778,21 +778,23 @@ _utf8_prefix() {  # <text> <max-bytes> <out-var>
 # ESCALATE_ITEM_BYTES at a UTF-8 boundary with an omitted-bytes marker, items
 # past the budget are counted in an "and K more event(s)" tail, and a bounded
 # digest names a full-text file under ESCALATE_FULL_DIR that keeps every
-# buffered item verbatim. The injected copy shows `|` as `¦` and uses ` ¦ ` as
-# its separator, because the shared composer classifier reads a wrapped row
-# that starts or ends with `|` or `+` as a box edge and would stop reading the
-# composer there.
+# buffered item verbatim. The injected copy shows `|` and box-drawing glyphs as
+# `¦`, shows `+` as `＋`, and uses ` ¦ ` as its separator, because the shared
+# composer classifier reads a wrapped row that starts or ends with any of them
+# as a box edge and would stop reading the composer there. An item is urgent
+# when its status verb, at the start or after `: `, is one of
+# ESCALATE_URGENT_RE's verbs.
 ESCALATE_INJECT_BYTES=768
 ESCALATE_ITEM_BYTES=240
 ESCALATE_ITEM_MIN_BYTES=64
 ESCALATE_FULL_DIR=.subsuper-digests
-ESCALATE_URGENT_RE='needs-decision|blocked|failed'
+ESCALATE_URGENT_RE='(^|: )(needs-decision|blocked|failed)( \[|:)'
 
 # escalate_digest_body: join <buf>'s items, urgent first, inside <budget>
 # bytes. Sets ESCALATE_BODY, ESCALATE_EVENTS (every buffered item), and
 # ESCALATE_BOUNDED (1 when any item was cut or omitted).
 escalate_digest_body() {  # <buf> <budget>
-  local LC_ALL=C buf=$1 item='' sep cut remaining=$2 room cap shown=0 total=0 pass
+  local LC_ALL=C buf=$1 item='' sep cut remaining=$2 room cap shown=0 total=0 pass glyph
   local -a items=()
   ESCALATE_BODY=
   ESCALATE_BOUNDED=0
@@ -812,6 +814,10 @@ escalate_digest_body() {  # <buf> <budget>
       room=$((remaining - ${#sep}))
       [ "$room" -ge "$ESCALATE_ITEM_MIN_BYTES" ] || { ESCALATE_BOUNDED=1; continue; }
       item=${item//|/¦}
+      item=${item//+/＋}
+      for glyph in │ ┃ ║ ╭ ╮ ┌ ┐ ╔ ╗ ┏ ┓ ╰ ╯ └ ┘ ╚ ╝ ┗ ┛ ─ ━ ═ ▀ ▄ ▁ ▔; do
+        item=${item//"$glyph"/¦}
+      done
       cap=$ESCALATE_ITEM_BYTES
       [ "$room" -ge "$cap" ] || cap=$room
       if [ "${#item}" -gt "$cap" ]; then

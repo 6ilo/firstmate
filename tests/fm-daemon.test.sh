@@ -2309,6 +2309,21 @@ test_digest_budget_counts_omitted_events() {
   pass "a digest past its byte budget counts the omitted events and keeps them in the full text"
 }
 
+test_digest_orders_only_urgent_status_verbs_first() {
+  local dir state fakebin sent digest
+  dir=$(make_bordered_case digest-urgent-verb)
+  state="$dir/state"; fakebin="$dir/fakebin"
+  sent="$dir/sent.log"; : > "$sent"
+  escalate_add "$state" "secondmate-a.status: done: fixed the failed CI job, unblocked the deploy"
+  escalate_add "$state" "secondmate-b.status: needs-decision [key=pick]: pick A or B"
+  afk_enter "$state"
+  LOG="$dir/daemon.log" PATH="$fakebin:$PATH" FM_FAKE_COMPOSER="$dir/composer" FM_FAKE_SENT="$sent" \
+    FM_INJECT_CONFIRM_SLEEP=0.05 escalate_flush "$state" || fail "urgent-order digest was not delivered"
+  digest=$(grep -F 'Supervisor escalate' "$sent")
+  assert_contains "$digest" 'Supervisor escalate (2 event(s)): secondmate-b.status: needs-decision [key=pick]: pick A or B ¦ secondmate-a.status: done: fixed the failed' "a done item mentioning failed/unblocked was ordered as urgent"
+  pass "only a needs-decision, blocked, or failed status verb orders an item first"
+}
+
 test_inject_send_failure_logs_stage_stderr_and_bytes() {
   local dir state fakebin sent log item
   dir=$(make_bordered_case digest-send-failure)
@@ -3074,6 +3089,27 @@ claude_herdr_env() {  # <dir> <cmd...>
   )
 }
 
+# Regression: Claude wraps a digest at word boundaries, and the shared composer
+# classifier reads a wrapped row that starts or ends with `+` as a box edge, so
+# a `+1` or `C++` token on a row edge cut the read-back short and every attempt
+# was refused. The injected copy must carry no edge glyph.
+test_plus_tokens_on_wrapped_rows_reach_a_claude_composer() {
+  local dir state i item
+  dir=$(make_supercase digest-claude-plus)
+  state="$dir/state"
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  item="secondmate-a.status: done: merged C++ fix"
+  for i in $(seq 1 40); do item+=" +1"; done
+  escalate_add "$state" "$item ─ +120/-4 lines"
+  afk_enter "$state"
+  claude_herdr_env "$dir" escalate_flush "$state" \
+    || fail "a digest with + tokens on wrapped row edges was not delivered: $(cat "$dir/daemon.log" 2>/dev/null)"
+  assert_contains "$(cat "$dir/submitted")" 'done: merged C＋＋ fix ＋1 ＋1' "the submitted digest lost its + tokens"
+  [ "$(wc -l < "$dir/submitted" | tr -d ' ')" -eq 1 ] || fail "the digest was not submitted exactly once"
+  [ ! -s "$state/.subsuper-escalations" ] || fail "buffer not cleared after the digest was submitted"
+  pass "a digest whose + tokens wrap onto a row edge is submitted to a Claude composer"
+}
+
 # Regression (away digests undelivered for a whole night on a Claude primary
 # under herdr): the byte-bounded digest was near 8.5 KB, Claude kept only its
 # tail, and the herdr submit proof refused every attempt, so the same digest
@@ -3367,6 +3403,7 @@ test_max_defer_pending_composer_alarms_without_typing
 test_normal_flush_clears_stale_wedge_marker
 test_oversized_digest_is_bounded_and_kept_durable
 test_digest_budget_counts_omitted_events
+test_digest_orders_only_urgent_status_verbs_first
 test_inject_send_failure_logs_stage_stderr_and_bytes
 test_inject_enter_failure_logs_confirmation_stage
 test_bounded_digest_full_text_kept_after_typing
@@ -3408,6 +3445,7 @@ test_inject_msg_herdr_submits_through_backend_dispatch
 test_inject_msg_defers_on_dead_shell_unknown
 test_inject_msg_defers_on_unrecognized_composer_state
 test_maximal_digest_reaches_a_claude_composer_on_herdr
+test_plus_tokens_on_wrapped_rows_reach_a_claude_composer
 test_tail_only_send_is_cleared_even_when_it_renders_late
 test_inject_clears_its_own_undelivered_digest_then_delivers
 test_inject_leaves_the_captains_draft_alone
