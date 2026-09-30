@@ -607,7 +607,8 @@ for dec in bearings.get("decisions_open") or []:
     card["text_check"] = {"verdict": verdict, "checker": CHECKER, "checked_at": now}
     card["card_hash"] = card_hash(card)
     calls.append(card)
-    # A captain question closes when answered; held work resumes instead.
+    # A captain question closes when answered; until the passkey verifier
+    # lands, an answer on held work is refused for proof.
     private_calls.append({"owner": owner, "task_id": tid,
                           "close": "done" if dec.get("task_kind") == "captain" else "release"})
 
