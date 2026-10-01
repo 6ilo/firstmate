@@ -145,6 +145,11 @@
 # Projected closes share the presentation-order lock, refuse to close the
 # captain's active tab, and restore the exact response-derived pre-close tab
 # if Herdr's last-pane cleanup focuses an unrelated neighboring workspace.
+# Cloud tasks (backend=cloud in meta, bin/fm-cloud.sh) have no local endpoint or
+# copy: teardown skips the endpoint validation, close, and worktree steps, and
+# instead refuses without --force until the session's pull request is recorded
+# as pr=, which is where that work has landed. Their session keeps running on
+# its own machine and is never stopped from here.
 # Secondmates (kind=secondmate in meta) are retired explicitly. Normal
 # teardown refuses while their home has in-flight crewmate meta files; --force
 # is the approved discard path that prevalidates child removal targets, locks each
@@ -306,6 +311,7 @@ teardown_require_source() {  # <path>
 
 teardown_require_backend_prerequisites() {  # <backend> <task-id>
   local backend=$1 task_id=$2
+  [ "$backend" != cloud ] || return 0
   if ! fm_backend_source "$backend"; then
     echo "error: teardown refused: required $backend source is missing or unreadable for $task_id; nothing was changed" >&2
     return 1
@@ -1098,6 +1104,17 @@ PROJ=$(fm_meta_get "$META" project)
 T_ORCA=
 if [ "$TEARDOWN_WINDOWLESS" = 1 ]; then
   BACKEND=tmux
+  T=
+elif [ "$TEARDOWN_BACKEND_COUNT:$(fm_meta_get "$META" backend)" = 1:cloud ]; then
+  # A cloud task (bin/fm-cloud.sh) runs on its session's own machine: there is
+  # no local endpoint to validate or close and no local copy to inspect, so a
+  # record that names either is not a cloud record and refuses.
+  if [ "$TEARDOWN_WINDOW_COUNT" != 0 ] || [ -n "$(fm_meta_get "$META" worktree)" ] \
+     || [ -z "$(fm_meta_get "$META" cloud_session)" ]; then
+    echo "REFUSED: task $ID's cloud record names a local endpoint or copy, or no cloud session; preserving task state." >&2
+    exit 1
+  fi
+  BACKEND=cloud
   T=
 else
   fm_backend_validate_task_endpoint "$META" "$ID" || exit 1
@@ -3375,6 +3392,19 @@ if [ "$KIND" = scout ] && [ "$FORCE" != "--force" ]; then
   fi
 fi
 
+# A cloud task's work exists only in its session until the session's pull
+# request is recorded (bin/fm-cloud.sh poll records it through
+# bin/fm-pr-check.sh), so without that record the work has not landed anywhere
+# this home can see. Cleanup cannot stop the session itself.
+if [ "$BACKEND" = cloud ] && [ -z "$PR_URL" ]; then
+  if [ "$FORCE" != "--force" ]; then
+    echo "REFUSED: cloud task $ID has no recorded pull request; its work is still only in cloud session $(meta_value "$META" cloud_session)." >&2
+    echo "Wait for its pull request to arrive as the ready report, or use --force after explicit discard approval." >&2
+    exit 1
+  fi
+  echo "warning: cloud session $(meta_value "$META" cloud_session) keeps running after this cleanup; stop it from its session page." >&2
+fi
+
 # A public commitment is not kept until its final reply lands in the ORIGINAL
 # thread, and this cleanup removes the task records that make the promise
 # reconcilable. Refuse while this home still owes a public reply for exactly this
@@ -3650,7 +3680,7 @@ elif [ "$BACKEND" = herdr ]; then
   else
     echo "warning: herdr session presentation lock path is unavailable; skipping the pane close rather than closing unlocked" >&2
   fi
-elif [ "$BACKEND" != orca ] && [ "$TEARDOWN_WINDOWLESS" != 1 ]; then
+elif [ "$BACKEND" != orca ] && [ "$BACKEND" != cloud ] && [ "$TEARDOWN_WINDOWLESS" != 1 ]; then
   fm_backend_kill "$BACKEND" "$T" "$(meta_value "$META" zellij_tab_id)" "fm-$ID" \
     || endpoint_close_refusal "$ID" "$BACKEND" "$T" 1 || exit 1
 fi
@@ -3755,7 +3785,8 @@ rm -f "$STATE/$ID.turn-ended" "$STATE/$ID.progress" \
   "$STATE/$ID.control-relaunch.brief-prior" "$STATE/$ID.control-relaunch.note" \
   "$STATE/$ID.reconcile-nudged" "$STATE/$ID.gemini-settings.json" "$STATE/$ID.devin-config.json" \
   "$STATE/.$ID.branch-outcome-index" \
-  "$STATE/.secondmate-relaunch-$ID" "$STATE/.secondmate-relaunch-bound-$ID"
+  "$STATE/.secondmate-relaunch-$ID" "$STATE/.secondmate-relaunch-bound-$ID" \
+  "$STATE/$ID.cloud-draft"
 # The steering inbox (bin/fm-task-inbox-lib.sh) is runtime state for the
 # retired endpoint; teardown only runs after landing is confirmed, so any
 # leftover unhandled steer here is moot rather than unlanded work.
@@ -3796,7 +3827,7 @@ else
 fi
 fm_lock_release "$META_LOCK"
 META_LOCK_HELD=0
-if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$MODE" != local-only ]; then
+if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$MODE" != local-only ] && [ -n "$PROJ" ]; then
   "$FM_ROOT/bin/fm-fleet-sync.sh" "$PROJ" || true
 fi
 # A secondmate retirement may remove the home containing an overridden control
@@ -3804,7 +3835,9 @@ fi
 if [ -d "$STATE" ]; then
   "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
 fi
-if [ "$TEARDOWN_LEGACY_ACCEPTED" = 1 ]; then
+if [ "$BACKEND" = cloud ]; then
+  echo "teardown $ID complete (cloud task; no local endpoint or copy)"
+elif [ "$TEARDOWN_LEGACY_ACCEPTED" = 1 ]; then
   echo "teardown $ID complete (window ${T:-none}, worktree $WT, legacy record accepted without spawn_gen: endpoint $TEARDOWN_LEGACY_ENDPOINT, incarnation $TEARDOWN_META_SPAWN_GEN)"
 elif teardown_owns_worktree; then
   echo "teardown $ID complete (window ${T:-none}, worktree $WT)"

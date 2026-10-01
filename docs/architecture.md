@@ -269,6 +269,8 @@ Orca is experimental and selected only explicitly: Orca owns both worktree and t
 cmux is experimental, GUI-first, macOS-only, and can be selected explicitly or by runtime auto-detection from its primary `CMUX_WORKSPACE_ID` marker plus documented fallback signals: Treehouse remains its worktree provider, [`cmux-backend.md`](cmux-backend.md) owns current setup and limits, and [`verification/runtime-backends.md`](verification/runtime-backends.md#cmux) owns active source and live evidence.
 cmux's container shape is one workspace per task with one surface, no per-home container split; workspace titles are scoped by the active home label plus a short hash of the resolved `FM_ROOT` path, and `--secondmate` spawns are refused, mirroring Orca.
 Codex App support is recorded in `docs/codex-app-backend.md`; it is not selectable as a runtime backend.
+A cloud task is not a session backend: `bin/fm-cloud.sh` launches a `claude --cloud` session from the written brief and records `backend=cloud` with the session URL and no window or worktree, so nothing on this machine is created, captured, steered, or closed for it.
+It enters supervision at the same seams as a `direct-PR` ship: the backlog gate at launch, a registered check that turns the session's pull request into the task's ready report and arms `bin/fm-pr-check.sh`'s merge poll, `bin/fm-crew-state.sh` and the fleet view for current state, and `bin/fm-teardown.sh` for cleanup; the script's header owns that contract.
 
 ## Worktrees, not branches in your checkout
 
