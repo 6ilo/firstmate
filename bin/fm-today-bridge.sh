@@ -59,7 +59,9 @@
 #           labelled "Already settled"; until options are recorded a decision
 #           card offers only `reconcile`, and the portal adds `later`; a merge
 #           or go card offers its recorded options in place of its standard
-#           one. A recorded option the card cannot
+#           one. Only calls held in the main home carry recorded options; a
+#           call held in a secondmate home offers its standard options alone.
+#           A recorded option the card cannot
 #           carry is left out and named on stderr, and a withheld card shows
 #           each recorded option as `Option <n>`, its hint as neutral text.
 #           A merge call whose pull request the card cannot carry goes out as a
