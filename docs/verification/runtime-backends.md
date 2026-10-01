@@ -2329,7 +2329,7 @@ A throwaway scout was spawned through `bin/fm-spawn.sh --scout --harness omp --m
 ## Cloud sessions
 
 `bin/fm-cloud.sh launch` reads the folder-trust prompt and the session URL from the rendered screen of `claude --cloud`, so its launch is harness-dependent.
-Verified on 2026-09-30 with Claude Code 2.1.285 and tmux 3.7c on macOS, from a scratch home against a small private repository with a one-file brief:
+Verified as a manual scratch-home round-trip during implementation on 2026-09-30 with Claude Code 2.1.285 and tmux 3.7c on macOS, from a scratch home against a small private repository with a one-file brief:
 
 ```sh
 FM_HOME=<scratch-home> FM_CLOUD_LAUNCH_DIR=<scratch>/cloud-launch \
