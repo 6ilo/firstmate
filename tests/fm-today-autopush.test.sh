@@ -144,7 +144,8 @@ test_env_configuration_pushes() {
 }
 
 # The bridge assembles each snapshot in one python3 run that reads the bearings
-# document named by FM_TODAY_BEARINGS; a python3 shim counts those runs.
+# document named by FM_TODAY_BEARINGS; a python3 shim counts those runs, not the
+# python3 children (such as the passkey helper's) that inherit the variable.
 test_tick_builds_the_snapshot_once() {
   local home shim=$TMP_ROOT/build-count-bin builds=$TMP_ROOT/builds real_python
   reset_requests
@@ -152,7 +153,10 @@ test_tick_builds_the_snapshot_once() {
   mkdir -p "$shim"
   cat > "$shim/python3" <<SH
 #!/usr/bin/env bash
-[ -z "\${FM_TODAY_BEARINGS:-}" ] || printf 'build\n' >> '$builds'
+if [ -n "\${FM_TODAY_BEARINGS:-}" ] && [ -z "\${FM_TEST_COUNTED:-}" ]; then
+  export FM_TEST_COUNTED=1
+  printf 'build\n' >> '$builds'
+fi
 exec '$real_python' "\$@"
 SH
   chmod +x "$shim/python3"
