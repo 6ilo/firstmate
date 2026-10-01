@@ -195,10 +195,13 @@ test_canonical_partitions_preserve_full_lint() {
     log="$tmp/$part.roots"
     flags="$tmp/$part.flags"
     mode="$tmp/$part.mode"
+    telemetry="$tmp/$part.telemetry"
     fm_lint_stub_shellcheck "$fakebin" "$log"
     PATH="$fakebin:$PATH" FM_TEST_FLAG_LOG="$flags" FM_TEST_MODE_LOG="$mode" \
+      FM_LINT_TELEMETRY="$telemetry" \
       "$LINT" --partition "$part" > "$tmp/$part.out" 2>&1 \
       || fail "canonical partition $part failed: $(cat "$tmp/$part.out")"
+    assert_grep $'jobs\t1' "$telemetry" "partition $part must run one worker (jobs=1) to fit the runner memory limit"
     [ "$(LC_ALL=C sort "$log")" = "$(printf '%s\n' "$selected" | LC_ALL=C sort)" ] \
       || fail "partition $part executed a different root set than it listed"
     [ "$(LC_ALL=C sort -u "$flags")" = "$(printf 'exclude=none\nexternal-sources=yes')" ] \
@@ -217,7 +220,7 @@ test_canonical_partitions_preserve_full_lint() {
   rc=0
   "$LINT" --partition 1of2 bin/fm-lint.sh > "$tmp/refused" 2>&1 || rc=$?
   [ "$rc" = 2 ] || fail "partition accepted an explicit subset"
-  pass "two canonical lint partitions preserve complete source-aware coverage and reject weakened modes"
+  pass "two canonical lint partitions preserve complete source-aware coverage, run one worker each, and reject weakened modes"
 }
 
 # fm_lint_stub_git <fakebin-dir>: install a git stub for the changed-file mode

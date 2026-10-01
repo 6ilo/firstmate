@@ -46,8 +46,9 @@
 # Diagnostics replay in stable shard/root order. FM_LINT_JOBS=1 changes
 # concurrency, not diagnostics or exit selection.
 # --partition 1of2/2of2 splits the entire canonical inventory across
-# two CI runners, each with those same bounded workers. Partitions are complete,
-# disjoint, and byte-weight balanced; --list-files exposes their actual roots.
+# two CI runners, each running its bounded shards with one worker (jobs 1)
+# so peak memory fits the runner. Partitions are complete, disjoint, and
+# byte-weight balanced; --list-files exposes their actual roots.
 # Partition mode is always full source-aware analysis, never changed-only or
 # --fast, and does not accept explicit paths. Each partition also runs workflow
 # lint and backend-purity checks, keeping either invocation independently useful.
@@ -474,6 +475,15 @@ case "$PARTITION" in
     ;;
   *) printf 'fm-lint.sh: --partition must be 1of2 or 2of2, got %s.\n' "$PARTITION" >&2; exit 2 ;;
 esac
+
+# A CI runner runs one canonical partition, so run its two bounded shards
+# sequentially (one worker) instead of paging two workers' heaps at once:
+# peak ShellCheck memory then fits a 16 GB runner and Lint 1 stops being
+# killed with exit 143. Partitions stay at two; this only lowers the
+# per-runner worker concurrency, never the partition count or coverage.
+if [ -n "$PARTITION" ]; then
+  JOBS=1
+fi
 
 if [ "$FAST" -eq 1 ] && { [ "${GITHUB_ACTIONS:-}" = true ] || [ "${CI:-}" = true ]; }; then
   printf 'fm-lint.sh: --fast is local-only; CI uses full ShellCheck analysis.\n' >&2
