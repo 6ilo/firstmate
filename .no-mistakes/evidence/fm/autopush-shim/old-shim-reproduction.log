@@ -1,0 +1,4 @@
+ok - an unconfigured or secondmate home neither pushes nor writes state
+ok - a home configured by environment pushes with its token
+not ok - one tick built the snapshot 2 times
+old-shim-exit=1

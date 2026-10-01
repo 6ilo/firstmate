@@ -1,0 +1,12 @@
+=== FIXED test (target f47e212) — tests/fm-today-autopush.test.sh ===
+ok - an unconfigured or secondmate home neither pushes nor writes state
+ok - a home configured by environment pushes with its token
+ok - a tick builds the snapshot once and pushes that same document
+ok - two changes inside the debounce window give one push, and no change gives none
+ok - an unchanged fleet is pushed again after the top-up interval
+ok - a failure episode raises one notice, and a success ends it
+ok - a slow build pushes within the bound and times out beyond it
+ok - a stalled push does not delay the watcher beacon, and pushes run one at a time
+ok - the watcher wakes once per failure episode with the notice
+ok - the token never appears in output, notices, or state
+fixed-suite-exit=0
