@@ -142,17 +142,13 @@ cloud_session_start() {  # <dir> <prompt-file>
   printf '%s\n' "$url"
 }
 
-cloud_scratch_clone() {  # <repo> <base> -> prints the clone dir
-  local repo=$1 base=$2 root dir
-  root=${FM_CLOUD_LAUNCH_DIR:-$HOME/.local/state/firstmate/cloud-launch}
-  dir="$root/${repo//\//__}"
-  mkdir -p "$root" || return 1
+cloud_scratch_clone() {  # <repo> <base> <dir>
+  local repo=$1 base=$2 dir=$3
   if [ -d "$dir/.git" ]; then
     git -C "$dir" fetch -q origin "+refs/heads/$base:refs/remotes/origin/$base" && git -C "$dir" checkout -q -B "$base" "origin/$base" || return 1
   else
     git clone -q --depth 20 --branch "$base" "${FM_CLOUD_GIT_BASE:-https://github.com}/$repo.git" "$dir" || return 1
   fi
-  printf '%s\n' "$dir"
 }
 
 cloud_check_arm() {  # <task-id>
@@ -234,11 +230,21 @@ cmd_launch() {
   trap "fm_lock_release '$lock' || true" EXIT
   [ ! -e "$meta" ] && [ ! -L "$meta" ] || die "task $id gained a task record while this launch waited"
 
-  clone=$(cloud_scratch_clone "$repo" "$base") || die "could not prepare the scratch clone of $repo at $base"
+  # Launches on one repository share its scratch clone, so they take turns from
+  # preparing it until their session has started.
+  clone="${FM_CLOUD_LAUNCH_DIR:-$HOME/.local/state/firstmate/cloud-launch}/${repo//\//__}"
+  mkdir -p "${clone%/*}" || die "could not create the scratch clone root ${clone%/*}"
+  fm_lock_acquire_wait "$clone.lock"
+  # shellcheck disable=SC2064  # both lock paths are fixed for this launch.
+  trap "fm_lock_release '$clone.lock' || true; fm_lock_release '$lock' || true" EXIT
+  cloud_scratch_clone "$repo" "$base" "$clone" || die "could not prepare the scratch clone of $repo at $base"
   prompt=$(umask 077; mktemp "$STATE/.fm-cloud-prompt.XXXXXX") || exit 1
   cloud_prompt_write "$brief" "$repo" "$base" "$branch" "$prompt" || { rm -f "$prompt"; exit 1; }
   url=$(cloud_session_start "$clone" "$prompt") || { rm -f "$prompt"; exit 1; }
   rm -f "$prompt"
+  fm_lock_release "$clone.lock" || true
+  # shellcheck disable=SC2064  # the lock path is fixed for this launch.
+  trap "fm_lock_release '$lock' || true" EXIT
 
   # The session is now running and cannot be stopped from here, so every
   # failure below names its URL for a person to stop it on its session page.

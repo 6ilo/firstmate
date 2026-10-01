@@ -209,7 +209,28 @@ test_reused_scratch_clone_switches_base() {
   pass "a reused scratch clone switches to another base branch"
 }
 
+test_concurrent_launches_share_one_scratch_clone() {
+  local home id=cloud-pair pid_a pid_b rc_a=0 rc_b=0
+  home=$(make_home "$id")
+  tasks-axi add "$id-a" "cloud fixture" --kind ship --file "$home/data/backlog.md" >/dev/null
+  tasks-axi add "$id-b" "cloud fixture" --kind ship --file "$home/data/backlog.md" >/dev/null
+  in_home "$home" "$CLOUD" launch "$id-a" example/widgets --mode direct-PR --yolo off \
+    --brief "$home/data/$id/brief.md" > "$home/launch-a.out" 2>&1 &
+  pid_a=$!
+  in_home "$home" "$CLOUD" launch "$id-b" example/widgets --mode direct-PR --yolo off \
+    --brief "$home/data/$id/brief.md" > "$home/launch-b.out" 2>&1 &
+  pid_b=$!
+  wait "$pid_a" || rc_a=$?
+  wait "$pid_b" || rc_b=$?
+  [ "$rc_a" -eq 0 ] || fail "the first of two launches on one repository failed: $(cat "$home/launch-a.out")"
+  [ "$rc_b" -eq 0 ] || fail "the second of two launches on one repository failed: $(cat "$home/launch-b.out")"
+  assert_contains "$(cat "$home/launch-a.out")" "session=$SESSION_URL" "the first launch did not report its session"
+  assert_contains "$(cat "$home/launch-b.out")" "session=$SESSION_URL" "the second launch did not report its session"
+  pass "two launches on one repository at once both start from its scratch clone"
+}
+
 test_launch_refuses_without_a_backlog_item_or_explicit_posture
 test_cloud_task_from_launch_to_cleanup
 test_ready_report_names_only_the_recorded_repository
 test_reused_scratch_clone_switches_base
+test_concurrent_launches_share_one_scratch_clone
