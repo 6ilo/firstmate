@@ -1,0 +1,45 @@
+LIVE DRIVE: relaunch of an in-flight captain-held scout (bin/fm-spawn.sh --relaunch, the launch half of bin/fm-control.sh relaunch).
+
+Environment: disposable lab home minted with bin/fm-lab-home.sh create (marked .fm-lab-home),
+real tmux backend on the lab's private socket (TMUX_TMPDIR=$LAB/tmux), real claude harness launch.
+Backlog item prepared with real tasks-axi: state=in_flight, held=yes (hold_kind=captain), blocked=no.
+This is exactly the backlog row "in_flight yes no" that the old dispatch gate (fm_backlog_row_dispatchable)
+refused with 'not dispatchable in state in_flight yes no' even for a relaunch.
+
+1) PRE-FIX REFUSAL STATE (old gate logic on the same row): fm_backlog_row_dispatchable 'in_flight yes no' => 1 (refused)
+
+2) RELAUNCH WITH THE FIX (real script, real state, real tmux, real claude):
+   $ bin/fm-spawn.sh liveheld --relaunch
+   -> fm-gate-refuse: gate agent lifecycle permitted only against lab home ... (lab marker accepted)
+   -> spawned liveheld harness=claude kind=scout window=fmses:fm-liveheld worktree=/private/.../wt-task-liveheld
+
+   Real replacement claude agent launched (pane_current_command = claude.exe; ps shows a real
+   "claude --dangerously-skip-permissions ... task worker launched by Firstmate" process with the
+   launch brief; Pane shows "Welcome to Claude Code v2.1.285").
+
+3) BACKLOG STATE AFTER RELAUNCH (real tasks-axi show):
+   state: in_flight
+   blocked: no
+   held: yes
+   hold_reason: captain review pending
+   hold_kind: captain
+   -> The captain hold is PRESERVED and the item stayed In flight (not dispatched). Work preserved.
+
+4) WORKTREE PRESERVED (reused, not recreated):
+   git -C wt-task-liveheld status --short  => (clean)
+   branch still fm/liveheld
+   No extra task record created under state/ (same liveheld.meta updated; only busy-state/gen/hooks).
+
+5) GUARD MATRIX (changed functions on real row states) - confirms the fix is precisely scoped:
+   state              relaunchable   dispatchable
+   in_flight yes no           0 (OK)          1 (still refused for fresh dispatch)
+   in_flight no  no           0               0
+   in_flight no  yes (blocked) 1 (refused)    1
+   in_flight yes yes (held+blk)1 (refused)    1
+   queued no  no              0               0
+   queued yes no (held)       1 (refused)     1
+
+   => Only an In-flight captain-held NOT-blocked item is now relaunchable; blocked / held-queued rows
+      are still refused for relaunch, and fresh (non-relaunch) dispatch still refuses every held row.
+
+Lab torn down in the same turn (tmux kill-server on the lab socket + rm -rf lab); no leftover agents.

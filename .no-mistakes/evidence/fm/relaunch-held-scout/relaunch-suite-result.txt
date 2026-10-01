@@ -1,0 +1,7 @@
+tests/fm-control-relaunch.test.sh (repo's targeted hermetic relaunch transaction suite):
+  ok lines: 73
+  not ok lines: 0
+  includes new test_relaunch_of_a_held_in_flight_item_keeps_it_held which drives the real
+  bin/fm-control.sh / bin/fm-spawn.sh binaries, real tasks-axi, and a real backlog.md with a
+  captain-held in-flight item, asserting relaunch returns 0, the item stays "in_flight" and
+  "held: yes", and the replacement was launched.
