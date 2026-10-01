@@ -133,7 +133,11 @@ test_confirm_yes_writes_the_key() {
     | cmp -s - <(openssl pkey -in "$home/k.pem" -pubout -outform DER) \
     || fail "the stored PEM is not the authenticator's public key"
   assert_no_grep "PRIVATE" "$home/config/today-passkeys.json" "the store holds a private key"
-  mode=$(stat -f %Lp "$home/config/today-passkeys.json" 2>/dev/null || stat -c %a "$home/config/today-passkeys.json")
+  mode=$(python3 - "$home/config/today-passkeys.json" <<'PY'
+import os, sys
+print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])
+PY
+)
   assert_equals 600 "$mode" "the store is private"
   pk "$home" blocks > "$home/b.json"
   assert_equals False "$(field "$home/b.json" '"enrolment" in d')" "the used enrolment leaves the snapshot"
