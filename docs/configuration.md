@@ -1572,7 +1572,7 @@ The script's header owns the exact rules.
 | --- | --- | --- |
 | `FM_TODAY_PUSH_MIN_SECS` | 180 | Least seconds between the end of one push attempt and the start of the next |
 | `FM_TODAY_PUSH_TOPUP_SECS` | 900 | Seconds after the last attempt when an unchanged snapshot is sent again |
-| `FM_TODAY_PUSH_TIMEOUT` | 60 | Seconds allowed for building the snapshot, and again for sending it |
+| `FM_TODAY_PUSH_TIMEOUT` | 180 | Seconds allowed for building the snapshot, and again for sending it, which rebuilds it first |
 | `FM_TODAY_PUSH_CHECK_SECS` | 60 | Seconds between the watcher's checks for a due push |
 
 These are read from the watcher's environment; zero or invalid values use the default.

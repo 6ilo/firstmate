@@ -231,6 +231,48 @@ test_one_notice_per_failure_episode() {
   pass "a failure episode raises one notice, and a success ends it"
 }
 
+# A python3 that first sleeps $SLOWBIN/delay seconds when it is the snapshot
+# assembly (the python3 run with FM_TODAY_BEARINGS set, not its own python3
+# children), so a build runs slow by a chosen amount; the push rebuilds the
+# snapshot, so it slows too.
+SLOWBIN="$TMP_ROOT/slowbin"
+mkdir -p "$SLOWBIN"
+REAL_PYTHON3=$(command -v python3)
+cat > "$SLOWBIN/python3" <<SH
+#!/usr/bin/env bash
+if [ -n "\${FM_TODAY_BEARINGS:-}" ] && [ -z "\${FM_TEST_SLOWED:-}" ]; then
+  export FM_TEST_SLOWED=1
+  sleep "\$(cat '$SLOWBIN/delay')"
+fi
+exec '$REAL_PYTHON3' "\$@"
+SH
+chmod +x "$SLOWBIN/python3"
+
+test_slow_build_pushes_within_the_bound() {
+  local home
+  reset_requests
+  home=$(make_home slow-build configured)
+  export FM_TODAY_PUSH_MIN_SECS=1 FM_TODAY_PUSH_TOPUP_SECS=3600 FM_TODAY_PUSH_TIMEOUT=12
+  # A build slower than the old 60-second default, scaled: 3s under a 12s
+  # bound that the push's own rebuild, contract check, and send must also fit.
+  printf '3\n' > "$SLOWBIN/delay"
+  PATH="$SLOWBIN:$PATH" tick "$home"
+  take_notice "$home"
+  [ "$(requests)" -eq 1 ] || fail "a slow build inside the bound did not push (got $(requests)): '$NOTICE'"
+  [ -z "$NOTICE" ] || fail "a slow build inside the bound left a notice: '$NOTICE'"
+  # Beyond the bound it still times out, once, with the bound in its reason.
+  add_queued "$home" slower
+  printf '14\n' > "$SLOWBIN/delay"
+  sleep 1
+  PATH="$SLOWBIN:$PATH" tick "$home"
+  take_notice "$home"
+  [ "$(requests)" -eq 1 ] || fail "a build beyond the bound pushed (got $(requests))"
+  [ "$NOTICE" = "check: today-push failed (timed out after 12s)" ] \
+    || fail "a build beyond the bound did not time out: '$NOTICE'"
+  unset FM_TODAY_PUSH_MIN_SECS FM_TODAY_PUSH_TOPUP_SECS FM_TODAY_PUSH_TIMEOUT
+  pass "a slow build pushes within the bound and times out beyond it"
+}
+
 beat_mtime() { python3 -c 'import os,sys; print(os.stat(sys.argv[1]).st_mtime)' "$1"; }
 
 start_watch() {  # <home> <out>
@@ -331,6 +373,7 @@ test_env_configuration_pushes
 test_debounce_coalesces_changes
 test_topup_after_idle_interval
 test_one_notice_per_failure_episode
+test_slow_build_pushes_within_the_bound
 test_slow_push_does_not_delay_the_beacon
 test_watcher_surfaces_the_notice_once
 test_token_never_reaches_output
