@@ -73,7 +73,7 @@ Where a fact already exists in the bearings snapshot (`bin/fm-bearings-snapshot.
 | Section | Rows | Meaning |
 | --- | --- | --- |
 | `calls` | `fm-today-card.v1` | Every open captain call in the fleet, each once for its `owner` and `task_id`; at most 200. |
-| `underway` | `id`, `title`, `kind`, `state`, `doing`, `repo`, optional `owner`, `pr_url` | Work being done now, as the board's Underway: `title` is the task title or its id, and `pr_url` its open pull request. |
+| `underway` | `id`, `title`, `kind`, `state`, `doing`, `repo`, optional `owner`, `pr_url`, `started_at` | Work being done now, as the board's Underway: `title` is the task title or its id, `pr_url` its open pull request, and `started_at` when firstmate dispatched it, UTC. |
 | `charted_next` | `id`, `title`, `reason`, `dispatchable`, `repo`, optional `kind`, `filed`, `blocked_by`, `owner` | Work filed but not started, as the board's Charted Next; `kind` is `queued` or `warning`, and a `warning` row is never dispatchable. |
 | `landed` | `id`, `title`, `owner`, `repo`, optional `pr_url`, `landed_at`, `subject` | Recently finished work, as the board's landed rows; `owner` is `(main)` or the secondmate home that recorded it. |
 | `health` | `supervision`, `unhealthy[]` | `supervision` is `live`, `lapsed`, or `unknown`; each unhealthy row is a worker id with `endpoint_exists` and `agent_alive` (`null` when unknown), as bearings' unhealthy endpoints without their machine detail. |
@@ -128,6 +128,7 @@ Firstmate composes every card; the portal renders it and never edits it.
 | `subject_sha256` | Go cards only: the SHA-256, as 64 lowercase hex, of the plan or brief the go approves. |
 | `proof` | Merge and go cards only: `nonce`, 22 to 64 base64url characters holding at least 128 random bits, and `expires_at`, UTC. |
 | `text_check` | `verdict` (`pass` or `withheld`), `checker` (`name@x.y.z`), and `checked_at`. |
+| `raised_at` | When firstmate held the call, UTC; not hashed. |
 | `card_hash` | The hash of the card as shown, defined below. |
 
 A `withheld` verdict means the check refused the call's own words, and firstmate replaced the title, question, and every option label and hint with neutral text of its own; the portal should tell the captain to read the call on the machine.
@@ -144,7 +145,7 @@ Take the card's `schema`, `task_id`, `owner`, `kind`, `title`, `question`, `opti
 `repo` is always carried, so a call with no repository hashes `"repo":null`.
 Serialize that object with the JSON Canonicalization Scheme, RFC 8785: keys sorted, no whitespace, strings in UTF-8 with only the escapes RFC 8785 requires.
 `card_hash` is the SHA-256 of those bytes, as 64 lowercase hex characters.
-`text_check` and `card_hash` are left out, so re-running the check or re-sending the snapshot does not change the hash of an unchanged call.
+`text_check`, `raised_at`, and `card_hash` are left out, so re-running the check, re-sending the snapshot, or learning when the call was raised does not change the hash of an unchanged call.
 Every hashed value is a string, boolean, null, array, or object, so no number serialization rule is involved.
 
 ## The answer
@@ -323,5 +324,6 @@ The `reconcile` rule changes no schema: the bridge already sent `reconcile` as e
 A v2 shape gets new `.v2` schema constants beside the v1 files, and both sides accept both versions until the change is complete.
 The required, nullable `repo` stays v1 because the portal's copy of v1 already required it and no v1 snapshot had been accepted before the two copies were made identical.
 The passkey additions stay v1 by these rules: `head_sha`, `subject_sha256`, and `proof` are optional card fields joining `card_hash`'s field list; `passkeys`, `enrolment`, and the answers response's `enrolments` are optional members; `fm-today-enrolment.v1` is a new shape that changes no existing one; the receipt reasons are text in the existing `reason`; and the challenge and the answer shape are unchanged.
+`raised_at` on a card and `started_at` on an Underway row stay v1 as new optional fields whose absence means firstmate has no durable record of the time: `raised_at` stays out of `card_hash`'s field list, so the hash of every card is unchanged, and a portal shows how long a call or piece of work has been on Today until they arrive.
 The Charted Next change-encoding fields `aud`, `visible`, `until`, `parked`, and `mockup_url` stay v1 as new optional fields whose absence keeps today's meaning: their conditions bind only rows that carry them, every snapshot accepted before still passes, and no existing field, enum, or pattern changes.
 The portal vendors the schema files byte-for-byte from this repository, so a change to any of them reaches the portal only as a fresh copy of every file.

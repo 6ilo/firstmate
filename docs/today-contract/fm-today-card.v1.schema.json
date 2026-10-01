@@ -78,6 +78,10 @@
         "checked_at": { "$ref": "#/$defs/timestamp" }
       }
     },
+    "raised_at": {
+      "description": "When firstmate held the call, UTC; not part of card_hash.",
+      "$ref": "#/$defs/timestamp"
+    },
     "card_hash": { "$ref": "#/$defs/sha256_hex" }
   },
   "allOf": [

@@ -160,7 +160,9 @@ Default fields: schema, home, generated, prs, in_flight{id,kind,state,repo,name,
   a merge, go, or credential call (bin/fm-captain-hold.sh hold --call), and an
   optional options array [{value,label,hint?,recommended}] when the hold
   recorded any (bin/fm-captain-hold.sh hold --option). Secondmate-home rows
-  carry no options.
+  carry no options. They also carry held_at, the UTC time the call was held,
+  when the hold recorded one (bin/fm-captain-hold.sh's `Captain hold set:`
+  timestamp).
 Default gates are selected newest filed first before their bound; undated gates
   retain input order after dated gates.
 landed merges this home's Done with registered secondmate homes' Done, bounded by
@@ -563,7 +565,8 @@ MODEL=$(printf '%s' "$SNAP" | jq \
             summary:hold_summary(.title; .hold_reason),owner:"(main)"}
            + (if .kind != null then {task_kind:.kind} else {} end)
            + (if .hold_call != null then {call:.hold_call} else {} end)
-           + (if .hold_options != null then {options:.hold_options} else {} end) ]
+           + (if .hold_options != null then {options:.hold_options} else {} end)
+           + (if ((.hold_set // "") | test("T")) then {held_at:.hold_set} else {} end) ]
      + [ (.secondmate_current.records // [])[] as $m
          | ([ $m.decisions_open[]?
               | select(.source == "backlog" and .verb == "captain-hold")
@@ -743,11 +746,11 @@ fi
 # the tabular array form
 # (key[N]{fields}: + comma rows at +2 indent), and the empty-array form (key: []),
 # per the TOON spec. Quoting follows the spec exactly.
-# Planning fields, a call's kind, and call options are per-row values that
-# tabular TOON rows cannot carry uniformly, so they are a --json-only surface.
+# Planning fields, a call's kind, call options, and held_at are per-row values
+# that tabular TOON rows cannot carry uniformly, so they are a --json-only surface.
 TOON=$(printf '%s\n' "$MODEL" | jq -r '
   (.in_flight, .gates) |= map(del(.plan)) |
-  .decisions_open |= map(del(.task_kind, .call, .options)) |
+  .decisions_open |= map(del(.task_kind, .call, .options, .held_at)) |
   def q:
     tostring
     | if (. == "")

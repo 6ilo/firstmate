@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # tests/fm-trace-context-spawn.test.sh - spawn-path integration regressions for
-# native W3C trace context using fake tmux panes and real isolated git worktrees.
+# native W3C trace context using fake tmux panes and real isolated git worktrees,
+# and for the dispatch time the same task record keeps across spawns.
 # See docs/verification/trace-context.md for the maintained coverage inventory.
 set -u
 
@@ -447,6 +448,29 @@ test_relaunch_reuses_recorded_carrier() {
   pass "relaunch reuses the recorded carrier verbatim for both the meta record and the injected export"
 }
 
+# The first spawn records dispatched_at= in UTC; a later spawn of the same
+# task record keeps it rather than restamping the dispatch.
+test_first_spawn_records_the_dispatch_time_once() {
+  local rec out status meta first second
+  rec=$(make_spawn_case tc-dispatched)
+  read_case_record "$rec"
+  start_trace_session "$HOME_DIR"
+  meta="$HOME_DIR/state/$CASE_ID.meta"
+  out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$CASE_ID" "$PROJ_DIR")
+  status=$?
+  expect_code 0 "$status" "first spawn should succeed"$'\n'"$out"
+  first=$(sed -n 's/^dispatched_at=//p' "$meta")
+  [[ "$first" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
+    || fail "first spawn must record a UTC dispatched_at (got '$first')"
+  sed -i.bak 's/^dispatched_at=.*/dispatched_at=2026-09-20T08:30:00Z/' "$meta"
+  out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$CASE_ID" "$PROJ_DIR")
+  status=$?
+  expect_code 0 "$status" "second spawn should succeed"$'\n'"$out"
+  second=$(sed -n 's/^dispatched_at=//p' "$meta")
+  [ "$second" = 2026-09-20T08:30:00Z ] || fail "a later spawn must keep the recorded dispatch time (got '$second')"
+  pass "the first spawn records the dispatch time and a later spawn of the same task keeps it"
+}
+
 test_session_start_freezes_env_override_and_ignores_later_edits() {
   local rec out status meta
   rec=$(make_spawn_case tc-envoff)
@@ -608,6 +632,7 @@ test_unsafe_delivery_refuses_to_append_launch
 test_failed_metadata_append_unsets_carrier_and_still_launches
 test_duplicate_secondmate_spawn_does_not_converge_trace_context
 test_relaunch_reuses_recorded_carrier
+test_first_spawn_records_the_dispatch_time_once
 test_session_start_freezes_env_override_and_ignores_later_edits
 test_secondmate_env_on_file_absent_keeps_nested_worker_enabled
 test_secondmate_env_off_file_present_keeps_nested_worker_disabled
