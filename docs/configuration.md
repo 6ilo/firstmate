@@ -91,6 +91,7 @@ Each effective `FM_HOME` contains private operational directories.
 - Inactive terminal-outcome receipts under `state/terminal-outcomes/`.
 - Enabled extension working namespaces under `state/extensions/`.
 - Parent-side remote ledger copies under `state/secondmate-summary-cache/`.
+- The Today bridge's answer store under `state/today-answers/` and the nonce of each merge and go card it raised under `state/today-proof/` (`bin/fm-today-bridge.sh`).
 - One-shot Bearings reconcile requests under `state/reconcile-notify/`.
 - Private secondmate config-reread generations with their retry and quarantine state.
 - Per-task steering-inbox records under `state/<id>.inbox/` (`bin/fm-task-inbox-lib.sh`).
@@ -1556,8 +1557,10 @@ A missing URL or token exits 2 with one line naming what is missing, and sends n
 A portal that cannot be reached or answers anything but 200 exits 3 with its status.
 The token never appears on a command line or in the bridge's output.
 
-Until firstmate can check the captain's passkey itself, a merge word or a go to build given on Today is recorded and refused, and never merges, releases, or starts anything; give that word at the machine.
-The same holds for an option answer that would release held work.
+A merge word or a go to build given on Today is carried only when firstmate has checked the captain's passkey on it against the call as it stands: a verified merge releases the call and merges exactly the head the captain signed, then posts one comment on the pull request naming the passkey and the answer, and a verified go releases the call.
+A pull request whose head moved after the signature is never merged, and a merge that refuses for any other reason does not stand on the old word: either way the call is raised again for a fresh signed word.
+With no active passkey, a merge word or a go is recorded and refused; give that word at the machine.
+An unsigned option answer that would release held work is refused the same way.
 A second mate's answer is recorded in the main home and refused, and applied in neither home; answer a second mate's call at the machine for now.
 `bin/fm-today-bridge.sh --help` owns every other rule for carrying an answer.
 
@@ -1588,7 +1591,7 @@ The merge word and the go to build from Today carry the captain's passkey signat
 - `bin/fm-today-passkey.sh list` and `revoke <credential-id>` show and retire credentials; a revoked entry is kept.
 - `bin/fm-today-passkey.sh blocks` prints the snapshot's `passkeys` and `enrolment` members.
 
-The bridge does not send those members yet, and does not yet hand received enrolments to `confirm`.
+The bridge sends both members in every snapshot, and checks each enrolment Today hands back, but never confirms one: the answers round names the `confirm` command for the captain to run on this machine.
 
 The store is the home's gitignored `config/today-passkeys.json`, mode `0600`, holding public keys only.
 Keep at least two active credentials (`revoke` warns when fewer remain but never refuses, so a compromised key can always be retired), and enrol right after a reviewed portal deploy, because the machine confirmation is the moment of trust.

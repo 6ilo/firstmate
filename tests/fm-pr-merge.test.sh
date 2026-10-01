@@ -518,6 +518,55 @@ test_verified_merge_records_pr_and_head() {
   pass "fm-pr-merge records pr= and pr_head= for a verified GitHub merge"
 }
 
+# A signed head is the head a merge word was given for (a passkey-signed merge
+# from Today): the merge binds it when it is the live head, and a moved head is
+# refused with exit 3 before anything reaches the forge's merge command.
+test_signed_head_must_be_the_live_head() {
+  local case_dir rc head=abcdefabcdefabcdefabcdefabcdefabcdefabcd
+  case_dir=$(make_case signed-head-matches)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  set +e
+  run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/9 --head-sha "$head" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 0 "$rc" "signed-head-matches: a signed head equal to the live head should merge"
+  assert_logged_gh_merge "$case_dir" 9 example/repo --squash
+
+  case_dir=$(make_case signed-head-moved)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/gh-axi.log"
+  set +e
+  run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/9 \
+    --head-sha 1111111111111111111111111111111111111111 > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 3 "$rc" "signed-head-moved: a moved head should refuse with exit 3"
+  assert_grep "head moved: the live head is $head, not the signed head 1111111111111111111111111111111111111111" \
+    "$case_dir/stderr" "signed-head-moved: the refusal did not name both heads"
+  ! grep -q '^pr merge ' "$case_dir/gh.log" || fail "signed-head-moved: a moved head reached gh pr merge"
+  ! grep -q 'merge' "$case_dir/gh-axi.log" || fail "signed-head-moved: a moved head reached gh-axi"
+
+  case_dir=$(make_gitlab_case signed-head-gitlab-moved)
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" --head-sha "$MR_STALE_HEAD" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 3 "$rc" "signed-head-gitlab-moved: a moved GitLab head should refuse with exit 3"
+  [ -z "$(glab_merge_line "$case_dir/glab.log")" ] || fail "signed-head-gitlab-moved: a moved head reached glab mr merge"
+
+  case_dir=$(make_case signed-head-malformed)
+  set +e
+  run_pr_merge "$case_dir" task-x1 https://github.com/example/repo/pull/9 --head-sha ABC \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 2 "$rc" "signed-head-malformed: a malformed signed head is a usage error"
+  pass "fm-pr-merge merges only a signed head that is the live head, and refuses a moved one with exit 3"
+}
+
 # The forge call is the point of no return: once gh-axi has merged, nothing this
 # script does afterwards can un-merge it. Proving pr= is already in the task's
 # meta at that moment is what makes a later failure unable to lose the merge.
@@ -2222,6 +2271,7 @@ test_github_closed_unqueued_outcome_omits_retry_flags
 test_github_agreeing_queue_rules_keep_retry_guidance
 test_github_conflicting_queue_rules_report_ambiguity
 test_verified_merge_records_pr_and_head
+test_signed_head_must_be_the_live_head
 test_pr_metadata_is_recorded_before_the_forge_call
 test_merge_failure_propagates_after_recording
 test_github_open_unqueued_outcome_refuses

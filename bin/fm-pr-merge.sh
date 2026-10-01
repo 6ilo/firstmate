@@ -125,7 +125,15 @@
 # explicit captain instruction and never skips the live green check, the
 # away-record read, or a captain hold.
 #
-# Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [-- <extra forge merge args>]
+# A caller that holds a signed head - the head a merge word was given for, such
+# as a passkey-signed merge from Today (bin/fm-today-bridge.sh) - passes it as
+# --head-sha <sha> (40 or 64 lowercase hex). The live head read for the checks
+# above must then equal it, and that same head is what the forge merge binds;
+# a pull request whose head moved is refused with exit 3 and the line
+# `error: refusing to merge <url>: head moved: ...`, before any check is judged,
+# so a head nobody signed for is never merged.
+#
+# Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--head-sha <sha>] [--allow-red <check-name>] [--allow-missing <check-name>] [-- <extra forge merge args>]
 #
 # On GitLab, this script confirms the MR is actually merged before reporting it;
 # an auto-merge-queued or unconfirmed request leaves the poll armed and records
@@ -184,6 +192,7 @@ if [ "$PROVIDER" = gerrit ]; then
 fi
 shift 2
 ATTENDED_OVERRIDE=false
+SIGNED_HEAD=
 ALLOW_RED=()
 ALLOW_MISSING=()
 while [ "$#" -gt 0 ]; do
@@ -194,6 +203,16 @@ while [ "$#" -gt 0 ]; do
       ;;
     --attended-override=*)
       echo "error: --attended-override takes no value" >&2
+      exit 2
+      ;;
+    --head-sha)
+      fm_pr_head_valid "${2:-}" || { echo "error: --head-sha requires a 40 or 64 character lowercase hex commit" >&2; exit 2; }
+      [ -z "$SIGNED_HEAD" ] || { echo "error: --head-sha may be specified only once" >&2; exit 2; }
+      SIGNED_HEAD=$2
+      shift 2
+      ;;
+    --head-sha=*)
+      echo "error: --head-sha requires a separate commit argument" >&2
       exit 2
       ;;
     --allow-red)
@@ -437,6 +456,17 @@ if [ "$PROVIDER" = gitlab ]; then
   RECORDED_HEAD=$(grep '^pr_head=' "$META" | tail -1 | cut -d= -f2- || true)
 fi
 
+# A signed head that is not the live head refuses before any check is judged:
+# returns 3 after naming both heads, or 0 when no head was signed or it matches.
+refuse_unsigned_head() {  # <live-head>
+  if [ -z "$SIGNED_HEAD" ] || [ "$1" = "$SIGNED_HEAD" ]; then
+    return 0
+  fi
+  printf 'error: refusing to merge %s: head moved: the live head is %s, not the signed head %s\n' \
+    "$URL" "$1" "$SIGNED_HEAD" >&2
+  return 3
+}
+
 # Pre-merge conditions for a GitLab merge request, read from one live view of
 # the merge request. Sets FM_PR_MERGE_HEAD to the verified head on success and
 # returns non-zero after reporting every condition that failed.
@@ -505,6 +535,7 @@ FIELDS
     echo "error: could not read the GitLab merge request head commit before merging" >&2
     return 1
   fi
+  refuse_unsigned_head "$live_head" || return 3
   # A rebase moves the head and leaves the recorded value behind, so the
   # disagreement is reported and the live head is what gets verified and merged.
   if [ -n "$RECORDED_HEAD" ] && [ "$RECORDED_HEAD" != "$live_head" ]; then
@@ -753,6 +784,7 @@ FIELDS
     echo "error: could not read the GitHub pull request head commit before merging" >&2
     return 1
   fi
+  refuse_unsigned_head "$live_head" || return 3
   if ! red=$(github_checks_not_green "$json"); then
     echo "error: could not read the GitHub pull request state before merging" >&2
     return 1
@@ -1322,7 +1354,7 @@ case "$PROVIDER" in
       merge_args=(--squash)
     fi
     FM_PR_GITHUB_CALLER_METHOD=$(caller_merge_method "$@")
-    github_verify_mergeable || exit 1
+    github_verify_mergeable || exit "$?"
     # The away record is locked first, so this last presence and authority read
     # and the forge command below share one live-owner critical section.
     hold_away_record_for_merge || exit 1
@@ -1373,7 +1405,7 @@ case "$PROVIDER" in
     fi
     ;;
   gitlab)
-    gitlab_verify_mergeable || exit 1
+    gitlab_verify_mergeable || exit "$?"
     # --sha binds the merge to the head this run verified, so a push that lands
     # in between is refused by GitLab instead of merged unverified. --yes only
     # skips the interactive confirmation, which no supervised run can answer;

@@ -69,6 +69,26 @@
 #           Every card and work row carries `repo`: `owner/name` when one is
 #           found, otherwise `null`; a merge card's comes from its pull
 #           request, and bearings records none for any other call.
+#           Every merge and go card carries what its signature binds, all in
+#           card_hash: a merge card's `head_sha`, read from the forge now
+#           (`gh pr view <pr_url> --json headRefOid`), or the last head stored
+#           for the call when that read fails (with neither, the card goes out
+#           without proof, is named on stderr, and cannot be signed); a go
+#           card's `subject_sha256`, the SHA-256 of the task's
+#           data/<task>/brief.md in this home, or of the call's own recorded
+#           words when it has none; and `proof`, a nonce of 128 random bits and
+#           its `expires_at`. The nonce is stored in $STATE/today-proof/ (one
+#           private record per call, under one lock, holding the anchor - the
+#           head or the subject - and the call's raising, from
+#           bin/fm-captain-hold.sh open --identity) and reused until it
+#           expires 24 hours after it was minted, the anchor changes (the
+#           pull request's head moved, or the go's words changed), the call
+#           is raised again, or a verified answer spends it; then a new one is
+#           minted.
+#           The snapshot also carries the `passkeys` and `enrolment` members
+#           that bin/fm-today-passkey.sh blocks prints, each passkey label
+#           passing the text check; with no active credential `passkeys` is
+#           absent and no merge or go can be signed.
 #
 # push      Build the snapshot, check it with the
 #           contract's reference checker (tests/fm-today-contract-check.py), and
@@ -98,8 +118,9 @@
 #           run it in a conversational turn. It repeats that call with
 #           `wait_seconds` --wait (default 25) until a call carries answers,
 #           calls again at once so their receipts leave, then prints one
-#           result (`status: answers`, the count, and the answer-json lines)
-#           and exits. A portal that cannot be reached is retried --retries
+#           result (`status: answers`, the count, and the answer-json and
+#           enrolment-json lines) and exits; a new enrolment alone also ends
+#           the wait. A portal that cannot be reached is retried --retries
 #           times (default 8) with a growing pause; after that, or at once on
 #           a refused token or unusable setting, it prints `status: error` with
 #           the reason. Answers already carried are still reported when a later
@@ -118,14 +139,13 @@
 # checked against the call as it stands now (a fresh snapshot), in this order:
 #   0. An answer that does not declare schema fm-today-answer.v1 or lacks
 #      kind, value, or card_hash is refused.
-#   1. A merge or go answer is refused with reason `proof_required: ...`
-#      before its card or any hold is read, and so is any other answer to a
-#      merge or go card. Until
-#      firstmate checks the captain's passkey itself, a merge word or a go to
-#      build from the portal never merges, releases, dispatches, or closes
-#      anything; it is recorded and receipted, and the captain gives that word
-#      at the machine.
-#   2. Any other answer must pass the answer schema, or it is refused.
+#   1. An unsigned answer to a merge or go card is refused with reason
+#      `proof_required: ...`, and so is every merge or go answer while no
+#      passkey is active in the store (bin/fm-today-passkey.sh blocks), before
+#      any hold is read: it is recorded and receipted, and the captain gives
+#      that word at the machine.
+#   2. Any other unsigned answer must pass the answer schema, or it is
+#      refused; a merge or go answer's shape is checked by the verifier.
 #   3. A second mate's answer is recorded and refused with the fixed reason
 #      MATE_REFUSAL; nothing is applied in this home or the mate's, and the
 #      captain answers a second mate's call at the machine for now.
@@ -137,6 +157,30 @@
 #      `today-bridge` is bound (bin/fm-captain-hold.sh bind, which
 #      bin/fm-procevent-today-answers.sh arm does before arming); an unbound
 #      home refuses the answer.
+#   A merge or go answer to an open main-home call, with a note of at most 512
+#   bytes, is checked by bin/fm-today-passkey-verify.py against the call as it
+#   stands now, with the store $FM_HOME/config/today-passkeys.json and the
+#   verifier's own ledger; its verdict is the receipt: `duplicate`,
+#   `set-aside` with `current_card_hash`, or `refused` with the verifier's
+#   `passkey: ...` or `answer: ...` reason. Only a verified answer is carried:
+#   `later` re-holds it as below; any other value is released through
+#   bin/fm-captain-hold.sh answers with close mode `release` and the recorded
+#   words "<value>, signed with passkey <label> from Today, answer
+#   <answer_id>, device <device>". The `merge` value on a merge card then runs
+#   bin/fm-pr-merge.sh <task> <pr_url> --head-sha <the card's head_sha>:
+#   on success it is `applied` with action `merged`, one comment naming the
+#   passkey label, answer id, and head is posted on the pull request
+#   (`gh pr comment`), and the answer-json line carries `announce`, the chat
+#   line firstmate relays. When the merge exits non-zero the pull request's
+#   state is read again (`gh pr view --json state,isInMergeQueue`): merged or
+#   queued is the success above; any other state, or none readable, means
+#   the signed word is spent, so the call is held again with --call merge
+#   --pr and refused, action `re-raised`: a moved head (exit 3) as
+#   `passkey: head moved`, any other refusal with the merge's reason and,
+#   when the state could not be read, that read's failure. Any other released value is
+#   `applied` with action `released` and an `announce` line. Every verified
+#   answer, applied or not, drops the call's stored nonce, so the next
+#   snapshot raises it with a fresh one.
 #   6. `later` re-holds the call with bin/fm-captain-hold.sh hold --until the
 #      captain's local date of later_until; `seen` on a credential card is
 #      recorded and the call stays open; `reconcile` files a reconcile request
@@ -145,12 +189,18 @@
 #      bin/fm-captain-hold.sh answers, the one keyed-answer intake, with the
 #      option's label and close mode `done` when the call is a captain
 #      question (backlog kind captain). An option answer on held work, whose
-#      close would be `release`, frees gated work, so until the passkey
-#      verifier lands it is recorded and refused with the same
-#      `proof_required: ...` reason as a merge or go answer, whatever the
-#      hold's --call tag, and never reaches the intake. The answer id, device,
+#      close would be `release`, frees gated work without a signature, so it
+#      is recorded and refused `proof_required: ...`, whatever the hold's
+#      --call tag, and never reaches the intake; such a call is raised as a
+#      go to be signed. The answer id, device,
 #      and any note are recorded as the answer's provenance; the note is the
 #      captain's words and never an instruction.
+# Enrolments. Each passkey enrolment the answers response hands back in
+# `enrolments` is kept once in $STATE/today-answers/enrolments/, checked with
+# bin/fm-today-passkey.sh check, and printed as one `enrolment-json:` line
+# naming the check's result and the `bin/fm-today-passkey.sh confirm <file>`
+# command; the bridge never confirms one, because only the captain trusts a
+# passkey, typing `yes` at this machine. One handed back again prints nothing.
 # Each answer is checked and carried on its own: an error while doing so, such
 # as a later_until that names no real date, refuses that answer with reason
 # `could not carry the answer: ...`, and the rest of the batch is still
@@ -196,6 +246,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-$FM_ROOT}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 CONTRACT_DIR="$SCRIPT_DIR/../docs/today-contract"
 CHECKER="$SCRIPT_DIR/../tests/fm-today-contract-check.py"
 MAX_BYTES=524288
@@ -304,24 +355,30 @@ build_snapshot() {  # <out-file> [<private-calls-out>]
     || die "the bearings snapshot failed; nothing was built"
   supervision=$(supervision_state)
   FM_TODAY_BEARINGS="$bearings" FM_TODAY_SUPERVISION="$supervision" FM_TODAY_CALLS_OUT="$calls_out" \
-    FM_TODAY_STATE="$STATE" FM_TODAY_HOME_DIR="$FM_HOME" \
+    FM_TODAY_STATE="$STATE" FM_TODAY_HOME_DIR="$FM_HOME" FM_TODAY_BIN="$SCRIPT_DIR" FM_TODAY_CONFIG="$CONFIG" \
     FM_TODAY_DAY_PATH="${FM_TODAY_DAY_FILE:-$HOME/.local/state/firstmate/calendar-day.json}" \
     FM_TODAY_LAVISH_STATE="${LAVISH_AXI_STATE_DIR:-$HOME/.lavish-axi}/state.json" \
     python3 - > "$out" <<'PY' || die "the snapshot could not be assembled"
+import base64
 import datetime
+import fcntl
 import glob
 import hashlib
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
+import tempfile
 
-GENERATOR_VERSION = "1.3.0"
+GENERATOR_VERSION = "1.4.0"
 CHECKER = "fm-today-text-check@1.0.0"
 # docs/today-contract.md owns this definition.
 CARD_HASH_FIELDS = ("schema", "task_id", "owner", "kind", "title", "question",
-                    "options", "repo", "pr_url", "due")
+                    "options", "repo", "pr_url", "due", "head_sha", "subject_sha256", "proof")
+PROOF_TTL = datetime.timedelta(hours=24)
+SHA = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 MAIN = "(main)"
 WORK_LIMIT = 1000
 TASK_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
@@ -475,6 +532,86 @@ def pr_for(url):
     return url if isinstance(url, str) and PR_URL.match(url) and len(url) <= 500 else None
 
 
+def run_quiet(argv, timeout):
+    """(returncode, stdout) of a helper; (None, "") when it cannot run or finish."""
+    env = dict(os.environ, FM_HOME=home_dir, FM_STATE_OVERRIDE=state_dir,
+               FM_CONFIG_OVERRIDE=os.environ["FM_TODAY_CONFIG"])
+    try:
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=env)
+    except (OSError, subprocess.SubprocessError):
+        return None, ""
+    return proc.returncode, proc.stdout
+
+
+def live_head(pr):
+    """The pull request's head commit, read from the forge now; None when unreadable."""
+    rc, out = run_quiet(["gh", "pr", "view", pr, "--json", "headRefOid", "-q", ".headRefOid"], 30)
+    head = out.strip()
+    return head if rc == 0 and SHA.match(head) else None
+
+
+def hold_identity(owner, tid):
+    """This raising of a main-home call (bin/fm-captain-hold.sh open --identity): a
+    released and re-held call is a new raising. A second mate's call has none here."""
+    if owner != MAIN:
+        return ""
+    rc, out = run_quiet([os.path.join(os.environ["FM_TODAY_BIN"], "fm-captain-hold.sh"),
+                         "open", tid, "--identity"], 30)
+    return out.strip() if rc == 0 else ""
+
+
+def subject_digest(owner, tid, summary):
+    """What a go approves: the task's brief in this home when it has one, else the
+    call's own words as recorded."""
+    brief = os.path.join(home_dir, "data", tid, "brief.md")
+    if owner == MAIN and os.path.isfile(brief):
+        try:
+            with open(brief, "rb") as fh:
+                return hashlib.sha256(fh.read()).hexdigest()
+        except OSError:
+            pass
+    return hashlib.sha256(str(summary or tid).encode("utf-8")).hexdigest()
+
+
+def proof_path(owner, tid):
+    return os.path.join(state_dir, "today-proof",
+                        hashlib.sha256((owner + "\n" + tid).encode("utf-8")).hexdigest()[:32] + ".json")
+
+
+def read_proof(owner, tid):
+    try:
+        with open(proof_path(owner, tid), encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return rec if isinstance(rec, dict) else None
+
+
+def proof_for(owner, tid, kind, anchor, identity):
+    """The call's proof as raised: the stored nonce while the call, its anchor (the
+    head or the go's subject), and this raising are unchanged and it has not
+    expired; otherwise a fresh 128-bit nonce, valid for 24 hours, is minted and
+    stored for the verifier's freshness check."""
+    rec = read_proof(owner, tid)
+    at = datetime.datetime.now(datetime.timezone.utc)
+    if (rec and rec.get("kind") == kind and rec.get("anchor") == anchor
+            and rec.get("identity") == identity and instant(rec.get("expires_at"))
+            and instant(rec["expires_at"]) > at and isinstance(rec.get("nonce"), str)):
+        return {"nonce": rec["nonce"], "expires_at": rec["expires_at"]}
+    rec = {"owner": owner, "task_id": tid, "kind": kind, "anchor": anchor, "identity": identity,
+           "nonce": base64.urlsafe_b64encode(secrets.token_bytes(16)).decode("ascii").rstrip("="),
+           "minted_at": at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "expires_at": (at + PROOF_TTL).strftime("%Y-%m-%dT%H:%M:%SZ")}
+    path = proof_path(owner, tid)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp.")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(rec, fh)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+    return {"nonce": rec["nonce"], "expires_at": rec["expires_at"]}
+
+
 def event_ref(label):
     return "event-" + hashlib.sha256(label.encode("utf-8")).hexdigest()[:16]
 
@@ -577,6 +714,7 @@ def withheld_option(opt, index):
 calls = []
 private_calls = []
 seen_calls = set()
+proof_lock = None
 for dec in bearings.get("decisions_open") or []:
     owner, tid = split_owner(dec.get("id"), dec.get("owner"))
     if not isinstance(tid, str) or not TASK_ID.match(tid) or not OWNER.match(owner):
@@ -615,13 +753,37 @@ for dec in bearings.get("decisions_open") or []:
             "repo": repo_for(None, pr) if pr else None}
     if pr:
         card["pr_url"] = pr
+    if kind in ("merge", "go"):
+        # The head the captain is shown, or the go's subject, and this raising's
+        # nonce all join card_hash, so a signature binds exactly them.
+        stored = read_proof(owner, tid) or {}
+        if kind == "merge":
+            anchor = live_head(pr) or (stored.get("anchor") if stored.get("kind") == "merge"
+                                       and isinstance(stored.get("anchor"), str)
+                                       and SHA.match(stored["anchor"]) else None)
+        else:
+            anchor = subject_digest(owner, tid, dec.get("summary"))
+        if anchor and proof_lock is None:
+            # One lock over every proof record, taken once a call needs one,
+            # so two snapshots built at once agree on each call's nonce.
+            os.makedirs(os.path.join(state_dir, "today-proof"), mode=0o700, exist_ok=True)
+            proof_lock = open(os.path.join(state_dir, "today-proof", ".lock"), "a")
+            fcntl.flock(proof_lock, fcntl.LOCK_EX)
+        if anchor:
+            card["head_sha" if kind == "merge" else "subject_sha256"] = anchor
+            card["proof"] = proof_for(owner, tid, kind, anchor, hold_identity(owner, tid))
+        else:
+            skipped.append("call %s/%s: proof (its pull request's head could not be read, so "
+                           "the card goes out without one and cannot be signed)" % (owner, tid))
     card["text_check"] = {"verdict": verdict, "checker": CHECKER, "checked_at": now}
     card["card_hash"] = card_hash(card)
     calls.append(card)
-    # A captain question closes when answered; until the passkey verifier
-    # lands, an answer on held work is refused for proof.
+    # A captain question closes when answered; an unsigned answer on held work
+    # is refused for proof.
     private_calls.append({"owner": owner, "task_id": tid,
                           "close": "done" if dec.get("task_kind") == "captain" else "release"})
+if proof_lock is not None:
+    proof_lock.close()
 
 # --- work --------------------------------------------------------------------
 underway = []
@@ -839,14 +1001,32 @@ if isinstance(raw_day, dict) and raw_day.get("date") == today.isoformat():
         day["blocks"].append({"id": bid, "title": line(block.get("title"), 200, "Busy"),
                               "starts_at": block["starts_at"], "ends_at": block["ends_at"]})
 
+# --- passkeys and enrolment ---------------------------------------------------
+# bin/fm-today-passkey.sh owns both blocks; each passkey label passes the text check.
+rc, out = run_quiet([os.path.join(os.environ["FM_TODAY_BIN"], "fm-today-passkey.sh"), "blocks"], 30)
+try:
+    blocks = json.loads(out) if rc == 0 else None
+except ValueError:
+    blocks = None
+if not isinstance(blocks, dict):
+    skipped.append("passkeys and enrolment: bin/fm-today-passkey.sh blocks failed, so no merge "
+                   "or go can be signed until it succeeds")
+    blocks = {}
+if isinstance(blocks.get("passkeys"), dict):
+    for n, cred in enumerate(blocks["passkeys"].get("credentials") or [], 1):
+        cred["label"] = checked(cred.get("label"), 120, "Passkey %d" % n)
+
 snapshot = {
     "schema": "fm-today-snapshot.v1",
     "generator_version": GENERATOR_VERSION,
     "generated_at": now,
     "home": checked(bearings.get("home"), 200, "firstmate"),
-    "sections": {"calls": calls, "underway": underway, "charted_next": charted,
-                 "landed": landed, "health": health, "boards": boards, "day": day},
 }
+for member in ("passkeys", "enrolment"):
+    if member in blocks:
+        snapshot[member] = blocks[member]
+snapshot["sections"] = {"calls": calls, "underway": underway, "charted_next": charted,
+                        "landed": landed, "health": health, "boards": boards, "day": day}
 for note in skipped:
     print("fm-today-bridge: left out %s" % note, file=sys.stderr)
 if os.environ.get("FM_TODAY_CALLS_OUT"):
@@ -931,12 +1111,15 @@ ensure_answers_dir() {
 answers_py() {
   FM_TODAY_ANSWERS_DIR="$ANSWERS_DIR" FM_TODAY_BIN="$SCRIPT_DIR" FM_TODAY_CHECKER="$CHECKER" \
     FM_TODAY_CONTRACT_DIR="$CONTRACT_DIR" FM_TODAY_RECONCILE_SOURCE="$RECONCILE_SOURCE_ID" \
-    FM_HOME="$FM_HOME" python3 - "$@" <<'PY'
+    FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_CONFIG_OVERRIDE="$CONFIG" python3 - "$@" <<'PY'
 import datetime
+import fcntl
 import glob
+import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -945,18 +1128,28 @@ os.umask(0o077)
 DIR = os.environ["FM_TODAY_ANSWERS_DIR"]
 BIN = os.environ["FM_TODAY_BIN"]
 HOLD = os.path.join(BIN, "fm-captain-hold.sh")
+MERGE = os.path.join(BIN, "fm-pr-merge.sh")
+PASSKEY = os.path.join(BIN, "fm-today-passkey.sh")
+VERIFY = os.path.join(BIN, "fm-today-passkey-verify.py")
+STORE = os.path.join(os.environ["FM_CONFIG_OVERRIDE"], "today-passkeys.json")
+PROOF_DIR = os.path.join(os.environ["FM_STATE_OVERRIDE"], "today-proof")
 MAIN = "(main)"
 ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 TASK_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 OWNER = re.compile(r"^(\(main\)|[A-Za-z0-9._-]{1,128})$")
 RECEIPT_BATCH = 200
-# Until firstmate can check the captain's passkey itself, no merge word or go
-# to build from the portal is ever carried: it is recorded and refused here,
-# before any card or hold is read.
+# A merge word or a go to build is carried only once firstmate has checked the
+# captain's passkey on it (bin/fm-today-passkey-verify.py). With no credential
+# enrolled none can be signed, so each is recorded and refused, before any card
+# or hold is read; so is an unsigned answer to a merge or go call, and an
+# unsigned option answer that would release held work.
 PROOF_KINDS = ("merge", "go")
 PROOF_REFUSAL = ("proof_required: a merge or go answer needs the captain's passkey signature, "
-                 "which firstmate cannot check yet; nothing was merged, released, or started. "
+                 "and no passkey is enrolled; nothing was merged, released, or started. "
                  "Give this word at the machine.")
+UNSIGNED_REFUSAL = ("proof_required: this answer is not signed with the captain's passkey, and "
+                    "it would merge, release, or start work; nothing was merged, released, or "
+                    "started. Give this word at the machine, or as a signed merge or go.")
 # Slice 0 applies no second mate's answer anywhere: it is recorded and refused.
 MATE_REFUSAL = "answer a second mate's call at the machine for now; nothing was applied"
 # An answer stored with no receipt was being carried when the bridge stopped;
@@ -1057,17 +1250,157 @@ def later_date(stamp):
     return when.astimezone().date().isoformat()
 
 
+_enrolled = []
+
+
+def passkeys_enrolled():
+    """Whether any credential is active (bin/fm-today-passkey.sh blocks), read once."""
+    if not _enrolled:
+        rc, out, _err = run([PASSKEY, "blocks"])
+        try:
+            _enrolled.append(rc == 0 and "passkeys" in json.loads(out))
+        except ValueError:
+            _enrolled.append(False)
+    return _enrolled[0]
+
+
+def retire_proof(owner, task):
+    """Drop the call's proof record, so the next snapshot raises it with a fresh nonce."""
+    os.makedirs(PROOF_DIR, mode=0o700, exist_ok=True)
+    with open(os.path.join(PROOF_DIR, ".lock"), "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            os.remove(os.path.join(PROOF_DIR, hashlib.sha256(
+                (owner + "\n" + task).encode("utf-8")).hexdigest()[:32] + ".json"))
+        except FileNotFoundError:
+            pass
+
+
+UNBOUND = ("refused", "the Today source is not bound in this home; nothing was applied", None, "refused")
+
+
+def bound():
+    rc, _out, _err = run([HOLD, "binding", os.environ["FM_TODAY_RECONCILE_SOURCE"]])
+    return rc == 0
+
+
+def defer(task, answer):
+    until = later_date(answer["later_until"])
+    rc, _out, err = run([HOLD, "hold", task, "--until", until])
+    if rc != 0:
+        return "refused", "could not defer the call: %s" % first_line(err, "hold failed"), None, "refused"
+    return "applied", "deferred until %s" % until, None, "deferred"
+
+
+def verify(answer, card):
+    """F2's verdict on a signed answer against the call as it stands now."""
+    work = tempfile.mkdtemp(dir=DIR, prefix=".verify.")
+    try:
+        paths = []
+        for name, doc in (("answer.json", answer), ("card.json", card)):
+            paths.append(os.path.join(work, name))
+            with open(paths[-1], "w", encoding="utf-8") as fh:
+                json.dump(doc, fh, ensure_ascii=False)
+        rc, out, err = run(["python3", VERIFY, "verify"] + paths + ["--store", STORE])
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    try:
+        verdict = json.loads(out) if rc in (0, 1) else None
+    except ValueError:
+        verdict = None
+    if not isinstance(verdict, dict):
+        raise RuntimeError("the passkey could not be checked: %s" % first_line(err, "the verifier failed"))
+    return verdict
+
+
+def carry_signed(answer, card):
+    """A merge or go answer: verify the passkey, then release the call and, for a
+    merge, merge exactly the signed head. Returns carry's tuple plus the line
+    that announces an applied signed word."""
+    owner, task, value = answer.get("owner", MAIN), answer["task_id"], answer["value"]
+    verdict = verify(answer, card)
+    if verdict["verdict"] == "duplicate":
+        return "duplicate", None, None, "duplicate"
+    if verdict["verdict"] == "set-aside":
+        return ("set-aside", "the call changed after it was shown; it is asked again",
+                verdict["current_card_hash"], "set-aside")
+    if verdict["verdict"] != "verified":
+        return "refused", verdict.get("reason") or "passkey: not verified", None, "refused"
+    retire_proof(owner, task)
+    passkey = one_line(verdict["credential"].get("label")) or verdict["credential"]["credential_id"]
+    if value == "later":
+        return defer(task, answer)
+    aid, device = answer["answer_id"], answer["device"]
+    words = "%s, signed with passkey %s from Today, answer %s, device %s" % (value, passkey, aid, device)
+    label = next((o["label"] for o in card["options"] if o["value"] == value), value)
+    source = "Today answer %s on device %s" % (aid, device)
+    if answer.get("note"):
+        source += "; captain note: " + one_line(answer["note"])
+    rc, out, err = run([HOLD, "answers", "--source", source],
+                       "%s\t%s\t%s\trelease\n" % (task, one_line(words), one_line(label)))
+    if not (rc == 0 and ("closed: %s" % task) in out.splitlines()):
+        return ("refused", "not applied: %s" % first_line(out + err, "the hold lifecycle refused it"),
+                None, "refused")
+    signed = 'passkey "%s", answer %s' % (passkey, aid)
+    if card["kind"] != "merge" or value != "merge":
+        return ("applied", None, None, "released",
+                "%s on %s/%s was released on a passkey-signed word from Today: %s"
+                % (value, owner, task, signed))
+    pr, head = card["pr_url"], card["head_sha"]
+    rc, _out, err = run([MERGE, task, pr, "--head-sha", head])
+    landed = rc == 0
+    if not landed:
+        src, sout, serr = run(["gh", "pr", "view", pr, "--json", "state,isInMergeQueue",
+                               "-q", '.state + " " + (.isInMergeQueue | tostring)'])
+        state = sout.split() if src == 0 else []
+        landed = state[:1] == ["MERGED"] or state[1:2] == ["true"]
+    if not landed:
+        # Nothing merged: the released word is spent, so the call is raised
+        # again and only a fresh signed word, under a new nonce, can merge it.
+        if rc == 3 and "head moved" in err:
+            why = "passkey: head moved; nothing was merged"
+            hold_reason = "its head moved after the signed merge word"
+        else:
+            why = "the merge did not land: %s; nothing was merged" % first_line(err, "fm-pr-merge.sh refused")
+            hold_reason = "the signed merge did not land"
+        if not state:
+            why += " (the pull request's state could not be read: %s)" % first_line(serr, "gh failed")
+        hrc, _out, herr = run([HOLD, "hold", task, "--reason", "merge %s again: %s" % (pr, hold_reason),
+                               "--call", "merge", "--pr", pr])
+        if hrc == 0:
+            return "refused", why + ", and the call is raised again", None, "re-raised"
+        return ("refused", "%s, and the call could not be raised again: %s"
+                % (why, first_line(herr, "hold failed")), None, "refused")
+    comment = ("Merged by firstmate on a passkey-signed merge word from Today.\n\n"
+               "- Passkey: %s\n- Answer: %s\n- Head: %s\n" % (passkey, aid, head))
+    crc, _out, cerr = run(["gh", "pr", "comment", pr, "--body", comment])
+    reason = None if crc == 0 else ("merged; the pull request comment could not be posted: %s"
+                                    % first_line(cerr, "gh failed"))
+    return ("applied", reason, None, "merged",
+            "%s was merged at %s on a passkey-signed merge word from Today: %s" % (pr, head[:12], signed))
+
+
 def carry(answer, cards, closes):
-    """One valid, new answer: returns (outcome, reason, current_card_hash, action)."""
+    """One valid, new answer: returns (outcome, reason, current_card_hash, action),
+    and for an applied signed word, the line that announces it."""
     owner = answer.get("owner", MAIN)
     task, value = answer["task_id"], answer["value"]
     card = cards.get((owner, task))
     if answer["kind"] in PROOF_KINDS or (card and card["kind"] in PROOF_KINDS):
-        return "refused", PROOF_REFUSAL, None, "refused"
+        if answer["kind"] not in PROOF_KINDS:
+            return "refused", UNSIGNED_REFUSAL, None, "refused"
+        if not passkeys_enrolled():
+            return "refused", PROOF_REFUSAL, None, "refused"
     if owner != MAIN:
         return "refused", MATE_REFUSAL, None, "refused"
     if card is None:
         return "refused", "the call is no longer open", None, "refused"
+    if answer["kind"] in PROOF_KINDS:
+        if len((answer.get("note") or "").encode("utf-8")) > 512:
+            return "refused", "the note is over 512 bytes", None, "refused"
+        if not bound():
+            return UNBOUND
+        return carry_signed(answer, card)
     if answer["card_hash"] != card["card_hash"]:
         return ("set-aside", "the call changed after it was shown; it is asked again",
                 card["card_hash"], "set-aside")
@@ -1076,17 +1409,11 @@ def carry(answer, cards, closes):
         return "refused", "the card did not offer %s" % value, None, "refused"
     if len((answer.get("note") or "").encode("utf-8")) > 512:
         return "refused", "the note is over 512 bytes", None, "refused"
-    rc, _out, _err = run([HOLD, "binding", os.environ["FM_TODAY_RECONCILE_SOURCE"]])
-    if rc != 0:
-        return ("refused", "the Today source is not bound in this home; nothing was applied",
-                None, "refused")
+    if not bound():
+        return UNBOUND
     source = "Today answer %s on device %s" % (answer["answer_id"], answer["device"])
     if value == "later":
-        until = later_date(answer["later_until"])
-        rc, _out, err = run([HOLD, "hold", task, "--until", until])
-        if rc != 0:
-            return "refused", "could not defer the call: %s" % first_line(err, "hold failed"), None, "refused"
-        return "applied", "deferred until %s" % until, None, "deferred"
+        return defer(task, answer)
     if card["kind"] == "credential":
         return ("applied", "seen recorded; the credential is still needed at the machine",
                 None, "seen-recorded")
@@ -1100,7 +1427,7 @@ def carry(answer, cards, closes):
         return ("refused", "could not record the reconcile request: %s"
                 % first_line(out if rc == 0 else (out + err), "refused"), None, "refused")
     if closes.get((owner, task)) != "done":
-        return "refused", PROOF_REFUSAL, None, "refused"
+        return "refused", UNSIGNED_REFUSAL, None, "refused"
     label = next((o["label"] for o in card["options"] if o["value"] == value), value)
     if answer.get("note"):
         source += "; captain note: " + one_line(answer["note"])
@@ -1112,9 +1439,45 @@ def carry(answer, cards, closes):
             None, "refused")
 
 
+ENROL_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+CREDENTIAL_ID = re.compile(r"^[A-Za-z0-9_-]{1,1366}$")
+
+
+def collect_enrolments(enrolments):
+    """Each new enrolment the portal hands back is kept under enrolments/ and
+    checked (bin/fm-today-passkey.sh check), never confirmed: only the captain
+    trusts a passkey, at this machine, with bin/fm-today-passkey.sh confirm.
+    One the portal hands back again is already kept and prints nothing."""
+    os.makedirs(os.path.join(DIR, "enrolments"), mode=0o700, exist_ok=True)
+    for enrolment in enrolments if isinstance(enrolments, list) else []:
+        eid = enrolment.get("enrol_id") if isinstance(enrolment, dict) else None
+        cid = enrolment.get("credential_id") if isinstance(enrolment, dict) else None
+        if (not isinstance(eid, str) or not ENROL_ID.match(eid)
+                or not isinstance(cid, str) or not CREDENTIAL_ID.match(cid)):
+            print("fm-today-bridge: an enrolment with no usable enrol_id or credential_id "
+                  "was left out", file=sys.stderr)
+            continue
+        path = os.path.join(DIR, "enrolments", "%s.%s.json" % (
+            eid, hashlib.sha256(cid.encode("ascii")).hexdigest()[:16]))
+        if os.path.exists(path):
+            continue
+        write_json(path, enrolment)
+        rc, out, err = run([PASSKEY, "check", path])
+        errors = [line[len("error: "):] for line in out.splitlines() if line.startswith("error: ")]
+        if rc != 0 and not errors:
+            errors = [first_line(err, "bin/fm-today-passkey.sh check failed")]
+        summary = {"enrol_id": eid, "credential_id": cid, "check": "ok" if rc == 0 else "refused",
+                   "file": path, "confirm": "bin/fm-today-passkey.sh confirm %s" % path}
+        if errors:
+            summary["errors"] = errors[:10]
+        print("enrolment-json: " + json.dumps(summary, ensure_ascii=False))
+
+
 def cmd_apply(response, cards_file, calls_file):
     with open(response, encoding="utf-8") as fh:
-        answers = json.load(fh).get("answers")
+        body = json.load(fh)
+    collect_enrolments(body.get("enrolments"))
+    answers = body.get("answers")
     cards, closes = {}, {}
     if answers:
         with open(cards_file, encoding="utf-8") as fh:
@@ -1151,6 +1514,7 @@ def cmd_apply(response, cards_file, calls_file):
             continue
         seen.add(aid)
         answer_path = os.path.join(DIR, "answers", aid + ".json")
+        announce = None
         if os.path.exists(answer_path):
             outcome, reason, current, action = "refused", INTERRUPTED_REFUSAL, None, "refused"
         else:
@@ -1166,7 +1530,9 @@ def cmd_apply(response, cards_file, calls_file):
                 if why:
                     outcome, reason, current, action = "refused", "invalid answer: " + why, None, "refused"
                 else:
-                    outcome, reason, current, action = carry(answer, cards, closes)
+                    result = carry(answer, cards, closes)
+                    outcome, reason, current, action = result[:4]
+                    announce = result[4] if len(result) > 4 else None
             except Exception as exc:
                 outcome, reason, current, action = ("refused", "could not carry the answer: %s"
                                                     % first_line(str(exc), type(exc).__name__), None, "refused")
@@ -1185,6 +1551,8 @@ def cmd_apply(response, cards_file, calls_file):
         summary.update({"outcome": outcome, "action": action})
         if reason:
             summary["reason"] = reason
+        if announce:
+            summary["announce"] = announce
         print("answer-json: " + json.dumps(summary, ensure_ascii=False))
 
 
@@ -1229,11 +1597,14 @@ answers_exchange() {
   n=$(jq -er '.answers | if type == "array" then length else error end' "$resp" 2>/dev/null) \
     || { EXCHANGE_ERROR="the portal answered 200 without an answers list"; return 3; }
   EXCHANGE_RETURNED=$n
-  [ "$n" -gt 0 ] || return 0
-  # Every answer is checked against the call as it stands now. The subshell
-  # keeps a failed build from ending a poll without its result.
-  ( build_snapshot "$TMP_DIR/current.json" "$TMP_DIR/current-calls.json" ) \
-    || { EXCHANGE_ERROR="could not build the snapshot to check the answers against"; return 1; }
+  if [ "$n" -eq 0 ]; then
+    jq -e '.enrolments | type == "array" and length > 0' "$resp" >/dev/null 2>&1 || return 0
+  else
+    # Every answer is checked against the call as it stands now. The subshell
+    # keeps a failed build from ending a poll without its result.
+    ( build_snapshot "$TMP_DIR/current.json" "$TMP_DIR/current-calls.json" ) \
+      || { EXCHANGE_ERROR="could not build the snapshot to check the answers against"; return 1; }
+  fi
   answers_py apply "$resp" "$TMP_DIR/current.json" "$TMP_DIR/current-calls.json" >> "$report" \
     || { EXCHANGE_ERROR="could not carry the answers"; return 1; }
 }
@@ -1284,7 +1655,7 @@ print_answers_result() {  # <status> <detail> <report>
   printf 'status: %s\n' "$1"
   [ -z "$2" ] || printf 'detail: %s\n' "$2"
   printf 'answers: %s\n' "$(grep -c '^answer-json: ' "$3" || true)"
-  grep '^answer-json: ' "$3" || true
+  grep -E '^(answer|enrolment)-json: ' "$3" || true
 }
 
 cmd_answers_poll() {
@@ -1315,7 +1686,7 @@ cmd_answers_poll() {
     else answers_exchange "$wait" "$round" || rc=$?; fi
     exchange_lock_drop
     cat "$round" >> "$report"
-    new=$(grep -c '^answer-json: ' "$round" || true)
+    new=$(grep -c -E '^(answer|enrolment)-json: ' "$round" || true)
     if [ "$rc" -ne 0 ]; then
       if [ "$reported" -gt 0 ] || [ "$rc" -eq 2 ] || [ "$failures" -ge "$retries" ]; then
         if [ "$reported" -gt 0 ]; then
