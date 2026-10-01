@@ -2333,6 +2333,31 @@ test_relaunch_moves_a_drifted_item_back_in_flight() {
   pass "relaunch heals an item that drifted out of In flight while the task stayed live"
 }
 
+test_relaunch_of_a_held_in_flight_item_keeps_it_held() {
+  local dir out rc=0 show
+  command -v tasks-axi >/dev/null 2>&1 || {
+    pass "skipped: tasks-axi is not installed, so the backlog transition is inert"
+    return 0
+  }
+  fm_tasks_axi_compatible || {
+    pass "skipped: installed tasks-axi predates ${FM_TASKS_AXI_MIN}, so dispatch refuses automatic backlog transitions"
+    return 0
+  }
+  dir=$(new_case held rl42)
+  add_ship_task "$dir" rl42 claude
+  seed_backlog "$dir" rl42 in_flight
+  tasks-axi hold rl42 --reason "captain review pending" --kind captain \
+    --file "$dir/home/data/backlog.md" >/dev/null
+
+  out=$(run_control "$dir" rl42 relaunch --note "picking the work back up") || rc=$?
+  expect_code 0 "$rc" "a relaunch of a held In-flight item should succeed"$'\n'"$out"
+  show=$(tasks-axi show rl42 --file "$dir/home/data/backlog.md" 2>/dev/null)
+  assert_contains "$show" "state: in_flight" "a relaunch moved a held In-flight item out of In flight"
+  assert_contains "$show" "held: yes" "a relaunch lifted the captain hold"
+  assert_grep "encode launch-brief" "$dir/fake/literal" "the replacement should have been launched"
+  pass "relaunch of a held In-flight item replaces the agent and leaves the item held and In flight"
+}
+
 test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text
 test_relaunch_refuses_before_exit_when_the_composer_state_is_unproven
@@ -2404,3 +2429,4 @@ test_herdr_reclaim_of_a_secondmate_names_its_own_owner
 test_herdr_rebind_failure_from_a_plain_shell_names_the_real_cause
 test_relaunch_reverifies_an_already_in_flight_item_instead_of_rewriting_it
 test_relaunch_moves_a_drifted_item_back_in_flight
+test_relaunch_of_a_held_in_flight_item_keeps_it_held

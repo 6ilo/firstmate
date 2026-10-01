@@ -11,7 +11,9 @@
 # same process, under the per-task meta lock it already holds, before it reports
 # success. Nothing else - not a later agent turn, not a printed reminder - is
 # load-bearing for the pairing.
-#   bin/fm-spawn.sh      meta published => `tasks-axi start`
+#   bin/fm-spawn.sh      meta published => `tasks-axi start`; a relaunch
+#                        re-reads the row and leaves an In-flight one, held or
+#                        not, untouched (fm_backlog_row_relaunchable)
 #   bin/fm-teardown.sh   meta removed => `tasks-axi done`, or `tasks-axi reopen`
 #                        with the deliverable recorded when the row is still an
 #                        open captain call (bin/fm-captain-hold.sh `open`), so
@@ -772,7 +774,23 @@ fm_backlog_row_dispatchable() {
   esac
 }
 
+# A relaunch replaces the agent of a task that already owns its record, so it
+# also accepts an In-flight row held for the captain: the hold is the captain's
+# open call, not a bar on the existing worker, and the relaunch leaves it held.
+# A fresh dispatch still uses fm_backlog_row_dispatchable and refuses it.
+fm_backlog_row_relaunchable() {
+  case "$1" in
+    in_flight\ yes\ no) return 0 ;;
+    *) fm_backlog_row_dispatchable "$1" ;;
+  esac
+}
+
 fm_backlog_dispatch_transition() {
+  local eligible=fm_backlog_row_dispatchable
+  if [ "${1:-}" = --relaunch ]; then
+    eligible=fm_backlog_row_relaunchable
+    shift
+  fi
   local meta=$1 data=$2 id=$3 state=$4 row row_status
   fm_backlog_record_present "$meta" "task record" "$state" || return 1
   fm_backlog_row_probe "$data" "$id"
@@ -786,12 +804,12 @@ fm_backlog_dispatch_transition() {
     return "$row_status"
   fi
   row=$FM_BACKLOG_ROW_STATE
-  if ! fm_backlog_row_dispatchable "$row"; then
+  if ! "$eligible" "$row"; then
     FM_BACKLOG_TRANSITION_ERROR="backlog item $id is not dispatchable in state $row"
     return 1
   fi
   case "$row" in
-    in_flight\ no\ no) return 0 ;;
+    in_flight\ *) return 0 ;;
     queued\ no\ no) fm_backlog_start "$data" "$id" ;;
   esac
 }
@@ -838,6 +856,7 @@ fm_backlog_atomic_transition() {
     publish) fm_backlog_record_publish "$@" ;;
     remove) fm_backlog_record_remove "$@" ;;
     dispatch) fm_backlog_dispatch_transition "$@" ;;
+    relaunch) fm_backlog_dispatch_transition --relaunch "$@" ;;
     rollback) fm_backlog_dispatch_rollback "$@" ;;
     close) fm_backlog_close_transition "$@" ;;
     retain) fm_backlog_retain_transition "$@" ;;
