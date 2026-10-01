@@ -14,11 +14,12 @@ Usage:
       credential_id, alg, public_key_spki.
   fm-today-soft-authenticator.py assert <key.pem> <credential_id> <rp_id> <origin>
                                         <answer.json> [--flags <n>] [--type <t>]
-                                        [--cross-origin]
+                                        [--cross-origin] [--sign-count <n>]
       Print the answer with a passkey assertion over the challenge its fields
       derive. --flags sets the authenticator flags byte (default 0x1d:
       user present, user verified, backup eligible, backed up); --type sets
-      clientDataJSON's type (default webauthn.get).
+      clientDataJSON's type (default webauthn.get); --sign-count sets the
+      signature counter (default 0, as synced passkeys report).
   fm-today-soft-authenticator.py enrol <key.pem> <credential_id> <snapshot.json>
                                        <enrolled_at> <person> <device> [--flags <n>]
       Print the fm-today-enrolment.v1 document registering the key for the
@@ -124,10 +125,12 @@ def keygen(key_file, alg="es256"):
 
 
 def assertion(key_file, credential_id, rp_id, origin, answer_file, *rest):
-    opts = options(rest, {"--flags": True, "--type": True, "--cross-origin": False})
+    opts = options(rest, {"--flags": True, "--type": True, "--cross-origin": False,
+                          "--sign-count": True})
     answer = check.load(answer_file)
     auth = (hashlib.sha256(rp_id.encode("utf-8")).digest()
-            + bytes([int(opts.get("--flags", str(DEFAULT_FLAGS)), 0)]) + (0).to_bytes(4, "big"))
+            + bytes([int(opts.get("--flags", str(DEFAULT_FLAGS)), 0)])
+            + int(opts.get("--sign-count", "0")).to_bytes(4, "big"))
     client = client_json(opts.get("--type", "webauthn.get"),
                          check.b64url(check.passkey_challenge(answer)), origin,
                          "--cross-origin" in opts)
@@ -164,7 +167,7 @@ def enrol(key_file, credential_id, snapshot_file, enrolled_at, person, device, *
 
 
 def main(argv):
-    commands = {"keygen": (keygen, 1, 2), "assert": (assertion, 5, 10), "enrol": (enrol, 6, 8)}
+    commands = {"keygen": (keygen, 1, 2), "assert": (assertion, 5, 12), "enrol": (enrol, 6, 8)}
     if len(argv) < 2 or argv[1] not in commands:
         sys.stderr.write(__doc__)
         return 2
