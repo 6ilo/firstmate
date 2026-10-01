@@ -965,7 +965,11 @@ for meta in "$STATE"/*.meta; do
 
   window=$(fm_meta_get "$meta" window)
   target=$(fm_backend_target_of_meta "$meta")
-  if [ -n "$window" ]; then
+  if [ "$(fm_meta_get "$meta" backend)" = cloud ]; then
+    # bin/fm-cloud.sh: the session runs off this machine, so no window is recorded.
+    printf 'endpoint: cloud session %s (no local endpoint; its pull request is the ready report)\n' \
+      "$(fm_meta_get "$meta" cloud_session)"
+  elif [ -n "$window" ]; then
     backend=$(fm_backend_of_meta "$meta")
     if fm_backend_target_exists "$backend" "${target:-$window}" "fm-$id"; then
       printf 'endpoint: alive (backend=%s window=%s)\n' "$backend" "$window"

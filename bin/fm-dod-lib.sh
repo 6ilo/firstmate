@@ -671,6 +671,19 @@ fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state
     && fm_dod_recorded_pr_on_forge "$state" "$id" "$meta" "$mode" "$url"; then
     return 0
   fi
+  # A cloud task (bin/fm-cloud.sh) has no local copy: its session pushed from
+  # its own machine, so the forge's pull request on the recorded repository is
+  # the only place the named head exists.
+  if [ -n "$meta" ] && [ "$(fm_dod_meta_value "$meta" backend)" = cloud ]; then
+    if [ -n "$url" ] && ( fm_pr_url_parse "$url" \
+        && [ "$FM_PR_PROVIDER" = github ] \
+        && [ "$(printf '%s' "$FM_PR_PATH" | tr '[:upper:]' '[:lower:]')" \
+          = "$(fm_dod_meta_value "$meta" cloud_repo | tr '[:upper:]' '[:lower:]')" ] ); then
+      return 0
+    fi
+    printf '%s\n' "a cloud task is ready only with a pull request on its recorded repository $(fm_dod_meta_value "$meta" cloud_repo)"
+    return 1
+  fi
   if [ -z "$wt" ] || [ ! -d "$wt" ]; then
     printf '%s\n' "named head cannot be verified: worktree missing"
     return 1
