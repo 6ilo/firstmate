@@ -171,12 +171,11 @@
 #   (`gh pr comment`), and the answer-json line carries `announce`, the chat
 #   line firstmate relays. When the merge exits non-zero the pull request's
 #   state is read again (`gh pr view --json state,isInMergeQueue`): merged or
-#   queued is the success above; still open, unmerged, and unqueued, nothing
-#   merged and the signed word is spent, so the call is held again with
-#   --call merge --pr and refused, action `re-raised`: a moved head (exit 3)
-#   as `passkey: head moved`, any other refusal with the merge's reason; any
-#   other state, or none readable, is `refused` and the call is not raised
-#   again. Any other released value is
+#   queued is the success above; any other state, or none readable, means
+#   the signed word is spent, so the call is held again with --call merge
+#   --pr and refused, action `re-raised`: a moved head (exit 3) as
+#   `passkey: head moved`, any other refusal with the merge's reason and,
+#   when the state could not be read, that read's failure. Any other released value is
 #   `applied` with action `released` and an `announce` line. Every verified
 #   answer, applied or not, drops the call's stored nonce, so the next
 #   snapshot raises it with a fresh one.
@@ -1344,14 +1343,10 @@ def carry_signed(answer, card):
     rc, _out, err = run([MERGE, task, pr, "--head-sha", head])
     landed = rc == 0
     if not landed:
-        src, sout, _serr = run(["gh", "pr", "view", pr, "--json", "state,isInMergeQueue",
-                                "-q", '.state + " " + (.isInMergeQueue | tostring)'])
+        src, sout, serr = run(["gh", "pr", "view", pr, "--json", "state,isInMergeQueue",
+                               "-q", '.state + " " + (.isInMergeQueue | tostring)'])
         state = sout.split() if src == 0 else []
         landed = state[:1] == ["MERGED"] or state[1:2] == ["true"]
-        if not landed and state[:2] != ["OPEN", "false"]:
-            return ("refused", "the merge did not report success (%s) and the pull request reads as %s; "
-                    "check it before asking again" % (first_line(err, "fm-pr-merge.sh refused"),
-                                                      " ".join(state) or "unreadable"), None, "refused")
     if not landed:
         # Nothing merged: the released word is spent, so the call is raised
         # again and only a fresh signed word, under a new nonce, can merge it.
@@ -1361,6 +1356,8 @@ def carry_signed(answer, card):
         else:
             why = "the merge did not land: %s; nothing was merged" % first_line(err, "fm-pr-merge.sh refused")
             hold_reason = "the signed merge did not land"
+        if not state:
+            why += " (the pull request's state could not be read: %s)" % first_line(serr, "gh failed")
         hrc, _out, herr = run([HOLD, "hold", task, "--reason", "merge %s again: %s" % (pr, hold_reason),
                                "--call", "merge", "--pr", pr])
         if hrc == 0:

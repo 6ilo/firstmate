@@ -52,7 +52,9 @@ printf '%s\n' "$*" >> "$FM_TEST_GH_DIR/gh.log"
 case "$1 $2" in
   "pr view")
     case "$*" in
-      *isInMergeQueue*) cat "$FM_TEST_GH_DIR/state-${3##*/}" 2>/dev/null || echo "OPEN false" ;;
+      *isInMergeQueue*)
+        [ ! -e "$FM_TEST_GH_DIR/state-fails-${3##*/}" ] || { echo "gh: network unreachable" >&2; exit 1; }
+        cat "$FM_TEST_GH_DIR/state-${3##*/}" 2>/dev/null || echo "OPEN false" ;;
       *) cat "$FM_TEST_GH_DIR/head-${3##*/}" 2>/dev/null ;;
     esac ;;
   "pr comment") exit 0 ;;
@@ -1388,7 +1390,23 @@ test_answers_signed_merge_that_does_not_land_is_raised_again() {
   [ "$(grep -c '^pr comment ' "$FM_TEST_GH_DIR/gh.log")" = 1 ] || fail "the landed merge was not commented on"
   ! row_of "$home" m-fix | grep -q 'hold-kind' || fail "a landed merge was raised again: $(row_of "$home" m-fix)"
   stop_portal
-  pass "a signed merge that fm-pr-merge.sh refuses merges nothing and is raised again for a fresh signed word, unless the forge merged it"
+  # The merge refuses and the pull request's state cannot be read: the call is raised again.
+  home=$(make_signed_home answers-home-unread)
+  use_gh unread
+  m=$(hash_of "$tree" "$home" m-fix)
+  : > "$FM_TEST_GH_DIR/merge-refuse-9"
+  : > "$FM_TEST_GH_DIR/state-fails-9"
+  start_portal "$TMP_ROOT/portal-unread"
+  jq -s . <(signed phone ans_ur_000001 m-fix merge merge "$m") > "$TMP_ROOT/portal-unread/answers.json"
+  abridge "$tree" "$home" answers once
+  s=$(summary_of ans_ur_000001)
+  [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "refused re-raised" ] || fail "an unreadable state was not re-raised: $s"
+  jq -e '.reason | test("state could not be read: gh: network unreachable")' <<< "$s" >/dev/null \
+    || fail "the refusal does not report the failed state read: $s"
+  row_of "$home" m-fix | grep -q 'hold-kind: captain' || fail "the call was not raised again: $(row_of "$home" m-fix)"
+  ! grep -q '^pr comment ' "$FM_TEST_GH_DIR/gh.log" || fail "an unmerged pull request was commented on"
+  stop_portal
+  pass "a signed merge that fm-pr-merge.sh refuses merges nothing and is raised again for a fresh signed word, unless the forge merged it, even when its state cannot be read"
 }
 
 test_answers_signed_later_is_raised_again_with_a_fresh_nonce() {
