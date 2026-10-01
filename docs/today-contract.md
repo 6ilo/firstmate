@@ -101,11 +101,13 @@ Their absence means firstmate has not recorded the fact, never that the answer i
 | `aud` | Charted Next only: who notices the change, `public`, `team`, or `agents`; absent means `agents` |
 | `visible` | Charted Next only: boolean, the change has a visible mark; allowed only when `aud` is `public` or `team` |
 | `until` | Charted Next only: `YYYY-MM-DD`, the date the work is deferred until; set, the work is Deferred |
-| `parked` | Charted Next only: boolean, the work is parked, which the plan boards show as in the fog |
+| `parked` | Charted Next only: boolean, the work is parked, which the plan boards show as in the fog; `true` is not allowed with `until` |
 | `mockup_url` | Charted Next only: `https://` URL of the mockup the visible mark links; allowed only when `visible` is `true` |
 
 The last five are the plan boards' change encoding, and their absence keeps a row's meaning from before they existed: agents only, no visible mark, not deferred, not parked, and no mockup.
-A `visible` row without `aud`, or with `aud` `agents`, is invalid, and so is a `mockup_url` without `visible` `true`; the snapshot schema states both rules.
+A `visible` row without `aud`, or with `aud` `agents`, is invalid, and so is a `mockup_url` without `visible` `true`.
+A row is either in the fog or deferred to a date, so a row with `parked` `true` and an `until` is invalid.
+The snapshot schema states all three rules.
 
 ## The card
 

@@ -103,6 +103,7 @@ snapshot--missing-day $.sections: required: missing day
 snapshot--mockup-not-https $.sections.charted_next[0].mockup_url: pattern
 snapshot--mockup-not-visible $.sections.charted_next[0].visible: const
 snapshot--mockup-without-visible $.sections.charted_next[0]: required: missing visible
+snapshot--parked-and-deferred $.sections.charted_next[2]: not: matches a forbidden shape
 snapshot--passkeys-credential-twice $.passkeys.credentials: credential_id: a credential appears twice
 snapshot--passkeys-origin-outside-relying-party $.passkeys.origin: origin
 snapshot--underway-extra-field $.sections.underway[0]: additionalProperties: body

@@ -120,6 +120,10 @@
         {
           "if": { "required": ["mockup_url"] },
           "then": { "required": ["visible"], "properties": { "visible": { "const": true } } }
+        },
+        {
+          "if": { "properties": { "parked": { "const": true } }, "required": ["parked"] },
+          "then": { "not": { "required": ["until"] } }
         }
       ]
     },
