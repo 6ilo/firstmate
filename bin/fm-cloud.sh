@@ -172,7 +172,7 @@ cloud_check_arm() {  # <task-id>
 
 cmd_launch() {
   local id repo mode='' yolo='' base=main prefix=fm/ project='' brief='' branch meta lock
-  local backlog=0 row clone prompt url gen tmp
+  local backlog=0 row clone prompt url gen tmp failed
   [ "$#" -ge 2 ] || usage
   id=$1 repo=$2
   shift 2
@@ -260,11 +260,13 @@ cmd_launch() {
   chmod 0600 "$tmp"
   fm_backlog_atomic_transition publish "$tmp" "$meta" "task record" "$STATE" \
     || { rm -f "$tmp"; die "cloud session $url started, but its task record could not be published ($FM_BACKLOG_TRANSITION_ERROR)"; }
+  failed=''
   cloud_check_arm "$id" \
-    || die "cloud session $url started, but its pull-request check could not be armed; re-run bin/fm-cloud.sh poll $id by hand"
+    || failed="its pull-request check could not be armed (re-run bin/fm-cloud.sh poll $id by hand)"
   if [ "$backlog" = 1 ] && ! fm_backlog_atomic_transition dispatch "$meta" "$DATA" "$id" "$STATE"; then
-    die "cloud session $url started and its task record is published, but the backlog item did not move to In flight ($FM_BACKLOG_TRANSITION_ERROR)"
+    failed="${failed:+$failed; }the backlog item did not move to In flight ($FM_BACKLOG_TRANSITION_ERROR)"
   fi
+  [ -z "$failed" ] || die "cloud session $url started and its task record is published, but $failed"
   printf 'launched %s backend=cloud repo=%s branch=%s mode=%s yolo=%s session=%s\n' \
     "$id" "$repo" "$branch" "$mode" "$yolo" "$url"
 }
