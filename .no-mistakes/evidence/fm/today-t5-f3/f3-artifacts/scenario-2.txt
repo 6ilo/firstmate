@@ -1,0 +1,13 @@
+== SCENARIO 2: verify-then-release, signed merge binds head, PR comment + chat line ==
+--- answer receipts (announce/chat lines + actions) ---
+{"answer_id":"ans_sm_000001","outcome":"applied","action":"merged","announce":"https://github.com/acme/widget/pull/9 was merged at aaaaaaaaaaaa on a passkey-signed merge word from Today: passkey \"iPhone passkey\", answer ans_sm_000001"}
+{"answer_id":"ans_sg_000001","outcome":"applied","action":"released","announce":"go on (main)/g-build was released on a passkey-signed word from Today: passkey \"iPhone passkey\", answer ans_sg_000001"}
+--- release words recorded on the hold (data/backlog.md) ---
+  Answer: merge, signed with passkey iPhone passkey from Today, answer ans_sm_000001, device phone-1
+  Answer: go, signed with passkey iPhone passkey from Today, answer ans_sg_000001, device phone-1
+--- head_sha handed to fm-pr-merge.sh ---
+MERGE m-fix https://github.com/acme/widget/pull/9 --head-sha aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- PR comment posted (gh.log) ---
+pr comment https://github.com/acme/widget/pull/9 --body Merged by firstmate on a passkey-signed merge word from Today.
+--- nonce on the re-snapshot after the verified merge (proves re-mint) ---
+pre-merge nonce [OprLWZBYhP4q1KX6F6InIA]; after verified merge [l7m6D1FaznQGJis6cBWYBA]

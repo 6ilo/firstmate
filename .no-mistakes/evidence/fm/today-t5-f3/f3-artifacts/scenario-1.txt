@@ -1,0 +1,6 @@
+== SCENARIO 1: signed cards carry head_sha / subject_sha256 + proof nonce + proof.expires_at ==
+{"task_id":"m-fix","kind":"merge","head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","subject_sha256":null,"proof":{"nonce":"OprLWZBYhP4q1KX6F6InIA","expires_at":"2026-10-02T07:32:11Z"},"pr_url":"https://github.com/acme/widget/pull/9"}
+{"task_id":"g-build","kind":"go","head_sha":null,"subject_sha256":"86fb3ad60a6a9e4304779b014833cbcce3af508f0be52e5ab4ba9b25431b6082","proof":{"nonce":"VaNlFoUaW-n3qJOQV3P0Lg","expires_at":"2026-10-02T07:32:13Z"},"pr_url":null}
+--- passkeys block ---
+{"rp_id":"relay-api.mmeg.us","origin":"https://relay-api.mmeg.us","credentials":[{"credential_id":"-a0-mGzWrrb8xHU1u_Xhh6ilaAM","label":"iPhone passkey"}]}
+re-snapshot nonce identical (no re-mint while unexpired, same raising): [OprLWZBYhP4q1KX6F6InIA] vs [OprLWZBYhP4q1KX6F6InIA]

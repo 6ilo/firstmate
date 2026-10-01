@@ -1,0 +1,22 @@
+SCENARIO 3: a signed merge whose head moved is never merged, and firstmate re-raises the call with the new head and a fresh nonce
+
+This is evidence from driving the real product (bin/fm-today-bridge.sh + the real
+verifier + the real hold lifecycle) with stubbed external gh/portal, exactly as
+the shipped automated behavior suite does.
+
+(a) DRIVEN BY THE AUTOMATED BEHAVIOR SUITE (runs the real product end-to-end),
+    tests/fm-today-bridge.test.sh:
+    ok - a signed merge whose head moved is set aside or refused, never merged, and the call is raised again with the new head
+    ok - a signed merge that fm-pr-merge.sh refuses merges nothing and is raised again for a fresh signed word, unless the forge merged it, even when its state cannot be read
+    These assert: merge bound to the OLD signed head, no gh pr merge reached for a moved head,
+    refusal reason "passkey: head moved", no PR comment on an unmerged PR, the call re-held as
+    --call merge --pr, and the re-raised card carrying the NEW head_sha and a NONCE != the spent one.
+
+(b) A direct manual drive of the re-snapshot after a refused/moved signed merge showed the
+    re-raise card carries the moved head and a re-minted nonce:
+    pre  nonce = -LAeoOoOn2Z5DU4dN4vvGQ, head_sha = aaaa..aaaa (HEAD_A)
+    new  nonce = w26TitT-iecrwSaJeecsSA, head_sha = bbbb..bbbb (HEAD_B, the moved live head)
+    i.e. a signed head that is no longer the live head merges nothing and is minted again.
+
+RESULT: pass (live). A signed merge word never merges a head other than the one signed,
+and the call is raised again so only a fresh signed word for the new head can merge it.
