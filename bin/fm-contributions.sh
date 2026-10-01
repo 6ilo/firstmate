@@ -114,7 +114,7 @@ jq_lib() { # jq options/program via final argument
 }
 
 read_saved() {
-  local file
+  local file dir
   : > "$TMP/saved.jsonl"
   ERRORS=0
   if [ -L "$DATA" ]; then
@@ -122,17 +122,17 @@ read_saved() {
   fi
   for file in "$DATA"/*/contributions.json; do
     [ -e "$file" ] || [ -L "$file" ] || continue
-    if [ -L "$file" ] || [ -L "$(dirname "$file")" ] || [ ! -f "$file" ] \
+    dir=${file%/*}
+    # One jq pass per file: a single valid record whose task identity matches
+    # its durable directory, not arbitrary JSON, is kept; anything else counts.
+    if [ -L "$file" ] || [ -L "$dir" ] || [ ! -f "$file" ] \
       || [ "$(wc -c < "$file")" -gt 1048576 ] \
-      || ! jq_lib -ne --slurpfile record "$file" '($record | length) == 1 and ($record[0] | valid_record)' >/dev/null 2>&1; then
+      || ! jq_lib -nce --arg task "${dir##*/}" --slurpfile record "$file" \
+        'if ($record | length) == 1 and ($record[0] | valid_record) and $record[0].task == $task
+         then $record[0] else empty end' >> "$TMP/saved.jsonl" 2>/dev/null; then
       ERRORS=$((ERRORS + 1))
       continue
     fi
-    # A file's task identity must match its durable directory, not arbitrary JSON.
-    if ! jq -e --arg task "$(basename "$(dirname "$file")")" '.task == $task' "$file" >/dev/null; then
-      ERRORS=$((ERRORS + 1)); continue
-    fi
-    jq -c . "$file" >> "$TMP/saved.jsonl"
   done
   jq -s . "$TMP/saved.jsonl" > "$TMP/saved.json"
 }

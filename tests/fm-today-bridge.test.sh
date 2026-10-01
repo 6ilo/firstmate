@@ -609,6 +609,25 @@ test_dry_run_writes_and_sends_nothing() {
   pass "--dry-run writes the checked snapshot and sends nothing"
 }
 
+test_push_sends_a_given_snapshot() {
+  local stub=$TMP_ROOT/stub-given given=$TMP_ROOT/given.json
+  jq '.generated_at = "2026-09-28T17:59:00Z"' "$TMP_ROOT/snap.json" > "$given"
+  start_stub "$stub" 200
+  FM_TODAY_PORTAL_URL=$STUB_URL FM_TODAY_BRIDGE_TOKEN=$TOKEN bridge "$HOME_A" push --snapshot "$given"
+  stop_stub
+  [ "$CODE" -eq 0 ] || fail "push --snapshot exited $CODE: $(cat "$ERR")"
+  jq -r .body "$stub/req-0.json" | jq -S . > "$TMP_ROOT/given-sent.json"
+  jq -S . "$given" | cmp -s - "$TMP_ROOT/given-sent.json" \
+    || fail "push --snapshot did not send the given document unchanged"
+  printf '{}\n' > "$TMP_ROOT/given-bad.json"
+  start_stub "$stub-bad" 200
+  FM_TODAY_PORTAL_URL=$STUB_URL FM_TODAY_BRIDGE_TOKEN=$TOKEN bridge "$HOME_A" push --snapshot "$TMP_ROOT/given-bad.json"
+  stop_stub
+  [ "$CODE" -eq 1 ] || fail "an invalid given snapshot exited $CODE, want 1"
+  [ -z "$(ls "$stub-bad")" ] || fail "an invalid given snapshot reached the portal"
+  pass "push --snapshot sends the given document unchanged and still refuses one that fails the check"
+}
+
 test_token_never_in_output() {
   ! grep -rqF -- "$TOKEN" "$OUTPUTS" || fail "the token appeared in bridge output"
   pass "the token never appears in any output"
@@ -1239,6 +1258,7 @@ test_push_reports_portal_refusal
 test_push_refuses_plain_http_off_loopback
 test_push_missing_config_sends_nothing
 test_dry_run_writes_and_sends_nothing
+test_push_sends_a_given_snapshot
 test_held_calls_raise_merge_go_and_credential_cards
 make_answers_tree "$TMP_ROOT/answers-tree"
 test_recorded_options_lead_a_decision_card

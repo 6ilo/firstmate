@@ -1547,6 +1547,7 @@ A value set in the environment wins over the `.env` line.
 - `bin/fm-today-bridge.sh snapshot` prints the snapshot without sending it.
 - `bin/fm-today-bridge.sh push --dry-run <file>` builds and checks the snapshot, writes it to `<file>`, and sends nothing; it needs neither setting.
 - `bin/fm-today-bridge.sh push` builds the snapshot, checks it against the contract with `tests/fm-today-contract-check.py`, and sends it, printing the portal's `heard_at` stamp.
+- `bin/fm-today-bridge.sh push --snapshot <file>` checks and sends a snapshot already built by `snapshot`, without building another.
 - `bin/fm-procevent-today-answers.sh arm` starts collecting the captain's answers: a process-event source long-polls the portal's answers endpoint outside firstmate's turn, carries each answer into the hold lifecycle, sends its receipt, and wakes firstmate with each round.
 - `bin/fm-today-bridge.sh answers once` makes one such call by hand.
 
@@ -1572,7 +1573,7 @@ The script's header owns the exact rules.
 | --- | --- | --- |
 | `FM_TODAY_PUSH_MIN_SECS` | 180 | Least seconds between the end of one push attempt and the start of the next |
 | `FM_TODAY_PUSH_TOPUP_SECS` | 900 | Seconds after the last attempt when an unchanged snapshot is sent again |
-| `FM_TODAY_PUSH_TIMEOUT` | 180 | Seconds allowed for building the snapshot, and again for sending it, which rebuilds it first |
+| `FM_TODAY_PUSH_TIMEOUT` | 180 | Seconds allowed for building the snapshot, and again for checking and sending that same document |
 | `FM_TODAY_PUSH_CHECK_SECS` | 60 | Seconds between the watcher's checks for a due push |
 
 These are read from the watcher's environment; zero or invalid values use the default.

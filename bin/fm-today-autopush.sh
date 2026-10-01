@@ -30,10 +30,11 @@
 #                FM_TODAY_PUSH_TOPUP_SECS have passed since that attempt ended,
 #                so the portal keeps hearing from the fleet.
 #              - The snapshot build and the push are each bounded by
-#                FM_TODAY_PUSH_TIMEOUT. The push rebuilds the snapshot before
-#                its own bounded send, so the one bound covers a slow build
-#                plus that send. Nothing outside bounds a tick: the watcher
-#                starts it detached and only waits for it before the next.
+#                FM_TODAY_PUSH_TIMEOUT. The push sends the document that was
+#                built and fingerprinted (push --snapshot), never a second
+#                build, so its bound covers the contract check and the send.
+#                Nothing outside bounds a tick: the watcher starts it detached
+#                and only waits for it before the next.
 #              - A failed attempt (build, check, refusal, unreachable portal,
 #                or timeout) records state/.today-push-notice with one line,
 #                `check: today-push failed (<reason>)`, only when it starts a
@@ -163,7 +164,7 @@ tick() {
   fi
 
   if [ "$status" -eq 0 ]; then
-    fm_run_timed "$TIMEOUT" "$BRIDGE" push > /dev/null 2> "$err" || status=$?
+    fm_run_timed "$TIMEOUT" "$BRIDGE" push --snapshot "$snap" > /dev/null 2> "$err" || status=$?
   fi
   # Both intervals run from the end of this attempt, however long it took.
   ATTEMPTED_AT=$(date +%s)
