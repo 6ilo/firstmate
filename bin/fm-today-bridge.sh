@@ -271,19 +271,17 @@ die() {
 }
 
 URL=''
-TOKEN=''
 CONFIG_ERROR=''
 # load_config_quiet and portal_post are thin wrappers over the shared settings
 # and one POST in bin/fm-today-lib.sh, so every bridge endpoint reads the same
 # URL rule and carries the same Authorization header (never on a command line).
-# load_config_quiet: set URL and TOKEN (and the lib's FM_TODAY_URL and
-# FM_TODAY_TOKEN), or set CONFIG_ERROR to why not and return 1. load_config
-# exits 2 with that reason instead.
+# load_config_quiet: set URL (and the lib's FM_TODAY_URL and FM_TODAY_TOKEN,
+# which fm_today_post consumes), or set CONFIG_ERROR to why not and return 1.
+# load_config exits 2 with that reason instead.
 load_config_quiet() {
   CONFIG_ERROR=''
   if fm_today_portal_settings "$FM_HOME"; then
     URL=$FM_TODAY_URL
-    TOKEN=$FM_TODAY_TOKEN
     return 0
   fi
   CONFIG_ERROR=$FM_TODAY_SETTINGS_ERROR
