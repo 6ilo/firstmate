@@ -1315,12 +1315,10 @@ def carry_signed(answer, card):
                 verdict["current_card_hash"], "set-aside")
     if verdict["verdict"] != "verified":
         return "refused", verdict.get("reason") or "passkey: not verified", None, "refused"
+    retire_proof(owner, task)
     passkey = one_line(verdict["credential"].get("label")) or verdict["credential"]["credential_id"]
     if value == "later":
-        result = defer(task, answer)
-        if result[0] != "applied":
-            retire_proof(owner, task)
-        return result
+        return defer(task, answer)
     aid, device = answer["answer_id"], answer["device"]
     words = "%s, signed with passkey %s from Today, answer %s, device %s" % (value, passkey, aid, device)
     label = next((o["label"] for o in card["options"] if o["value"] == value), value)
@@ -1330,7 +1328,6 @@ def carry_signed(answer, card):
     rc, out, err = run([HOLD, "answers", "--source", source],
                        "%s\t%s\t%s\trelease\n" % (task, one_line(words), one_line(label)))
     if not (rc == 0 and ("closed: %s" % task) in out.splitlines()):
-        retire_proof(owner, task)
         return ("refused", "not applied: %s" % first_line(out + err, "the hold lifecycle refused it"),
                 None, "refused")
     signed = 'passkey "%s", answer %s' % (passkey, aid)
@@ -1343,7 +1340,6 @@ def carry_signed(answer, card):
     if rc == 3 and "head moved" in err:
         # The head moved after the signature: never merged; the call is raised
         # again, and the new head gets a new nonce.
-        retire_proof(owner, task)
         hrc, _out, herr = run([HOLD, "hold", task, "--reason",
                                "merge %s again: its head moved after the signed merge word" % pr,
                                "--call", "merge", "--pr", pr])

@@ -1344,6 +1344,27 @@ test_answers_signed_merge_on_a_moved_head_is_never_merged() {
   pass "a signed merge whose head moved is set aside or refused, never merged, and the call is raised again with the new head"
 }
 
+test_answers_signed_later_is_raised_again_with_a_fresh_nonce() {
+  local tree=$TMP_ROOT/signed-tree home portal=$TMP_ROOT/portal-slater m nonce s
+  home=$(make_signed_home answers-home-slater)
+  use_gh slater
+  abridge "$tree" "$home" snapshot
+  m=$(card_of "$OUT" m-fix | jq -r .card_hash)
+  nonce=$(card_of "$OUT" m-fix | jq -r .proof.nonce)
+  start_portal "$portal"
+  jq -s . <(signed phone ans_sl_000001 m-fix merge later "$m" '{"later_until":"2031-03-04T12:00:00Z"}') \
+    > "$portal/answers.json"
+  abridge "$tree" "$home" answers once
+  s=$(summary_of ans_sl_000001)
+  [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "applied deferred" ] || fail "the signed later was not a deferral: $s"
+  abridge "$tree" "$home" snapshot
+  card_of "$OUT" m-fix | jq -e --arg n "$nonce" '.proof.nonce != $n' >/dev/null \
+    || fail "the deferred call still carries the spent nonce: $(card_of "$OUT" m-fix)"
+  [ ! -e "$FM_TEST_GH_DIR/merge.log" ] || fail "a signed later reached the merge"
+  stop_portal
+  pass "a signed later defers the call, and the call is raised again with a fresh nonce"
+}
+
 test_answers_signed_answers_that_fail_the_passkey_are_refused() {
   local tree=$TMP_ROOT/signed-tree home portal=$TMP_ROOT/portal-badsig m g s before f
   home=$(make_signed_home answers-home-badsig)
@@ -1540,6 +1561,7 @@ test_answers_unbound_home_applies_nothing
 test_answers_merge_and_go_are_refused_without_proof
 test_answers_signed_merge_and_go_are_released_and_merged
 test_answers_signed_merge_on_a_moved_head_is_never_merged
+test_answers_signed_later_is_raised_again_with_a_fresh_nonce
 test_answers_signed_answers_that_fail_the_passkey_are_refused
 test_answers_enrolments_are_checked_and_left_for_the_machine
 test_answers_that_do_not_fit_the_call_are_set_aside_or_refused
