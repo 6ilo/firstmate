@@ -1,0 +1,23 @@
+Manual end-to-end drive of bin/fm-today-notes.sh against a local stub portal standing in for
+POST /api/fleet/notes. A note and a dispatch order are queued; collect records both and the
+dispatch order is applied to the backlog planning record.
+
+recorded note (show note_...):
+  outcome: recorded, text_check: {verdict: pass, checker: fm-today-text-check@1.0.0}
+  task: {owner: (main), task_id: bravo, in_backlog: true}
+  document.schema: fm-today-note.v1, authority: none
+
+recorded dispatch order (show dord_...):
+  outcome: recorded, ranked: [{bravo, order 1}, {alpha, order 2}]
+  document.schema: fm-today-dispatch-order.v1, authority: proposal
+
+backlog plan list after order applied:
+  {"alpha":{"order":2},"bravo":{"order":1}}
+
+list:
+  2026-10-01T17:22:00Z dord_... dispatch-order recorded ranked=bravo,alpha
+  2026-10-01T17:21:59Z note_... note recorded task=(main)/bravo text=pass
+
+receipt delivery: the second exchange carries the note receipt to the portal
+  req-001 body: {"receipts": [{"schema":"fm-today-note-receipt.v1","ref":"note_...",
+                               "outcome":"recorded","recorded_at":"..."}], "wait_seconds":0}
