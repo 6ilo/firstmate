@@ -1577,6 +1577,21 @@ The script's header owns the exact rules.
 
 These are read from the watcher's environment; zero or invalid values use the default.
 
+### Passkeys (config/today-passkeys.json)
+
+The merge word and the go to build from Today carry the captain's passkey signature, checked against a public key firstmate pinned at an enrolment the captain started and confirmed on this machine ([`docs/today-contract.md`](today-contract.md) "The enrolment").
+`bin/fm-today-passkey.sh` owns the store and the enrolment; its header owns the commands, the entry fields, and the checks.
+
+- `bin/fm-today-passkey.sh enrol --label "iPhone passkey"` opens a 15-minute enrolment for Today to carry out.
+- `bin/fm-today-passkey.sh confirm <enrolment.json>` checks the passkey Today hands back, shows its label, device, time, and key fingerprint on this machine's terminal, and trusts it only when the captain types `yes` there.
+- `bin/fm-today-passkey.sh list` and `revoke <credential-id>` show and retire credentials; a revoked entry is kept.
+- `bin/fm-today-passkey.sh blocks` prints the snapshot's `passkeys` and `enrolment` members.
+
+The bridge does not send those members yet, and does not yet hand received enrolments to `confirm`.
+
+The store is the home's gitignored `config/today-passkeys.json`, mode `0600`, holding public keys only.
+Keep at least two active credentials (`revoke` warns when fewer remain but never refuses, so a compromised key can always be retired), and enrol right after a reviewed portal deploy, because the machine confirmation is the moment of trust.
+
 ### Calendar day file
 
 The day comes from a JSON file written by a job outside the repository: `{"date", "ends_at", "fetched_at", "blocks": [{"id", "title", "starts_at", "ends_at"}]}`, with times carrying an explicit UTC offset.
