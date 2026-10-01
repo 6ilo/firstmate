@@ -1,0 +1,19 @@
+adopted adv backend=cloud repo=example/widgets branch=claude/widget-counter mode=direct-PR yolo=off pr=https://github.com/example/widgets/pull/42
+----- task record (state/adv.meta) -----
+kind=ship
+backend=cloud
+harness=claude
+mode=direct-PR
+yolo=off
+cloud_repo=example/widgets
+base=main
+branch=claude/widget-counter
+cloud_session=unknown
+spawn_gen=s1790843903.53560.26628
+pr=https://github.com/example/widgets/pull/42
+----- crew-state -----
+state: done · source: status-log · PR https://github.com/example/widgets/pull/42 · cloud session unknown
+----- merge poll armed? -----
+check.sh == fm-pr-poll.sh (merge monitoring armed)
+----- ready report -----
+done [at=1790843907]: PR https://github.com/example/widgets/pull/42
