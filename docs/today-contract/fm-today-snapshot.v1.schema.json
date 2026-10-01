@@ -101,12 +101,29 @@
         "urgency": { "$ref": "#/$defs/urgency" },
         "type": { "$ref": "#/$defs/work_type" },
         "waits_on": { "$ref": "#/$defs/waits_on" },
-        "order": { "$ref": "#/$defs/order" }
+        "order": { "$ref": "#/$defs/order" },
+        "aud": { "enum": ["public", "team", "agents"] },
+        "visible": { "type": "boolean" },
+        "until": { "$ref": "fm-today-card.v1.schema.json#/$defs/date" },
+        "parked": { "type": "boolean" },
+        "mockup_url": { "$ref": "fm-today-card.v1.schema.json#/properties/pr_url" }
       },
       "allOf": [
         {
           "if": { "properties": { "kind": { "const": "warning" } }, "required": ["kind"] },
           "then": { "properties": { "dispatchable": { "const": false } } }
+        },
+        {
+          "if": { "required": ["visible"] },
+          "then": { "required": ["aud"], "properties": { "aud": { "enum": ["public", "team"] } } }
+        },
+        {
+          "if": { "required": ["mockup_url"] },
+          "then": { "required": ["visible"], "properties": { "visible": { "const": true } } }
+        },
+        {
+          "if": { "properties": { "parked": { "const": true } }, "required": ["parked"] },
+          "then": { "not": { "required": ["until"] } }
         }
       ]
     },
