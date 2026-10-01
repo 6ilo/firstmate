@@ -197,7 +197,7 @@ test_reused_scratch_clone_switches_base() {
   local home id=cloud-base out
   home=$(make_home "$id")
   git -C "$home/src" checkout -q -b develop
-  git -C "$home/src" commit -q --allow-empty -m develop
+  git -C "$home/src" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' commit -q --allow-empty -m develop
   git -C "$home/src" push -q "$home/remote/example/widgets.git" develop
   tasks-axi add "$id" "cloud fixture" --kind ship --file "$home/data/backlog.md" >/dev/null
   tasks-axi add "$id-dev" "cloud fixture" --kind ship --file "$home/data/backlog.md" >/dev/null
