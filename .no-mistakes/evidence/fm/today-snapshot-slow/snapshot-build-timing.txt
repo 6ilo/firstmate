@@ -1,0 +1,9 @@
+fixture home: /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-perf-timing.V0IESt/home
+tasks: 8
+tasks: 8 valid: yes
+build 1 wall: 4.724478000s
+tasks: 8 valid: yes
+build 2 wall: 1.361312000s
+tasks: 8 valid: yes
+build 3 wall: 1.491479000s
+--- output ---
