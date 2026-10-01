@@ -48,12 +48,15 @@ echo "Session started: $SESSION_URL"
 sleep 30
 SH
   # gh answers `pr list` from \$home/gh-pr-list (TSV rows as the --jq filter
-  # would print them) and reports every viewed pull request as not a draft.
+  # would print them), answers adopt's `pr view` read from \$home/gh-pr-view
+  # the same way, and reports every other viewed pull request as not a draft.
   cat > "$fakebin/gh" <<SH
 #!/usr/bin/env bash
 case "\${1:-} \${2:-}" in
   "pr list") cat "$home/gh-pr-list" 2>/dev/null; exit 0 ;;
-  "pr view") printf '{"isDraft":false}\n'; exit 0 ;;
+  "pr view")
+    case " \$* " in *headRefName*) cat "$home/gh-pr-view"; exit 0 ;; esac
+    printf '{"isDraft":false}\n'; exit 0 ;;
 esac
 exit 0
 SH
@@ -229,8 +232,94 @@ test_concurrent_launches_share_one_scratch_clone() {
   pass "two launches on one repository at once both start from its scratch clone"
 }
 
+adopt() {  # <home> <id> [extra args...]
+  local home=$1 id=$2
+  shift 2
+  in_home "$home" "$CLOUD" adopt "$id" example/widgets "$PR_URL" --mode direct-PR --yolo off "$@"
+}
+
+test_adopt_records_an_open_pull_request() {
+  local home id=adopt-open meta out
+  home=$(make_home "$id")
+  meta="$home/state/$id.meta"
+  tasks-axi add "$id" "adopt fixture" --kind ship --file "$home/data/backlog.md" >/dev/null
+  printf '%s\tOPEN\tfalse\tmain\tclaude/widget-counter\n' "$PR_URL" > "$home/gh-pr-view"
+
+  out=$(adopt "$home" "$id" 2>&1) || fail "adopt of an open pull request failed: $out"
+  assert_contains "$out" "adopted $id" "adopt did not report the adoption"
+  assert_absent "$home/claude-prompt" "adopt started a cloud session"
+  for kv in kind=ship backend=cloud mode=direct-PR yolo=off cloud_repo=example/widgets base=main \
+    branch=claude/widget-counter cloud_session=unknown "pr=$PR_URL"; do
+    grep -qxF -- "$kv" "$meta" || fail "adopted task record lacks $kv"
+  done
+  grep -q '^spawn_gen=s' "$meta" || fail "adopted task record lacks a spawn incarnation"
+  [ "$(row_state "$home" "$id")" = in_flight ] || fail "adopt did not move the backlog item to In flight: $(row_state "$home" "$id")"
+  cmp -s "$ROOT/bin/fm-pr-poll.sh" "$home/state/$id.check.sh" || fail "adopt did not arm the merge poll"
+  grep -Eqx "done \[at=[0-9]+\]: PR $PR_URL" "$home/state/$id.status" || fail "adopt did not append the ready report"
+  out=$(in_home "$home" "$ROOT/bin/fm-crew-state.sh" "$id")
+  assert_contains "$out" "state: done · source: status-log · PR $PR_URL" "an adopted cloud task did not read as done"
+
+  set +e
+  out=$(adopt "$home" "$id" 2>&1)
+  set -e
+  assert_contains "$out" "already has a task record" "a second adopt did not refuse to replace the record"
+  pass "adopt gives an open cloud pull request a task record, merge monitoring, and a ready report"
+}
+
+test_adopt_refuses_a_draft_a_foreign_repository_and_a_missing_backlog_item() {
+  local home id=adopt-refuse out rc state
+  home=$(make_home "$id")
+  printf '%s\tOPEN\tfalse\tmain\tclaude/widget-counter\n' "$PR_URL" > "$home/gh-pr-view"
+  set +e
+  out=$(adopt "$home" "$id" 2>&1)
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "adopt succeeded with no backlog item"
+  assert_contains "$out" "has no backlog item" "adopt refusal did not name the missing backlog item"
+  assert_absent "$home/state/$id.meta" "adopt without a backlog item wrote a task record"
+
+  tasks-axi add "$id" "adopt fixture" --kind ship --file "$home/data/backlog.md" >/dev/null
+  printf '%s\tOPEN\ttrue\tmain\tclaude/widget-counter\n' "$PR_URL" > "$home/gh-pr-view"
+  set +e
+  out=$(adopt "$home" "$id" 2>&1)
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "adopt accepted a draft pull request"
+  assert_contains "$out" "is a draft" "draft refusal did not name the draft"
+  assert_absent "$home/state/$id.meta" "adopt of a draft wrote a task record"
+
+  set +e
+  out=$(in_home "$home" "$CLOUD" adopt "$id" example/widgets https://github.com/other/repo/pull/9 \
+    --mode direct-PR --yolo off 2>&1)
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "adopt accepted a pull request on another repository"
+  assert_contains "$out" "not the named repository example/widgets" "foreign-repository refusal did not name the repository"
+  printf 'https://github.com/other/repo/pull/9\tOPEN\tfalse\tmain\tclaude/widget-counter\n' > "$home/gh-pr-view"
+  set +e
+  out=$(adopt "$home" "$id" 2>&1)
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "adopt accepted a pull request the forge places on another repository"
+  assert_contains "$out" "not the named repository example/widgets" "forge-side repository refusal did not name the repository"
+  for state in CLOSED MERGED; do
+    printf '%s\t%s\tfalse\tmain\tclaude/widget-counter\n' "$PR_URL" "$state" > "$home/gh-pr-view"
+    set +e
+    out=$(adopt "$home" "$id" 2>&1)
+    rc=$?
+    set -e
+    [ "$rc" -ne 0 ] || fail "adopt accepted a $state pull request"
+    assert_contains "$out" "only an open pull request" "$state refusal did not explain what is adopted"
+  done
+  assert_absent "$home/state/$id.meta" "a refused adopt wrote a task record"
+  [ "$(row_state "$home" "$id")" != in_flight ] || fail "a refused adopt moved the backlog item to In flight"
+  pass "adopt refuses a draft, a pull request on another repository, a closed or merged one, and a task with no backlog item"
+}
+
 test_launch_refuses_without_a_backlog_item_or_explicit_posture
 test_cloud_task_from_launch_to_cleanup
 test_ready_report_names_only_the_recorded_repository
 test_reused_scratch_clone_switches_base
 test_concurrent_launches_share_one_scratch_clone
+test_adopt_records_an_open_pull_request
+test_adopt_refuses_a_draft_a_foreign_repository_and_a_missing_backlog_item
