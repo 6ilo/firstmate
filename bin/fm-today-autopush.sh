@@ -30,7 +30,10 @@
 #                FM_TODAY_PUSH_TOPUP_SECS have passed since that attempt ended,
 #                so the portal keeps hearing from the fleet.
 #              - The snapshot build and the push are each bounded by
-#                FM_TODAY_PUSH_TIMEOUT.
+#                FM_TODAY_PUSH_TIMEOUT. The push rebuilds the snapshot before
+#                its own bounded send, so the one bound covers a slow build
+#                plus that send. Nothing outside bounds a tick: the watcher
+#                starts it detached and only waits for it before the next.
 #              - A failed attempt (build, check, refusal, unreachable portal,
 #                or timeout) records state/.today-push-notice with one line,
 #                `check: today-push failed (<reason>)`, only when it starts a
@@ -44,7 +47,7 @@
 # Settings (environment; defaults in brackets):
 #   FM_TODAY_PUSH_MIN_SECS    [180] least time between two attempts
 #   FM_TODAY_PUSH_TOPUP_SECS  [900] push an unchanged snapshot after this long
-#   FM_TODAY_PUSH_TIMEOUT     [60]  bound on the build and on the push, each
+#   FM_TODAY_PUSH_TIMEOUT     [180] bound on the build and on the push, each
 #   FM_TODAY_PUSH_CHECK_SECS  [60]  read by bin/fm-watch.sh: how often it
 #                                   starts a tick
 #
@@ -80,7 +83,7 @@ setting() {  # <value> <default>
 }
 MIN_SECS=$(setting "${FM_TODAY_PUSH_MIN_SECS:-}" 180)
 TOPUP_SECS=$(setting "${FM_TODAY_PUSH_TOPUP_SECS:-}" 900)
-TIMEOUT=$(setting "${FM_TODAY_PUSH_TIMEOUT:-}" 60)
+TIMEOUT=$(setting "${FM_TODAY_PUSH_TIMEOUT:-}" 180)
 
 configured() {
   local key
