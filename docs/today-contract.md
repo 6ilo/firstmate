@@ -98,6 +98,16 @@ Their absence means firstmate has not recorded the fact, never that the answer i
 | `type` | `ship`, `scout`, `docs`, `fix`, `upkeep` |
 | `waits_on` | up to 20 of `{"kind": "work" or "call", "ref"}` or `{"kind": "event", "ref", "label"}`: `ref` is the work or call id, or the outside event's own id, and `label` names the event |
 | `order` | Charted Next only: integer 0 to 100000, the dispatch order, 0 first |
+| `aud` | Charted Next only: who notices the change, `public`, `team`, or `agents`; absent means `agents` |
+| `visible` | Charted Next only: boolean, the change has a visible mark; allowed only when `aud` is `public` or `team` |
+| `until` | Charted Next only: `YYYY-MM-DD`, the date the work is deferred until; set, the work is Deferred |
+| `parked` | Charted Next only: boolean, the work is parked, which the plan boards show as in the fog; `true` is not allowed with `until` |
+| `mockup_url` | Charted Next only: `https://` URL of the mockup the visible mark links; allowed only when `visible` is `true` |
+
+The last five are the plan boards' change encoding, and their absence keeps a row's meaning from before they existed: agents only, no visible mark, not deferred, not parked, and no mockup.
+A `visible` row without `aud`, or with `aud` `agents`, is invalid, and so is a `mockup_url` without `visible` `true`.
+A row is either in the fog or deferred to a date, so a row with `parked` `true` and an `until` is invalid.
+The snapshot schema states all three rules.
 
 ## The card
 
@@ -313,4 +323,5 @@ The `reconcile` rule changes no schema: the bridge already sent `reconcile` as e
 A v2 shape gets new `.v2` schema constants beside the v1 files, and both sides accept both versions until the change is complete.
 The required, nullable `repo` stays v1 because the portal's copy of v1 already required it and no v1 snapshot had been accepted before the two copies were made identical.
 The passkey additions stay v1 by these rules: `head_sha`, `subject_sha256`, and `proof` are optional card fields joining `card_hash`'s field list; `passkeys`, `enrolment`, and the answers response's `enrolments` are optional members; `fm-today-enrolment.v1` is a new shape that changes no existing one; the receipt reasons are text in the existing `reason`; and the challenge and the answer shape are unchanged.
+The Charted Next change-encoding fields `aud`, `visible`, `until`, `parked`, and `mockup_url` stay v1 as new optional fields whose absence keeps today's meaning: their conditions bind only rows that carry them, every snapshot accepted before still passes, and no existing field, enum, or pattern changes.
 The portal vendors the schema files byte-for-byte from this repository, so a change to any of them reaches the portal only as a fresh copy of every file.

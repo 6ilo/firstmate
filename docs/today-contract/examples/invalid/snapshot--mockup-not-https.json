@@ -231,7 +231,7 @@
         "order": 0,
         "aud": "team",
         "visible": true,
-        "mockup_url": "https://github.com/6ilo/firstmate/pull/30"
+        "mockup_url": "http://example.com/mockup"
       },
       {
         "id": "backlog-drift",

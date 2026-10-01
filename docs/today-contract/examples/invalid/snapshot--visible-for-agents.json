@@ -229,7 +229,7 @@
           }
         ],
         "order": 0,
-        "aud": "team",
+        "aud": "agents",
         "visible": true,
         "mockup_url": "https://github.com/6ilo/firstmate/pull/30"
       },

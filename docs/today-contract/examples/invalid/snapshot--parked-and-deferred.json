@@ -249,7 +249,8 @@
         "kind": "queued",
         "repo": "MMEG-PIT/relay-platform",
         "aud": "public",
-        "until": "2026-11-02"
+        "until": "2026-11-02",
+        "parked": true
       },
       {
         "id": "voice-notes",

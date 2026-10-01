@@ -185,7 +185,8 @@
         "repo": "6ilo/firstmate",
         "size": "S",
         "urgency": 1,
-        "type": "ship"
+        "type": "ship",
+        "aud": "public"
       },
       {
         "id": "portal-kit",

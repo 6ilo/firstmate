@@ -239,7 +239,8 @@
         "reason": "Inventory needs a look",
         "dispatchable": false,
         "repo": null,
-        "kind": "warning"
+        "kind": "warning",
+        "until": "2026-11"
       },
       {
         "id": "portal-map-legend",
