@@ -963,6 +963,7 @@ test_answers_merge_and_go_are_refused_without_proof() {
   m=$(hash_of "$tree" "$home" m-fix)
   g=$(hash_of "$tree" "$home" g-build)
   for f in fm-captain-hold.sh fm-pr-merge.sh fm-merge-local.sh fm-spawn.sh fm-send.sh fm-control.sh fm-teardown.sh; do
+    # shellcheck disable=SC2016 # "$1" and "$*" are the generated stub's argv, not this loop's.
     printf '#!/usr/bin/env bash\n[ "$1" != open ] || exec "%s/bin/%s" "$@"\necho "%s $*" >> "%s/tripwire"\nexit 0\n' \
       "$ROOT" "$f" "$f" "$TMP_ROOT/proof" > "$tree/bin/$f"
     chmod +x "$tree/bin/$f"
@@ -1281,7 +1282,9 @@ test_answers_signed_merge_and_go_are_released_and_merged() {
     || fail "the merge did not bind the signed head: $(cat "$FM_TEST_GH_DIR/merge.log")"
   grep -q "^pr comment $PR9 --body Merged by firstmate on a passkey-signed merge word from Today" "$FM_TEST_GH_DIR/gh.log" \
     || fail "no pull request comment was posted: $(cat "$FM_TEST_GH_DIR/gh.log")"
-  grep -q -- '- Passkey: iPhone passkey' "$FM_TEST_GH_DIR/gh.log" && grep -q -- '- Answer: ans_sm_000001' "$FM_TEST_GH_DIR/gh.log" \
+  grep -q -- '- Passkey: iPhone passkey' "$FM_TEST_GH_DIR/gh.log" \
+    || fail "the comment does not name the passkey and the answer: $(cat "$FM_TEST_GH_DIR/gh.log")"
+  grep -q -- '- Answer: ans_sm_000001' "$FM_TEST_GH_DIR/gh.log" \
     || fail "the comment does not name the passkey and the answer: $(cat "$FM_TEST_GH_DIR/gh.log")"
   ! grep -qi captain "$FM_TEST_GH_DIR/gh.log" || fail "the pull request comment addresses the captain"
   [ "$(grep -c '^pr comment ' "$FM_TEST_GH_DIR/gh.log")" = 1 ] || fail "more than one comment was posted"
@@ -1452,11 +1455,13 @@ test_answers_signed_answers_that_fail_the_passkey_are_refused() {
   abridge "$tree" "$home" answers once
   [ "$CODE" -eq 0 ] || fail "answers once exited $CODE: $(cat "$ERR")"
   s=$(summary_of ans_bs_replay1)
-  [ "$(jq -r .outcome <<< "$s")" = refused ] && jq -e '.reason | startswith("passkey: challenge")' <<< "$s" >/dev/null \
-    || fail "a replayed signature was not refused: $s"
+  [ "$(jq -r .outcome <<< "$s")" = refused ] || fail "a replayed signature was not refused: $s"
+  jq -e '.reason | startswith("passkey: challenge")' <<< "$s" >/dev/null \
+    || fail "a replayed signature was not refused for a challenge reason: $s"
   s=$(summary_of ans_bs_000002)
-  [ "$(jq -r .outcome <<< "$s")" = refused ] && jq -e '.reason | startswith("passkey: unknown credential")' <<< "$s" >/dev/null \
-    || fail "an unknown credential was not refused: $s"
+  [ "$(jq -r .outcome <<< "$s")" = refused ] || fail "an unknown credential was not refused: $s"
+  jq -e '.reason | startswith("passkey: unknown credential")' <<< "$s" >/dev/null \
+    || fail "an unknown credential was not refused for a credential reason: $s"
   s=$(summary_of ans_bs_000003)
   [ "$(jq -r .outcome <<< "$s")" = set-aside ] && [ "$(jq -r .action <<< "$s")" = set-aside ] \
     || fail "an answer under an expired nonce was not set aside: $s"
@@ -1477,8 +1482,9 @@ test_answers_signed_answers_that_fail_the_passkey_are_refused() {
   jq -s . <(signed phone ans_rv_000001 m-fix merge merge "$m") > "$TMP_ROOT/portal-revoked/answers.json"
   abridge "$tree" "$home" answers once
   s=$(summary_of ans_rv_000001)
-  [ "$(jq -r .outcome <<< "$s")" = refused ] && jq -e '.reason | startswith("proof_required: ")' <<< "$s" >/dev/null \
-    || fail "a merge with no active credential was not refused for proof: $s"
+  [ "$(jq -r .outcome <<< "$s")" = refused ] || fail "a merge with no active credential was not refused for proof: $s"
+  jq -e '.reason | startswith("proof_required: ")' <<< "$s" >/dev/null \
+    || fail "a merge with no active credential was not refused for a proof reason: $s"
   stop_portal
   pass "a replayed signature, an unknown credential, and an expired nonce are refused or set aside, and no active credential means proof_required"
 }
