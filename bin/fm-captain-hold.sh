@@ -69,7 +69,8 @@
 # marks one of them. bin/fm-fleet-snapshot.sh reads the lines as hold_options.
 # Repeating an active hold without `--option` keeps its options, with
 # `--option` replaces them; a new hold lifecycle drops them. A hold without
-# options is prose-only and unchanged.
+# options is prose-only and unchanged. Options reach Today cards only for
+# calls held in the main home; a secondmate-home call offers only reconcile.
 #
 # `answer` records the captain's exact words and resolves the call in the same
 # act. It requires a non-empty captain decision file of at most 8192 bytes and

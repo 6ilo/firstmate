@@ -67,6 +67,7 @@ Repeat and edge cases:
   An answer moves the line below its resolution block, where it is inert history.
 - `--option '<value>|<label>[|<hint>]'`, repeatable, with an optional `--recommend <value>`, stores the call's structured answer options as `Captain hold option:` lines under the stamps, in order, so the Today card offers them before its standard `reconcile` option.
   They follow the due date's lifecycle: kept on repeat, replaced by a new `--option`, and dropped by a new lifecycle; a hold without them stays prose-only.
+  Recorded options reach Today cards only for calls held in the main home; a call held in a secondmate home still offers only `reconcile`.
   The script header owns the value and length rules.
 
 ### Answering a call (`answer`)

@@ -157,7 +157,7 @@ Default fields: schema, home, generated, prs, in_flight{id,kind,state,repo,name,
   (bin/fm-backlog-plan.sh); rows with none, and TOON output, are unchanged.
   Main-home decisions_open rows likewise carry an optional options array
   [{value,label,hint?,recommended}] when the hold recorded any
-  (bin/fm-captain-hold.sh hold --option).
+  (bin/fm-captain-hold.sh hold --option). Secondmate-home rows carry none.
 Default gates are selected newest filed first before their bound; undated gates
   retain input order after dated gates.
 landed merges this home's Done with registered secondmate homes' Done, bounded by

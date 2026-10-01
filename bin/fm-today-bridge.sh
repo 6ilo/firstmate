@@ -49,7 +49,9 @@
 #           the hold recorded (bin/fm-captain-hold.sh hold --option, carried as
 #           bearings' decisions_open options), then the standard `reconcile`
 #           option, labelled "Already settled"; a call with none offers
-#           `reconcile` alone, and the portal adds `later` itself. A recorded
+#           `reconcile` alone, and the portal adds `later` itself. Only calls
+#           held in the main home carry recorded options; a call held in a
+#           secondmate home offers `reconcile` alone. A recorded
 #           option the card cannot carry is left out and named on stderr.
 #           Option labels and hints pass the text check with the rest of the
 #           card; a withheld card shows each recorded option as `Option <n>`,

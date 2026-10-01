@@ -1242,9 +1242,6 @@ test_due_date_keeps_a_call_on_captains_call_until_answered() {
   pass "a due date keeps a captain call on Captain's Call from seven days ahead until answered"
 }
 
-# The recorded-answer guard survives an out-of-band close: a bare tasks-axi done
-# fails verify until answer records the captain's word, and an ordinary finished
-# task can never be dressed up as an answered captain call.
 # Structured options ride under the stamps as one line each, reach bearings'
 # JSON (never its TOON), follow the due date's lifecycle, and a hold without
 # them stays prose-only.
@@ -1330,6 +1327,9 @@ test_hold_records_structured_options() {
   pass "hold records structured options for Bearings and keeps prose-only holds unchanged"
 }
 
+# The recorded-answer guard survives an out-of-band close: a bare tasks-axi done
+# fails verify until answer records the captain's word, and an ordinary finished
+# task can never be dressed up as an answered captain call.
 test_out_of_band_close_is_recordable() {
   local home id show
   home=$(make_home out-of-band)
