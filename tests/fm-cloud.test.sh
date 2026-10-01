@@ -188,9 +188,28 @@ test_ready_report_names_only_the_recorded_repository() {
   set -e
   [ "$rc" -ne 0 ] || fail "merge monitoring accepted a pull request on another repository"
   assert_contains "$out" "recorded repository example/widgets" "the refusal did not name the recorded repository"
-  pass "a cloud task's ready report is accepted only for its recorded repository"
+  out=$(in_home "$home" "$ROOT/bin/fm-pr-check.sh" "$id" https://github.com/Example/Widgets/pull/9 2>&1) \
+    || fail "merge monitoring refused the recorded repository under the forge's canonical casing: $out"
+  pass "a cloud task's ready report is accepted only for its recorded repository, in any casing"
+}
+
+test_reused_scratch_clone_switches_base() {
+  local home id=cloud-base out
+  home=$(make_home "$id")
+  git -C "$home/src" checkout -q -b develop
+  git -C "$home/src" commit -q --allow-empty -m develop
+  git -C "$home/src" push -q "$home/remote/example/widgets.git" develop
+  tasks-axi add "$id" "cloud fixture" --kind ship --file "$home/data/backlog.md" >/dev/null
+  tasks-axi add "$id-dev" "cloud fixture" --kind ship --file "$home/data/backlog.md" >/dev/null
+  launch "$home" "$id" >/dev/null || fail "cloud launch on main failed"
+  out=$(in_home "$home" "$CLOUD" launch "$id-dev" example/widgets --mode direct-PR --yolo off --base develop \
+    --brief "$home/data/$id/brief.md" 2>&1) || fail "a second launch on another base could not reuse the scratch clone: $out"
+  assert_equals "$(git -C "$home/src" rev-parse develop)" "$(git -C "$home/launch/example__widgets" rev-parse HEAD)" \
+    "the reused scratch clone did not move to the new base"
+  pass "a reused scratch clone switches to another base branch"
 }
 
 test_launch_refuses_without_a_backlog_item_or_explicit_posture
 test_cloud_task_from_launch_to_cleanup
 test_ready_report_names_only_the_recorded_repository
+test_reused_scratch_clone_switches_base

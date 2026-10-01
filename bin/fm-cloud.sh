@@ -148,7 +148,7 @@ cloud_scratch_clone() {  # <repo> <base> -> prints the clone dir
   dir="$root/${repo//\//__}"
   mkdir -p "$root" || return 1
   if [ -d "$dir/.git" ]; then
-    git -C "$dir" fetch -q origin "$base" && git -C "$dir" checkout -q -B "$base" "origin/$base" || return 1
+    git -C "$dir" fetch -q origin "+refs/heads/$base:refs/remotes/origin/$base" && git -C "$dir" checkout -q -B "$base" "origin/$base" || return 1
   else
     git clone -q --depth 20 --branch "$base" "${FM_CLOUD_GIT_BASE:-https://github.com}/$repo.git" "$dir" || return 1
   fi
@@ -260,11 +260,11 @@ cmd_launch() {
   chmod 0600 "$tmp"
   fm_backlog_atomic_transition publish "$tmp" "$meta" "task record" "$STATE" \
     || { rm -f "$tmp"; die "cloud session $url started, but its task record could not be published ($FM_BACKLOG_TRANSITION_ERROR)"; }
+  cloud_check_arm "$id" \
+    || die "cloud session $url started, but its pull-request check could not be armed; re-run bin/fm-cloud.sh poll $id by hand"
   if [ "$backlog" = 1 ] && ! fm_backlog_atomic_transition dispatch "$meta" "$DATA" "$id" "$STATE"; then
     die "cloud session $url started and its task record is published, but the backlog item did not move to In flight ($FM_BACKLOG_TRANSITION_ERROR)"
   fi
-  cloud_check_arm "$id" \
-    || die "cloud session $url started, but its pull-request check could not be armed; re-run bin/fm-cloud.sh poll $id by hand"
   printf 'launched %s backend=cloud repo=%s branch=%s mode=%s yolo=%s session=%s\n' \
     "$id" "$repo" "$branch" "$mode" "$yolo" "$url"
 }
