@@ -1,0 +1,22 @@
+{
+  "schema": "fm-today-dispatch-order.v1",
+  "order_id": "dord_T3JkZXJGcm9tVG9kYXkwMQ",
+  "authority": "proposal",
+  "items": [
+    {
+      "task_id": "live-gate"
+    },
+    {
+      "task_id": "t11-charted",
+      "owner": "admin-portal"
+    },
+    {
+      "task_id": "docs-sweep",
+      "owner": "(main)"
+    }
+  ],
+  "charted_as_of": "2026-09-29T15:00:00Z",
+  "queued_at": "2026-09-29T15:05:30Z",
+  "person": "user_2abcDEF",
+  "device": "dev_7Hq2"
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/6ilo/firstmate/docs/today-contract/fm-today-note.v1.schema.json",
+  "title": "fm-today-note.v1",
+  "description": "A note the captain writes to firstmate from Today. It carries no authority: firstmate records it as evidence and never acts on it as an answer or any other instruction. docs/today-contract.md owns the meaning of every field.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "note_id", "authority", "text", "written_at", "person", "device"],
+  "properties": {
+    "schema": { "const": "fm-today-note.v1" },
+    "note_id": { "type": "string", "pattern": "^note_[A-Za-z0-9_-]{22}$" },
+    "authority": { "const": "none" },
+    "text": {
+      "description": "The captain's words: line feeds and tabs allowed, no other control character.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": "^[^\\u0000-\\u0008\\u000b-\\u001f\\u007f]*$"
+    },
+    "task_id": { "$ref": "fm-today-card.v1.schema.json#/$defs/task_id" },
+    "owner": { "$ref": "fm-today-card.v1.schema.json#/$defs/owner" },
+    "written_at": { "$ref": "fm-today-card.v1.schema.json#/$defs/timestamp" },
+    "person": { "$ref": "fm-today-answer.v1.schema.json#/properties/person" },
+    "device": { "$ref": "fm-today-answer.v1.schema.json#/properties/device" }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["owner"] },
+      "then": { "required": ["task_id"] }
+    }
+  ]
+}
