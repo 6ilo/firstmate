@@ -1,0 +1,2 @@
+fm-today-bridge: left out call call-options option "later": a value the card cannot carry
+fm-today-bridge: left out call call-options option "week-2": a value the card cannot carry

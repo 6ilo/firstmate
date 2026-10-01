@@ -1,0 +1,13 @@
+[
+  {
+    "value": "week-1",
+    "label": "First week",
+    "hint": "Ships before the review | early",
+    "recommended": true
+  },
+  {
+    "value": "week-2",
+    "label": "Second \"late\" week",
+    "recommended": false
+  }
+]

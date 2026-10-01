@@ -1,0 +1,74 @@
+{
+  "schema": "fm-today-snapshot.v1",
+  "generator_version": "1.3.0",
+  "generated_at": "2026-10-01T03:18:40Z",
+  "home": "/fm-livehome2.1l8NlW",
+  "sections": {
+    "calls": [
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "opt-call",
+        "owner": "(main)",
+        "kind": "go",
+        "title": "Choose the launch week: held 91d: which week",
+        "question": "Choose the launch week: held 91d: which week",
+        "options": [
+          {
+            "value": "week-1",
+            "label": "First week",
+            "hint": "Ships before the review",
+            "recommended": true
+          },
+          {
+            "value": "week-2",
+            "label": "Second week",
+            "recommended": false
+          }
+        ],
+        "repo": null,
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-10-01T03:18:40Z"
+        },
+        "card_hash": "567c2594151ead65facff48d11706574918a0fd869e7e1398d49a8c2bc94aa6f"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "plain-call",
+        "owner": "(main)",
+        "kind": "decision",
+        "title": "Pick a venue: held 91d: venue choice",
+        "question": "Pick a venue: held 91d: venue choice",
+        "options": [
+          {
+            "value": "reconcile",
+            "label": "Already settled",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "repo": null,
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-10-01T03:18:40Z"
+        },
+        "card_hash": "aa79baf7b02d99ae049c0e5bcf75b323a898723a752ac871bd130fd087c18c64"
+      }
+    ],
+    "underway": [],
+    "charted_next": [],
+    "landed": [],
+    "health": {
+      "supervision": "unknown",
+      "unhealthy": []
+    },
+    "boards": [],
+    "day": {
+      "date": "2026-10-01",
+      "ends_at": "2026-10-02T00:00:00+00:00",
+      "blocks": []
+    }
+  }
+}

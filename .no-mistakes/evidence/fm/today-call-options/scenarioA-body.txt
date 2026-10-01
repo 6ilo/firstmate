@@ -1,0 +1,4 @@
+Captain hold set: 2026-07-01T12:00:00Z
+Captain hold due: 2026-07-20
+Captain hold option: {"value":"week-1","label":"First week","hint":"Ships before the review | early","recommended":true}
+Captain hold option: {"value":"week-2","label":"Second \"late\" week","recommended":false}

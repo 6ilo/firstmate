@@ -1,0 +1,29 @@
+Live validation for fm/today-call-options (0c39349).
+
+Drove the real product scripts (bin/fm-captain-hold.sh, bin/fm-bearings-snapshot.sh,
+bin/fm-today-bridge.sh) against isolated FM homes (mktemp + REAL_TASKS_AXI).
+
+A) hold --option/--recommend records Captain hold option JSON lines under the stamps
+   -> scenarioA-body.txt (options + due + hold-set, order preserved).
+B) fm-bearings-snapshot --json --all-decisions carries them as .decisions_open[].options
+   (value/label/hint/recommended), and they do NOT leak into TOON output.
+   -> scenarioB-options.json, scenarioB-json.json, scenarioB-toon.txt (no week-1).
+C) fm-today-bridge snapshot: go call offers its recorded options; plain (decision) call
+   offers recorded options then reconcile; text_check.pass.
+   -> scenarioC-snap.json, scenarioC-options.json.
+C2) decision-kind optioned call -> recorded options then reconcile appended:
+   [week-1, week-2, reconcile], verdict pass. -> scenarioC2-snap.json.
+D) adverarial: reserved (later/reconcile), repeated values, malformed, --recommend names no
+   option, --recommend with no options are all refused and leave the call unchanged.
+E) lifecycle: repeat keeps options, --option replaces them, new hold drops them.
+F) bridge defensive path: recorded reserved ("later") and repeated option values in persisted
+   backlog are dropped from the card and named on stderr. -> scenarioF-snap.json, scenarioF-err.txt.
+
+Automated: tests/fm-today-bridge.test.sh passes 35/35 (incl. "recorded options reach the card
+before reconcile and pass the text check", "a decision card offers the hold's recorded options,
+then reconcile"). tests/fm-captain-hold-lifecycle.test.sh: the new test_hold_records_structured_options
+passes; the suite's lone failure (secondmate parent-channel "tasks-axi show mate-call exceeded its
+10s backlog read bound") is a timing/IO flake under full-suite load, and that test passes 3/3 in
+isolation and is unrelated to this change.
+
+All intent scenarios pass live. The hold options flow record -> snapshot -> Today card works.

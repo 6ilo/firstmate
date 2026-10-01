@@ -1,0 +1,38 @@
+schema: fm-bearings.v1
+home: /fm-livehome.LsyytS
+generated: "2026-07-14T12:00:00Z"
+prs: "not_requested (run: /bearings include PRs)"
+contributions: 
+  scope: owned contributions per home
+  known: 0
+  checked: 0
+  counts: 
+    captain: 0
+    fleet: 0
+    maintainer: 0
+    nobody: 0
+  complete: true
+  proven_clear: true
+  unmeasured_homes: 0
+  unreadable_records: 0
+  unmeasured: 0
+  stale_verdicts: 0
+  missing_verdicts: 0
+  captain_omitted: 0
+  captain: []
+in_flight: []
+secondmates: []
+secondmate_reconcile: []
+decisions_open[1]{id,key,verb,summary,owner}:
+  sample-week,sample-week,captain-hold,"Choose the launch week: due 2026-07-20: which week",(main)
+landed: []
+gates: []
+reports: []
+recorded_prs: []
+omitted[6]{surface,reveal}:
+  backlog item bodies,"--fields bodies"
+  task paths,"--fields paths"
+  watch/steer actions,"--fields actions"
+  healthy endpoint detail,"--fields endpoints"
+  full scout-report inventory,"--all-reports"
+  live PR discovery + checks,"--include-prs"

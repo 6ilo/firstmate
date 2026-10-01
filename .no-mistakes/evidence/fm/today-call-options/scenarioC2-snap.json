@@ -1,0 +1,91 @@
+{
+  "schema": "fm-today-snapshot.v1",
+  "generator_version": "1.3.0",
+  "generated_at": "2026-10-01T03:20:08Z",
+  "home": "/fm-livehome3.ogNsZQ",
+  "sections": {
+    "calls": [
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "dec-opt",
+        "owner": "(main)",
+        "kind": "decision",
+        "title": "Choose the launch week: held 91d: which week",
+        "question": "Choose the launch week: held 91d: which week",
+        "options": [
+          {
+            "value": "week-1",
+            "label": "First week",
+            "hint": "Ships before the review",
+            "recommended": true
+          },
+          {
+            "value": "week-2",
+            "label": "Second week",
+            "recommended": false
+          },
+          {
+            "value": "reconcile",
+            "label": "Already settled",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "repo": null,
+        "text_check": {
+          "verdict": "pass",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-10-01T03:20:08Z"
+        },
+        "card_hash": "3e4789abf7903e526eab4213ed38aa084dc8b69547e36eeb62aa9b0c8d94396d"
+      },
+      {
+        "schema": "fm-today-card.v1",
+        "task_id": "trip-call",
+        "owner": "(main)",
+        "kind": "decision",
+        "title": "A call is waiting on the machine",
+        "question": "This call's text stays on the machine. Read it there.",
+        "options": [
+          {
+            "value": "north",
+            "label": "Option 1",
+            "recommended": false,
+            "hint": "Text kept on the machine"
+          },
+          {
+            "value": "south",
+            "label": "Option 2",
+            "recommended": true
+          },
+          {
+            "value": "reconcile",
+            "label": "Already settled",
+            "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+            "recommended": false
+          }
+        ],
+        "repo": null,
+        "text_check": {
+          "verdict": "withheld",
+          "checker": "fm-today-text-check@1.0.0",
+          "checked_at": "2026-10-01T03:20:08Z"
+        },
+        "card_hash": "9e31c41e73bfe56112a072ad230235edba1a2a9d5f30a97a19673f077f18c0b7"
+      }
+    ],
+    "underway": [],
+    "charted_next": [],
+    "landed": [],
+    "health": {
+      "supervision": "unknown",
+      "unhealthy": []
+    },
+    "boards": [],
+    "day": {
+      "date": "2026-10-01",
+      "ends_at": "2026-10-02T00:00:00+00:00",
+      "blocks": []
+    }
+  }
+}
