@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """The Today text check: the rule set that keeps learner, family, fee, and legal
 detail on the captain's machine.
 
@@ -6,13 +5,8 @@ docs/configuration.md "Today bridge" documents every rule family. The bridge
 (bin/fm-today-bridge.sh) applies it to every free-text field before a snapshot
 leaves, and bin/fm-today-notes.sh records its verdict on every note from Today.
 Bump CHECKER whenever RULES changes.
-
-Usage:
-  fm_today_text_check.py < text
-      Print "pass", or "withheld <family>[,<family>...]", for the whole of stdin.
 """
 import re
-import sys
 
 CHECKER = "fm-today-text-check@1.0.0"
 
@@ -42,12 +36,3 @@ def families(*texts):
 def tripped(*texts):
     return bool(families(*texts))
 
-
-def main():
-    found = families(sys.stdin.read())
-    print("withheld " + ",".join(found) if found else "pass")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
