@@ -1,0 +1,106 @@
+
+$ fm-captain-hold.sh hold launch-week --title "Choose the launch week" --reason "which week" --repo firstmate --due 2026-10-05 --option "week-1|First week|Ships before the review" --option "week-2|Second week" --recommend week-1
+launch-week
+exit=0
+
+$ fm-captain-hold.sh hold pick-venue --title "Pick a venue" --reason "venue choice" --repo firstmate   # no options
+pick-venue
+exit=0
+
+$ fm-captain-hold.sh hold pick-supplier ... --option "north|North depot|Write to jo.smith@example.org" --option "south|South depot" --recommend south
+pick-supplier
+exit=0
+
+--- persisted data/backlog.md ---
+## In flight
+
+## Queued
+- [ ] launch-week - Choose the launch week (repo: firstmate) (kind: captain) (since 2026-09-30) (hold: which week) (hold-kind: captain)
+  Captain hold set: 2026-10-01T00:26:33Z
+  Captain hold due: 2026-10-05
+  Captain hold option: {"value":"week-1","label":"First week","hint":"Ships before the review","recommended":true}
+  Captain hold option: {"value":"week-2","label":"Second week","recommended":false}
+- [ ] pick-venue - Pick a venue (repo: firstmate) (kind: captain) (since 2026-09-30) (hold: venue choice) (hold-kind: captain)
+  Captain hold set: 2026-10-01T00:26:36Z
+- [ ] pick-supplier - Choose a supplier (repo: firstmate) (kind: captain) (since 2026-09-30) (hold: which supplier) (hold-kind: captain)
+  Captain hold set: 2026-10-01T00:26:39Z
+  Captain hold option: {"value":"north","label":"North depot","hint":"Write to jo.smith@example.org","recommended":false}
+  Captain hold option: {"value":"south","label":"South depot","recommended":true}
+## Done
+
+$ fm-bearings-snapshot.sh --json --all-decisions | jq .decisions_open
+{"id":"launch-week","options":[{"value":"week-1","label":"First week","hint":"Ships before the review","recommended":true},{"value":"week-2","label":"Second week","recommended":false}]}
+{"id":"pick-venue","options":null}
+{"id":"pick-supplier","options":[{"value":"north","label":"North depot","hint":"Write to jo.smith@example.org","recommended":false},{"value":"south","label":"South depot","recommended":true}]}
+
+$ fm-bearings-snapshot.sh --all-decisions | grep -c week-1   # TOON must not carry options
+0
+
+$ fm-today-bridge.sh snapshot
+exit=0
+{
+  "task_id": "launch-week",
+  "verdict": "pass",
+  "title": "Choose the launch week: due 2026-10-05: which week",
+  "options": [
+    {
+      "value": "week-1",
+      "label": "First week",
+      "hint": "Ships before the review",
+      "recommended": true
+    },
+    {
+      "value": "week-2",
+      "label": "Second week",
+      "recommended": false
+    },
+    {
+      "value": "reconcile",
+      "label": "Already settled",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ]
+}
+{
+  "task_id": "pick-venue",
+  "verdict": "pass",
+  "title": "Pick a venue: venue choice",
+  "options": [
+    {
+      "value": "reconcile",
+      "label": "Already settled",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ]
+}
+{
+  "task_id": "pick-supplier",
+  "verdict": "withheld",
+  "title": "A call is waiting on the machine",
+  "options": [
+    {
+      "value": "north",
+      "label": "Option 1",
+      "recommended": false,
+      "hint": "Text kept on the machine"
+    },
+    {
+      "value": "south",
+      "label": "Option 2",
+      "recommended": true
+    },
+    {
+      "value": "reconcile",
+      "label": "Already settled",
+      "hint": "Re-check the latest state, then close this with evidence or keep it open with a note",
+      "recommended": false
+    }
+  ]
+}
+stderr:
+
+$ python3 tests/fm-today-contract-check.py check docs/today-contract today-snapshot.json
+ok
+contract exit=0

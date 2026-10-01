@@ -1,0 +1,71 @@
+pick-venue has options key in bearings JSON: false
+
+$ fm-captain-hold.sh hold launch-week --reason 'which week' --option week-4
+fm-captain-hold: --option must be <value>|<label>[|<hint>]: week-4
+exit=1
+
+$ fm-captain-hold.sh hold launch-week --reason 'which week' --option later|Later
+/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.D0Y0aK/drive2.sh: line 11: Later: command not found
+fm-captain-hold: --option must be <value>|<label>[|<hint>]: later
+exit=127
+
+$ fm-captain-hold.sh hold launch-week --reason 'which week' --option reconcile|Re-check
+/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.D0Y0aK/drive2.sh: line 11: Re-check: command not found
+fm-captain-hold: --option must be <value>|<label>[|<hint>]: reconcile
+exit=127
+
+$ fm-captain-hold.sh hold launch-week --reason 'which week' --option bad\ value|Label
+/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.D0Y0aK/drive2.sh: line 11: Label: command not found
+fm-captain-hold: --option must be <value>|<label>[|<hint>]: bad value
+exit=127
+
+$ fm-captain-hold.sh hold launch-week --reason 'which week' --option week-4|
+/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.D0Y0aK/drive2.sh: eval: line 12: syntax error: unexpected end of file
+exit=1
+
+$ fm-captain-hold.sh hold launch-week --reason 'which week' --option a|A --option a|B
+/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.D0Y0aK/drive2.sh: line 11: A: command not found
+/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.D0Y0aK/drive2.sh: line 11: B: command not found
+fm-captain-hold: --option must be <value>|<label>[|<hint>]: a
+exit=127
+
+$ fm-captain-hold.sh hold launch-week --reason 'which week' --option a|A --recommend b
+/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.D0Y0aK/drive2.sh: line 11: A: command not found
+fm-captain-hold: --option must be <value>|<label>[|<hint>]: a
+exit=127
+
+$ fm-captain-hold.sh hold launch-week --reason 'which week' --recommend a
+fm-captain-hold: --recommend needs at least one --option
+exit=1
+
+$ fm-captain-hold.sh hold launch-week ... with 12 options
+fm-captain-hold: a call may record at most 11 options
+exit=1
+RESULT: backlog unchanged after every refused option
+
+$ fm-captain-hold.sh hold launch-week --reason "which week"   # repeat, no --option
+launch-week
+exit=0
+  Captain hold set: 2026-10-01T00:26:33Z
+  Captain hold due: 2026-10-05
+  Captain hold option: {"value":"week-1","label":"First week","hint":"Ships before the review","recommended":true}
+  Captain hold option: {"value":"week-2","label":"Second week","recommended":false}
+
+$ fm-captain-hold.sh hold launch-week --reason "which week" --option "week-3|Third week"   # replace
+launch-week
+exit=0
+  Captain hold set: 2026-10-01T00:26:33Z
+  Captain hold due: 2026-10-05
+  Captain hold option: {"value":"week-3","label":"Third week","recommended":false}
+
+$ fm-captain-hold.sh answer launch-week --decision-file answer.txt --release
+released: launch-week
+exit=0
+
+$ fm-captain-hold.sh hold launch-week --reason "a second week"   # new lifecycle
+launch-week
+exit=0
+  Captain hold set: 2026-10-01T00:27:02Z
+
+$ fm-today-bridge.sh snapshot | launch-week card options
+["reconcile"]
