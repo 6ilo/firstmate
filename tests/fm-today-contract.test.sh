@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Behavior tests for the Today contract v1 (docs/today-contract.md): every valid
-# example of all seven shapes passes its schema and the contract rules, every
+# example of all eight shapes passes its schema and the contract rules, every
 # invalid example fails for its stated reason, and card_hash and the passkey challenge recompute from
 # the definitions the page publishes, checked against an independent openssl
 # digest of the literal canonical bytes. Passkey signatures in the examples

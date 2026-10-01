@@ -1531,7 +1531,6 @@ A fail-closed poll that already queued a wake, and a timeout, always print so th
 `bin/fm-today-bridge.sh` sends the fleet's snapshot from the captain's machine to the admin portal's Today page, and carries the captain's answers from Today back into firstmate.
 [`docs/today-contract.md`](today-contract.md) owns the documents it sends and receives, the portal endpoints, and the privacy rules; this section covers setup and the text check.
 The bridge only ever opens connections outward, to the portal; nothing calls in to the machine.
-This half of the bridge sends the snapshot only; it does not fetch answers, and nothing runs it on a schedule yet.
 `bin/fm-today-notes.sh` collects the captain's notes and dispatch orders from Today with the same settings; see [Notes and dispatch orders](#notes-and-dispatch-orders).
 
 ### Settings
