@@ -42,14 +42,19 @@ unset FM_TODAY_PORTAL_URL FM_TODAY_BRIDGE_TOKEN FM_TODAY_DAY_FILE
 
 # A stub gh, so no test reaches a forge: `pr view <url> ... headRefOid` prints
 # the head written to $FM_TEST_GH_DIR/head-<number> (and fails when there is
-# none), and `pr comment` is logged to $FM_TEST_GH_DIR/gh.log.
+# none), `pr view <url> ... isInMergeQueue` prints $FM_TEST_GH_DIR/state-<number>
+# (an open, unqueued pull request when there is none), and `pr comment` is logged to $FM_TEST_GH_DIR/gh.log.
 export FM_TEST_GH_DIR="$TMP_ROOT/gh"
 mkdir -p "$TMP_ROOT/fakebin" "$FM_TEST_GH_DIR"
 cat > "$TMP_ROOT/fakebin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FM_TEST_GH_DIR/gh.log"
 case "$1 $2" in
-  "pr view") cat "$FM_TEST_GH_DIR/head-${3##*/}" 2>/dev/null ;;
+  "pr view")
+    case "$*" in
+      *isInMergeQueue*) cat "$FM_TEST_GH_DIR/state-${3##*/}" 2>/dev/null || echo "OPEN false" ;;
+      *) cat "$FM_TEST_GH_DIR/head-${3##*/}" 2>/dev/null ;;
+    esac ;;
   "pr comment") exit 0 ;;
   *) exit 1 ;;
 esac
@@ -1368,7 +1373,22 @@ test_answers_signed_merge_that_does_not_land_is_raised_again() {
   card_of "$OUT" m-fix | jq -e --arg h "$HEAD_A" --arg n "$nonce" '.kind == "merge" and .head_sha == $h and .proof.nonce != $n' >/dev/null \
     || fail "the re-raised card does not ask for a fresh signed merge: $(card_of "$OUT" m-fix)"
   stop_portal
-  pass "a signed merge that fm-pr-merge.sh refuses merges nothing and is raised again for a fresh signed word"
+  # The merge exits non-zero after the forge merged: it is merged, never raised again.
+  home=$(make_signed_home answers-home-landed)
+  use_gh landed
+  m=$(hash_of "$tree" "$home" m-fix)
+  : > "$FM_TEST_GH_DIR/merge-refuse-9"
+  echo "MERGED false" > "$FM_TEST_GH_DIR/state-9"
+  start_portal "$TMP_ROOT/portal-landed"
+  jq -s . <(signed phone ans_ld_000001 m-fix merge merge "$m") > "$TMP_ROOT/portal-landed/answers.json"
+  abridge "$tree" "$home" answers once
+  s=$(summary_of ans_ld_000001)
+  [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "applied merged" ] || fail "a landed merge was not reported merged: $s"
+  jq -e '.announce | test("ans_ld_000001")' <<< "$s" >/dev/null || fail "the landed merge was not announced: $s"
+  [ "$(grep -c '^pr comment ' "$FM_TEST_GH_DIR/gh.log")" = 1 ] || fail "the landed merge was not commented on"
+  ! row_of "$home" m-fix | grep -q 'hold-kind' || fail "a landed merge was raised again: $(row_of "$home" m-fix)"
+  stop_portal
+  pass "a signed merge that fm-pr-merge.sh refuses merges nothing and is raised again for a fresh signed word, unless the forge merged it"
 }
 
 test_answers_signed_later_is_raised_again_with_a_fresh_nonce() {

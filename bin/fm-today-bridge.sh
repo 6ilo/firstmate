@@ -169,10 +169,14 @@
 #   on success it is `applied` with action `merged`, one comment naming the
 #   passkey label, answer id, and head is posted on the pull request
 #   (`gh pr comment`), and the answer-json line carries `announce`, the chat
-#   line firstmate relays; any refusal merged nothing and spends the signed
-#   word, so the call is held again with --call merge --pr and refused,
-#   action `re-raised`: a moved head (exit 3) as `passkey: head moved`, any
-#   other refusal with the merge's reason. Any other released value is
+#   line firstmate relays. When the merge exits non-zero the pull request's
+#   state is read again (`gh pr view --json state,isInMergeQueue`): merged or
+#   queued is the success above; still open, unmerged, and unqueued, nothing
+#   merged and the signed word is spent, so the call is held again with
+#   --call merge --pr and refused, action `re-raised`: a moved head (exit 3)
+#   as `passkey: head moved`, any other refusal with the merge's reason; any
+#   other state, or none readable, is `refused` and the call is not raised
+#   again. Any other released value is
 #   `applied` with action `released` and an `announce` line. Every verified
 #   answer, applied or not, drops the call's stored nonce, so the next
 #   snapshot raises it with a fresh one.
@@ -1338,7 +1342,17 @@ def carry_signed(answer, card):
                 % (value, owner, task, signed))
     pr, head = card["pr_url"], card["head_sha"]
     rc, _out, err = run([MERGE, task, pr, "--head-sha", head])
-    if rc != 0:
+    landed = rc == 0
+    if not landed:
+        src, sout, _serr = run(["gh", "pr", "view", pr, "--json", "state,isInMergeQueue",
+                                "-q", '.state + " " + (.isInMergeQueue | tostring)'])
+        state = sout.split() if src == 0 else []
+        landed = state[:1] == ["MERGED"] or state[1:2] == ["true"]
+        if not landed and state[:2] != ["OPEN", "false"]:
+            return ("refused", "the merge did not report success (%s) and the pull request reads as %s; "
+                    "check it before asking again" % (first_line(err, "fm-pr-merge.sh refused"),
+                                                      " ".join(state) or "unreadable"), None, "refused")
+    if not landed:
         # Nothing merged: the released word is spent, so the call is raised
         # again and only a fresh signed word, under a new nonce, can merge it.
         if rc == 3 and "head moved" in err:
