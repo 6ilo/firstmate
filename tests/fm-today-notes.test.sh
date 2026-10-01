@@ -6,7 +6,8 @@
 # every note and order that has no receipt yet. Covered: a note is recorded as
 # evidence with its text check verdict and its task, and receipted on the very
 # next exchange; a note changes no backlog row and reaches no captain inbox; a
-# repeat is `duplicate`; a note over 2000 UTF-8 bytes is refused without its
+# repeat gets its first outcome and reason again, so a refused order whose
+# receipt was lost is refused again; a note over 2000 UTF-8 bytes is refused without its
 # words leaving; a dispatch order ranks the charted items through the planning
 # record, moves earlier ranks after them, leaves out work no longer charted,
 # keeps a second mate's items for routing, and starts nothing; an older order
@@ -200,16 +201,16 @@ test_duplicate_and_withheld() {
   rec=$(cat "$home/data/today-notes/$id.json")
   [ "$(jq -r .text_check.verdict <<< "$rec")" = withheld ] || fail "the tripping note was not marked withheld"
   [ "$(jq -r '.text_check.families | join(",")' <<< "$rec")" = word ] || fail "wrong families: $rec"
-  # The portal lost the receipt and delivers again: firstmate answers duplicate.
+  # The portal lost the receipt and delivers again: firstmate replays recorded.
   rm -f "$stub/receipted.json"
   notes "$home" collect
   stop_stub
   [ "$CODE" -eq 0 ] || fail "collect exited $CODE: $(cat "$ERR")"
   [ ! -s "$OUT" ] || fail "a duplicate was reported as news: $(cat "$OUT")"
-  [ "$(jq -r .outcome <<< "$(receipt_for "$stub" "$id")")" = duplicate ] || fail "the repeat was not answered duplicate"
-  [ "$(cat "$home/data/today-notes/$id.json")" = "$rec" ] || fail "the duplicate changed the record"
+  [ "$(jq -r .outcome <<< "$(receipt_for "$stub" "$id")")" = recorded ] || fail "the repeat was not answered recorded again"
+  [ "$(cat "$home/data/today-notes/$id.json")" = "$rec" ] || fail "the repeat changed the record"
   ! grep -rqF guardian "$stub/requests" || fail "the note's words were sent back to the portal"
-  pass "a tripping note is recorded withheld, a repeat is duplicate, and no words go back"
+  pass "a tripping note is recorded withheld, a repeat is answered recorded again, and no words go back"
 }
 
 test_oversized_note_is_refused() {
@@ -281,6 +282,31 @@ test_older_and_empty_orders_are_refused() {
   [ "$(FM_HOME="$home" "$ROOT/bin/fm-backlog-plan.sh" list | jq -c '[.alpha.order, .bravo.order]')" = "[1,null]" ] \
     || fail "a refused order changed a rank"
   pass "an order older than the recorded one, and one with nothing charted, are refused and change nothing"
+}
+
+# A refused order whose receipt the portal lost is refused again, with the same
+# reason, rather than answered with a bare duplicate that would hide the refusal.
+test_redelivered_refused_order_replays_its_refusal() {
+  local home stub=$TMP_ROOT/stub-replay id rec r
+  home=$(make_home home-replay)
+  doc dispatch-order '.order_id = "dord_UmVwbGF5UmVmdXNlZE9yZA" | .items = [{"task_id": "gone"}]' "$TMP_ROOT/replay.json"
+  id=$(jq -r .order_id "$TMP_ROOT/replay.json")
+  queue "$stub" "$TMP_ROOT/replay.json"
+  start_stub "$stub"
+  notes "$home" collect
+  rec=$(cat "$home/data/today-notes/$id.json")
+  [ "$(jq -r .outcome <<< "$(receipt_for "$stub" "$id")")" = refused ] || fail "the order was not refused at first"
+  rm -f "$stub/receipted.json"
+  notes "$home" collect
+  stop_stub
+  [ "$CODE" -eq 0 ] || fail "the redelivery exited $CODE: $(cat "$ERR")"
+  r=$(receipt_for "$stub" "$id")
+  [ "$(jq -r .outcome <<< "$r")" = refused ] || fail "the redelivery did not replay refused: $r"
+  [ "$(jq -r .reason <<< "$r")" = "none of the 1 ordered items is still charted in this home" ] \
+    || fail "the redelivery did not replay the reason: $r"
+  [ "$(cat "$home/data/today-notes/$id.json")" = "$rec" ] || fail "the redelivery changed the record"
+  [ ! -s "$OUT" ] || fail "the redelivery woke firstmate again: $(cat "$OUT")"
+  pass "a redelivered refused order is refused again with its recorded reason"
 }
 
 test_receipt_survives_a_failed_call() {
@@ -386,7 +412,7 @@ test_failed_receipt_still_reports_the_record() {
   stop_stub
   [ "$CODE" -eq 0 ] || fail "the redelivery exited $CODE: $(cat "$ERR")"
   [ ! -s "$OUT" ] || fail "the redelivered note woke firstmate again: $(cat "$OUT")"
-  [ "$(jq -r .outcome <<< "$(receipt_for "$stub" "$id")")" = duplicate ] || fail "the redelivery was not receipted"
+  [ "$(jq -r .outcome <<< "$(receipt_for "$stub" "$id")")" = recorded ] || fail "the redelivery was not receipted recorded"
   [ -z "$(ls "$home/state/today-notes/receipts")" ] || fail "the redelivery receipt stayed pending"
   pass "a receipt that cannot be written still reports the recorded note once, and redelivery only receipts it"
 }
@@ -544,6 +570,7 @@ test_duplicate_and_withheld
 test_oversized_note_is_refused
 test_dispatch_order_records_ranks_and_starts_nothing
 test_older_and_empty_orders_are_refused
+test_redelivered_refused_order_replays_its_refusal
 test_receipt_survives_a_failed_call
 test_failed_record_leaves_the_note_unreceipted
 test_failed_record_spares_the_rest_of_the_answer

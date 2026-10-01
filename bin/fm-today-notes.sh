@@ -64,17 +64,20 @@
 #                   order older (by queued_at) than one already recorded is
 #                   refused, so a late redelivery cannot undo a newer order.
 #                   Recording an order starts nothing.
-#   A repeated id gets `duplicate` and changes nothing. A document that fails
+#   A repeated id gets its original outcome and reason again, from the stored
+#   record, and changes nothing (`duplicate` only when that record cannot be
+#   read). A document that fails
 #   its schema gets `refused` with the failing path and rule, never a value.
 #   A receipt's reason is firstmate's own fixed wording and counts, never the
 #   note's words. The record is written and synced before the receipt, so the
 #   portal deletes a note's words only once they are on this machine; an
-#   intake interrupted between the two is answered `duplicate` on redelivery.
+#   intake interrupted between the two is answered again from that record.
 #
 # Exit status: 0 on success (including nothing new); 1 when a record or a
 # receipt cannot be written, an order cannot be applied, or a document is
 # unreadable (none of them is receipted, so the portal delivers it again on the
-# next collect, and a document already recorded is answered `duplicate`);
+# next collect, and a document already recorded is answered with its original
+# outcome);
 # 2 on a usage error or missing settings (nothing is sent); 3 when the portal
 # cannot be reached, answers anything but 200, or answers malformed JSON.
 set -u
@@ -252,6 +255,22 @@ def record(ident, kind, doc, outcome, reason=None, **extra):
     write_json(os.path.join(RECORDS, ident + ".json"), rec)
 
 
+def replayed(ident):
+    """The outcome and reason already recorded for <ident>, for a redelivery."""
+    try:
+        with open(os.path.join(RECORDS, ident + ".json"), encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError):
+        return "duplicate", None
+    outcome = rec.get("outcome") if isinstance(rec, dict) else None
+    reason = rec.get("reason") if isinstance(rec.get("reason"), str) else None
+    if outcome == "refused" and reason:
+        return "refused", reason
+    if outcome == "recorded":
+        return "recorded", reason
+    return "duplicate", None
+
+
 def mismatch(label, schema, errs):
     m = ERROR.match(errs[0])
     where = " at %s (%s)" % m.groups() if m else ""
@@ -401,7 +420,8 @@ for key, kind, id_key, id_re, schema in SHAPES:
         summary["seen"].append(ident)
         try:
             if os.path.exists(os.path.join(RECORDS, ident + ".json")):
-                receipt(ident, "duplicate")
+                outcome, reason = replayed(ident)
+                receipt(ident, outcome, reason)
                 summary["duplicates"] += 1
                 continue
             errs = errors(doc) if doc.get("schema") == schema else ["$.schema: const"]

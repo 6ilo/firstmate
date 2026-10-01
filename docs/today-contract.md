@@ -67,7 +67,7 @@ The notes call works exactly as the answers call, on its own endpoint so the ans
 The portal first stores every receipt in the request, ignoring any whose `ref` it does not know or has already receipted.
 It then returns every note and every dispatch order that has no receipt yet, each list oldest first and at most 50 long, both keys always present.
 When there is none, it holds the request open for up to `wait_seconds`, as for answers.
-Every unreceipted note and order is delivered again on every call until its receipt arrives, and firstmate replies `duplicate` to a repeated id.
+Every unreceipted note and order is delivered again on every call until its receipt arrives, and firstmate answers a repeated id with the outcome and reason it first recorded, so a lost receipt never hides a refusal; nothing happens twice.
 The portal refuses a body over 256 KiB with `413`, and a request that is not the envelope or carries a receipt failing its schema with `400` and the same `{"path", "rule"}` issues, storing nothing from it.
 Errors use the same body as the snapshot's.
 
@@ -313,7 +313,7 @@ An order older by `queued_at` than one already recorded is refused, so a late re
 | --- | --- |
 | `recorded` | Kept: a note as the captain's words, an order as the proposed order. |
 | `refused` | Not kept, and `reason` says why, such as a document that fails its schema or an order older than the one recorded. |
-| `duplicate` | This id was already received; nothing further happened. |
+| `duplicate` | This id was already received and its first outcome could not be read back; nothing further happened. |
 
 Every note receipt carries `ref`, the `note_id` or `order_id` it answers, and `recorded_at`.
 `reason` is required with `refused` and may accompany `recorded`, for example to count the ordered items that were left out.
