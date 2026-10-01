@@ -251,7 +251,10 @@ test_pacing_times_come_from_durable_records() {
   local snap=$TMP_ROOT/snap.json home snap2
   [ "$(jq -r '.sections.calls[] | select(.task_id == "call-cut-noted") | .raised_at' "$snap")" = 2000-01-01T00:00:00Z ] \
     || fail "a call held at a recorded time did not carry it: $(jq -c '.sections.calls[] | select(.task_id == "call-cut-noted")' "$snap")"
-  [ "$(jq '[.sections.calls[] | select(has("raised_at"))] | length' "$snap")" -eq 1 ] \
+  # The fixture records a hold time on exactly three calls (call-cut-noted,
+  # call-options, call-options-tripped); each should carry it as raised_at and
+  # every other call should carry none.
+  [ "$(jq '[.sections.calls[] | select(has("raised_at"))] | length' "$snap")" -eq 3 ] \
     || fail "a call with no recorded hold time carried raised_at: $(jq -c '[.sections.calls[] | {task_id, raised_at}]' "$snap")"
   [ "$(jq -r '.sections.underway[] | select(.id == "ship-task") | .started_at' "$snap")" = 2026-09-20T08:30:00Z ] \
     || fail "underway work did not carry its dispatch time: $(jq -c .sections.underway "$snap")"
