@@ -42,11 +42,13 @@
 # backlog backend follows the same tasks-axi lifecycle path.
 #
 # Lint defaults to two bounded workers over two stable logical shards.
+# Each worker runs one ShellCheck process per root, bounding peak memory.
 # Diagnostics replay in stable shard/root order. FM_LINT_JOBS=1 changes
 # concurrency, not diagnostics or exit selection.
 # --partition 1of2/2of2 splits the entire canonical inventory across
-# two CI runners, each with those same bounded workers. Partitions are complete,
-# disjoint, and byte-weight balanced; --list-files exposes their actual roots.
+# two CI runners, each running its bounded shards with one worker (jobs 1)
+# so peak memory fits the runner. Partitions are complete, disjoint, and
+# byte-weight balanced; --list-files exposes their actual roots.
 # Partition mode is always full source-aware analysis, never changed-only or
 # --fast, and does not accept explicit paths. Each partition also runs workflow
 # lint and backend-purity checks, keeping either invocation independently useful.
@@ -109,23 +111,19 @@ fm_lint_worker() {  # <manifest> <output-dir> <shard-index>
       shellcheck_args+=(--extended-analysis=false)
     fi
     : > "$output.out"
-    if [ "${FM_LINT_INTERNAL_FOLLOW_SOURCES:-1}" -eq 1 ]; then
-      "$FM_LINT_SHELLCHECK" "${shellcheck_args[@]}" -- "${roots[@]}" >> "$output.out" 2>&1 &
+    # One ShellCheck process per root in every mode: a single process over
+    # many source-following roots retains heap across them and outgrew a
+    # 16 GB CI runner, while per-root peak memory stays a few GB.
+    for path in "${roots[@]}"; do
+      invocation_rc=0
+      "$FM_LINT_SHELLCHECK" "${shellcheck_args[@]}" -- "$path" >> "$output.out" 2>&1 &
       FM_LINT_WORKER_SHELLCHECK_PID=$!
-      wait "$FM_LINT_WORKER_SHELLCHECK_PID" || rc=$?
+      wait "$FM_LINT_WORKER_SHELLCHECK_PID" || invocation_rc=$?
       FM_LINT_WORKER_SHELLCHECK_PID=
-    else
-      for path in "${roots[@]}"; do
-        invocation_rc=0
-        "$FM_LINT_SHELLCHECK" "${shellcheck_args[@]}" -- "$path" >> "$output.out" 2>&1 &
-        FM_LINT_WORKER_SHELLCHECK_PID=$!
-        wait "$FM_LINT_WORKER_SHELLCHECK_PID" || invocation_rc=$?
-        FM_LINT_WORKER_SHELLCHECK_PID=
-        if [ "$rc" -eq 0 ] && [ "$invocation_rc" -ne 0 ]; then
-          rc=$invocation_rc
-        fi
-      done
-    fi
+      if [ "$rc" -eq 0 ] && [ "$invocation_rc" -ne 0 ]; then
+        rc=$invocation_rc
+      fi
+    done
     trap - HUP INT TERM
   else
     : > "$output.out"
@@ -477,6 +475,15 @@ case "$PARTITION" in
     ;;
   *) printf 'fm-lint.sh: --partition must be 1of2 or 2of2, got %s.\n' "$PARTITION" >&2; exit 2 ;;
 esac
+
+# A CI runner runs one canonical partition, so run its two bounded shards
+# sequentially (one worker) instead of paging two workers' heaps at once:
+# peak ShellCheck memory then fits a 16 GB runner and Lint 1 stops being
+# killed with exit 143. Partitions stay at two; this only lowers the
+# per-runner worker concurrency, never the partition count or coverage.
+if [ -n "$PARTITION" ]; then
+  JOBS=1
+fi
 
 if [ "$FAST" -eq 1 ] && { [ "${GITHUB_ACTIONS:-}" = true ] || [ "${CI:-}" = true ]; }; then
   printf 'fm-lint.sh: --fast is local-only; CI uses full ShellCheck analysis.\n' >&2

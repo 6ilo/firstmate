@@ -195,10 +195,13 @@ test_canonical_partitions_preserve_full_lint() {
     log="$tmp/$part.roots"
     flags="$tmp/$part.flags"
     mode="$tmp/$part.mode"
+    telemetry="$tmp/$part.telemetry"
     fm_lint_stub_shellcheck "$fakebin" "$log"
     PATH="$fakebin:$PATH" FM_TEST_FLAG_LOG="$flags" FM_TEST_MODE_LOG="$mode" \
+      FM_LINT_TELEMETRY="$telemetry" \
       "$LINT" --partition "$part" > "$tmp/$part.out" 2>&1 \
       || fail "canonical partition $part failed: $(cat "$tmp/$part.out")"
+    assert_grep $'jobs\t1' "$telemetry" "partition $part must run one worker (jobs=1) to fit the runner memory limit"
     [ "$(LC_ALL=C sort "$log")" = "$(printf '%s\n' "$selected" | LC_ALL=C sort)" ] \
       || fail "partition $part executed a different root set than it listed"
     [ "$(LC_ALL=C sort -u "$flags")" = "$(printf 'exclude=none\nexternal-sources=yes')" ] \
@@ -217,7 +220,7 @@ test_canonical_partitions_preserve_full_lint() {
   rc=0
   "$LINT" --partition 1of2 bin/fm-lint.sh > "$tmp/refused" 2>&1 || rc=$?
   [ "$rc" = 2 ] || fail "partition accepted an explicit subset"
-  pass "two canonical lint partitions preserve complete source-aware coverage and reject weakened modes"
+  pass "two canonical lint partitions preserve complete source-aware coverage, run one worker each, and reject weakened modes"
 }
 
 # fm_lint_stub_git <fakebin-dir>: install a git stub for the changed-file mode
@@ -627,6 +630,31 @@ SH
     || fail "CI lint disabled dataflow analysis"
   fm_lint_assert_flag_log "$flag_log" yes none
   pass "fm-lint.sh CI keeps source following without the local exclusion list"
+}
+
+test_source_following_invokes_shellcheck_once_per_root() {
+  local tmp fakebin log flag_log root out invocation_count
+  local -a roots
+  tmp=$(fm_test_tmproot fm-lint-follow-per-root)
+  fakebin=$(fm_fakebin "$tmp")
+  log="$tmp/shellcheck.log"
+  flag_log="$tmp/flags.log"
+  # Four roots put at least two in one bounded worker's shard.
+  roots=("$tmp/a.sh" "$tmp/b.sh" "$tmp/c.sh" "$tmp/d.sh")
+  for root in "${roots[@]}"; do
+    printf '#!/usr/bin/env bash\nprintf ok\n' > "$root"
+  done
+  fm_lint_stub_shellcheck "$fakebin" "$log"
+
+  out=$(PATH="$fakebin:$PATH" CI=true GITHUB_ACTIONS=true FM_LINT_JOBS=1 \
+    FM_TEST_FLAG_LOG="$flag_log" "$LINT" "${roots[@]}" 2>&1) \
+    || fail "source-following per-root lint failed"$'\n'"$out"
+  [ "$(LC_ALL=C sort "$log")" = "$(printf '%s\n' "${roots[@]}" | LC_ALL=C sort)" ] \
+    || fail "source-following lint did not analyze every root"$'\n'"logged: $(cat "$log")"
+  invocation_count=$(grep -c '^external-sources=yes' "$flag_log" || true)
+  [ "$invocation_count" -eq 4 ] \
+    || fail "source-following lint used $invocation_count ShellCheck calls for four roots"
+  pass "fm-lint.sh source-following mode invokes ShellCheck once per root"
 }
 
 test_main_branch_keeps_external_sources() {
@@ -1436,6 +1464,7 @@ test_zero_changed_files_exits_clean
 test_list_files_respects_changed_mode
 test_changed_mode_drops_external_sources_and_excludes_cross_file_codes
 test_changed_mode_invokes_shellcheck_once_per_root
+test_source_following_invokes_shellcheck_once_per_root
 test_ci_keeps_external_sources_without_local_exclusions
 test_main_branch_keeps_external_sources
 test_merge_base_less_keeps_external_sources
