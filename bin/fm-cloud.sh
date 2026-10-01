@@ -7,6 +7,8 @@
 #   fm-cloud.sh launch <task-id> <owner/repo> --mode direct-PR --yolo <on|off>
 #                      [--base <branch>] [--branch-prefix <prefix>]
 #                      [--project <local-clone>] [--brief <file>]
+#   fm-cloud.sh adopt <task-id> <owner/repo> <pr-url> --mode direct-PR --yolo <on|off>
+#                     [--session <session-url>] [--project <local-clone>]
 #   fm-cloud.sh poll <task-id>
 #
 # launch reads the written brief (default data/<task-id>/brief.md), appends the
@@ -51,6 +53,19 @@
 # A draft pull request prints one notice (recorded in state/<task-id>.cloud-draft)
 # and is otherwise waited on; a merge poll that cannot be armed restores this
 # check and prints the refusal on every poll until it can.
+#
+# adopt takes a pull request a cloud session already opened with no task record
+# in this home - one from before this script existed - and gives it the record
+# launch would have published, so bin/fm-pr-merge.sh and bin/fm-teardown.sh
+# treat it like any cloud task. It starts nothing. The pull request must be on
+# GitHub at <owner/repo>, open or merged, and not a draft; anything else is
+# refused before a record is written. Its repository, base, and branch are read
+# from the forge, the record carries the same fields as launch's (mode
+# direct-PR only), and it passes the same backlog gate and moves the item to In
+# flight. With no --session, the record says cloud_session=unknown. adopt then
+# arms merge monitoring through bin/fm-pr-check.sh and appends the same
+# `done [at=<epoch>]: PR <url>` ready report poll does; when monitoring cannot be
+# armed it arms poll's discovery check instead and reports the refusal.
 #
 # Test and operator seams: FM_CLOUD_GIT_BASE replaces https://github.com as the
 # clone source, FM_CLOUD_LAUNCH_DIR the scratch clone root, and
@@ -166,9 +181,38 @@ cloud_check_arm() {  # <task-id>
   "$SCRIPT_DIR/fm-check-register.sh" "$id" >/dev/null
 }
 
+# The same pre-launch backlog gate as bin/fm-spawn.sh: refuse before anything
+# starts when this home has no dispatchable item for the task. Sets
+# CLOUD_BACKLOG=1 when the dispatch transition applies.
+cloud_backlog_gate() {  # <task-id> <verb>
+  local id=$1 verb=$2 row
+  CLOUD_BACKLOG=0
+  if fm_backlog_transition_applies "$CONFIG" "$DATA" ship; then
+    CLOUD_BACKLOG=1
+    if ! fm_backlog_row_probe "$DATA" "$id"; then
+      [ "$FM_BACKLOG_ROW_RESULT" != not_found ] \
+        || die "task $id has no backlog item in this home; add it first (bin/fm-tasks-axi.sh add $id '<title>' --kind ship) and re-run"
+      die "task $id's backlog item could not be read before $verb ($FM_BACKLOG_ROW_ERROR)"
+    fi
+    row=$FM_BACKLOG_ROW_STATE
+    fm_backlog_row_dispatchable "$row" || die "this home's backlog item $id is not dispatchable in state $row"
+  elif [ "$?" -eq 2 ]; then
+    die "task $id cannot be ${verb}ed because its backlog data directory is inaccessible: $DATA ($FM_BACKLOG_TRANSITION_ERROR)"
+  fi
+}
+
+# The direct-PR ready report, appended to the task's status log.
+cloud_ready_report() {  # <task-id> <pr-url>
+  local id=$1 url=$2
+  printf 'done [at=%s]: PR %s\n' "$(date +%s)" "$url" >> "$STATE/$id.status"
+  # Opt-in fleet activity ledger (docs/fleet-ledger.md), as every status append does.
+  [ ! -e "$CONFIG/fleet-ledger" ] \
+    || "$SCRIPT_DIR/fm-fleet-ledger.sh" appended "$CONFIG" "$STATE/$id.status" >/dev/null 2>&1 || true
+}
+
 cmd_launch() {
   local id repo mode='' yolo='' base=main prefix=fm/ project='' brief='' branch meta lock
-  local backlog=0 row clone prompt url gen tmp failed
+  local backlog=0 clone prompt url gen tmp failed
   [ "$#" -ge 2 ] || usage
   id=$1 repo=$2
   shift 2
@@ -209,20 +253,8 @@ cmd_launch() {
     die "task $id already has a task record; a cloud launch never replaces one"
   fi
 
-  # The same pre-launch backlog gate as bin/fm-spawn.sh: refuse before anything
-  # starts when this home has no dispatchable item for the task.
-  if fm_backlog_transition_applies "$CONFIG" "$DATA" ship; then
-    backlog=1
-    if ! fm_backlog_row_probe "$DATA" "$id"; then
-      [ "$FM_BACKLOG_ROW_RESULT" != not_found ] \
-        || die "task $id has no backlog item in this home; add it first (bin/fm-tasks-axi.sh add $id '<title>' --kind ship) and re-run"
-      die "task $id's backlog item could not be read before launch ($FM_BACKLOG_ROW_ERROR)"
-    fi
-    row=$FM_BACKLOG_ROW_STATE
-    fm_backlog_row_dispatchable "$row" || die "this home's backlog item $id is not dispatchable in state $row"
-  elif [ "$?" -eq 2 ]; then
-    die "task $id cannot be launched because its backlog data directory is inaccessible: $DATA ($FM_BACKLOG_TRANSITION_ERROR)"
-  fi
+  cloud_backlog_gate "$id" launch
+  backlog=$CLOUD_BACKLOG
 
   lock=$(fm_meta_lock_path "$meta") || exit 1
   fm_lock_acquire_wait "$lock"
@@ -277,6 +309,109 @@ cmd_launch() {
     "$id" "$repo" "$branch" "$mode" "$yolo" "$url"
 }
 
+cmd_adopt() {
+  local id repo raw mode='' yolo='' session=unknown project='' meta lock row
+  local url state draft base branch gen tmp err failed
+  [ "$#" -ge 3 ] || usage
+  id=$1 repo=$2 raw=$3
+  shift 3
+  while [ "$#" -gt 0 ]; do
+    [ "$#" -ge 2 ] || usage
+    case "$1" in
+      --mode) mode=$2 ;;
+      --yolo) yolo=$2 ;;
+      --session) session=$2 ;;
+      --project) project=$2 ;;
+      *) usage ;;
+    esac
+    shift 2
+  done
+  fm_pr_task_id_valid "$id" || die "invalid task id: $id"
+  cloud_repo_valid "$repo" || die "the repository must be owner/repo on GitHub: $repo"
+  case "$mode" in
+    direct-PR) ;;
+    '') die "pass --mode direct-PR; a cloud task's delivery mode is never guessed" ;;
+    *) die "a cloud task ships mode direct-PR only; $mode needs a local copy a cloud session does not have" ;;
+  esac
+  case "$yolo" in on|off) ;; *) die "pass --yolo on or --yolo off; merge posture is never guessed" ;; esac
+  [ "$session" = unknown ] || [[ "$session" =~ ^https://claude\.ai/code/session_[A-Za-z0-9]+$ ]] \
+    || die "the session must be a https://claude.ai/code/session_... URL: $session"
+  fm_pr_url_parse "$raw" && [ "$FM_PR_PROVIDER" = github ] \
+    || die "not a GitHub pull request URL: $raw"
+  [ "$(printf '%s' "$FM_PR_PATH" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')" ] \
+    || die "pull request $raw is on $FM_PR_PATH, not the named repository $repo"
+  if [ -z "$project" ] && [ -d "$FM_HOME/projects/${repo#*/}/.git" ]; then
+    project="$FM_HOME/projects/${repo#*/}"
+  fi
+  fm_backlog_directory_present "$STATE" "state directory" || die "$FM_BACKLOG_TRANSITION_ERROR"
+  meta="$STATE/$id.meta"
+  if [ -e "$meta" ] || [ -L "$meta" ]; then
+    die "task $id already has a task record; adopt never replaces one"
+  fi
+
+  # The pull request itself names its repository, base, and branch.
+  row=$(gh pr view "$raw" --json url,state,isDraft,baseRefName,headRefName \
+    --jq '[.url, .state, (.isDraft | tostring), .baseRefName, .headRefName] | @tsv' 2>&1) \
+    || die "pull request $raw could not be read from the forge: $row"
+  IFS=$'\t' read -r url state draft base branch <<< "$row"
+  fm_pr_url_parse "$url" && [ "$FM_PR_PROVIDER" = github ] \
+    || die "the forge did not return a GitHub pull request URL for $raw"
+  [ "$(printf '%s' "$FM_PR_PATH" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')" ] \
+    || die "pull request $raw is on $FM_PR_PATH, not the named repository $repo"
+  case "$state" in
+    OPEN|MERGED) ;;
+    *) die "pull request $url is ${state:-in an unreadable state}; only an open or merged pull request is adopted" ;;
+  esac
+  [ "$draft" = false ] || die "pull request $url is a draft; mark it ready for review, then adopt it"
+  cloud_ref_valid "$base" || die "pull request $url has an invalid base branch: $base"
+  cloud_ref_valid "$branch" || die "pull request $url has an invalid head branch: $branch"
+
+  cloud_backlog_gate "$id" adopt
+
+  lock=$(fm_meta_lock_path "$meta") || exit 1
+  fm_lock_acquire_wait "$lock"
+  # shellcheck disable=SC2064  # the lock path is fixed for this adoption.
+  trap "fm_lock_release '$lock' || true" EXIT
+  [ ! -e "$meta" ] && [ ! -L "$meta" ] || die "task $id gained a task record while this adoption waited"
+
+  gen="s$(date +%s).${BASHPID:-$$}.$RANDOM"
+  tmp=$(umask 077; mktemp "$STATE/.fm-cloud-meta.XXXXXX") || die "the task record for $url could not be prepared"
+  {
+    printf 'kind=ship\n'
+    printf 'backend=cloud\n'
+    printf 'harness=claude\n'
+    printf 'mode=%s\n' "$mode"
+    printf 'yolo=%s\n' "$yolo"
+    printf 'cloud_repo=%s\n' "$FM_PR_PATH"
+    printf 'base=%s\n' "$base"
+    printf 'branch=%s\n' "$branch"
+    printf 'cloud_session=%s\n' "$session"
+    [ -z "$project" ] || printf 'project=%s\n' "$project"
+    printf 'spawn_gen=%s\n' "$gen"
+  } > "$tmp" || { rm -f "$tmp"; die "the task record for $url could not be prepared"; }
+  chmod 0600 "$tmp"
+  fm_backlog_atomic_transition publish "$tmp" "$meta" "task record" "$STATE" \
+    || { rm -f "$tmp"; die "the task record for $url could not be published ($FM_BACKLOG_TRANSITION_ERROR)"; }
+  fm_lock_release "$lock" || true
+  trap - EXIT
+  failed=''
+  if [ "$CLOUD_BACKLOG" = 1 ] && ! fm_backlog_atomic_transition dispatch "$meta" "$DATA" "$id" "$STATE"; then
+    failed="the backlog item did not move to In flight ($FM_BACKLOG_TRANSITION_ERROR)"
+  fi
+  # Register the pull request as poll does on a found one; when that is refused,
+  # poll's discovery check retries it on every watcher pass.
+  if err=$("$SCRIPT_DIR/fm-pr-check.sh" "$id" "$url" 2>&1 >/dev/null); then
+    cloud_ready_report "$id" "$url"
+  elif cloud_check_arm "$id"; then
+    failed="${failed:+$failed; }merge monitoring could not be armed, so its pull-request check retries it: $err"
+  else
+    failed="${failed:+$failed; }merge monitoring could not be armed ($err) and neither could its pull-request check (re-run bin/fm-cloud.sh poll $id by hand)"
+  fi
+  [ -z "$failed" ] || die "task $id's record for $url is published, but $failed"
+  printf 'adopted %s backend=cloud repo=%s branch=%s mode=%s yolo=%s session=%s pr=%s\n' \
+    "$id" "$FM_PR_PATH" "$branch" "$mode" "$yolo" "$session" "$url"
+}
+
 cmd_poll() {
   local id meta repo branch rows url state draft marker err row_url row_draft
   [ "$#" -eq 1 ] || usage
@@ -315,10 +450,7 @@ cmd_poll() {
     exit 0
   fi
   rm -f "$STATE/$id.cloud-draft"
-  printf 'done [at=%s]: PR %s\n' "$(date +%s)" "$url" >> "$STATE/$id.status"
-  # Opt-in fleet activity ledger (docs/fleet-ledger.md), as every status append does.
-  [ ! -e "$CONFIG/fleet-ledger" ] \
-    || "$SCRIPT_DIR/fm-fleet-ledger.sh" appended "$CONFIG" "$STATE/$id.status" >/dev/null 2>&1 || true
+  cloud_ready_report "$id" "$url"
 }
 
 [ "$#" -ge 1 ] || usage
@@ -326,6 +458,7 @@ sub=$1
 shift
 case "$sub" in
   launch) cmd_launch "$@" ;;
+  adopt) cmd_adopt "$@" ;;
   poll) cmd_poll "$@" ;;
   -h|--help) usage ;;
   *) usage ;;
