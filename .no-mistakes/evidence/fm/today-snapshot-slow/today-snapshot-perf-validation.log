@@ -1,0 +1,31 @@
+Live validation of branch fm/today-snapshot-slow (91b6c57 -> base 7cb7b52)
+Intent: snapshot build taking >1min on a loaded machine; fix it.
+
+Host load during runs: 20-52 (8 cores), so timing-sensitive tests flake.
+
+=== 1) tests/fm-today-autopush.test.sh (build-once + push-same-document) ===
+Result: PASS (9/9)
+  ok - a tick builds the snapshot once and pushes that same document
+  ok - a slow build pushes within the bound and times out beyond it
+  ok - an unchanged fleet is pushed again after the top-up interval
+  ok - the token never appears in output, notices, or state
+
+=== 2) tests/fm-today-bridge.test.sh (push --snapshot) ===
+Result: PASS (all)
+  ok - push --snapshot sends the given document unchanged and still refuses one that fails the check
+  ok - --dry-run writes the checked snapshot and sends nothing
+
+=== 3) tests/fm-bearings-snapshot.test.sh (drives fm-fleet-snapshot.sh --json
+      parallel per-task row composition, contributions concurrency) ===
+Result: PASS (exit 0)
+
+=== 4) tests/fm-today-contract.test.sh ===
+Result: PASS (all)
+
+=== 5) tests/fm-contributions.test.sh (read_saved jq-merge) ===
+Timing-sensitive failures under load (varies run to run: 2 then 3 failures,
+different tests each time). Re-ran full suite with base fm-contributions.sh:
+the SAME "watcher did not surface the new contribution signal" test fails at
+base too -> pre-existing load-induced flakiness, NOT caused by this change.
+All read_saved-correctness tests ("malformed durable evidence cannot prove
+silence", etc.) pass at target.
