@@ -124,6 +124,7 @@ test_cloud_task_from_launch_to_cleanup() {
     grep -qxF -- "$kv" "$meta" || fail "task record lacks $kv"
   done
   grep -q '^spawn_gen=s' "$meta" || fail "task record lacks a spawn incarnation"
+  grep -qE '^dispatched_at=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' "$meta" || fail "task record lacks a UTC dispatch time"
   ! grep -q '^window=\|^worktree=' "$meta" || fail "a cloud task record named a local endpoint or copy"
   [ "$(row_state "$home" "$id")" = in_flight ] || fail "launch did not move the backlog item to In flight: $(row_state "$home" "$id")"
   # shellcheck disable=SC2016  # the inner script expands its own positional args.

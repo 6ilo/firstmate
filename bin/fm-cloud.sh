@@ -262,6 +262,7 @@ cmd_launch() {
     printf 'cloud_session=%s\n' "$url"
     [ -z "$project" ] || printf 'project=%s\n' "$project"
     printf 'spawn_gen=%s\n' "$gen"
+    printf 'dispatched_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   } > "$tmp" || { rm -f "$tmp"; die "cloud session $url started, but its task record could not be prepared"; }
   chmod 0600 "$tmp"
   fm_backlog_atomic_transition publish "$tmp" "$meta" "task record" "$STATE" \

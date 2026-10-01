@@ -45,7 +45,8 @@
 #               this home's own records only: a call's raised_at is the time
 #               its hold was set (bearings' decisions_open held_at, from
 #               bin/fm-captain-hold.sh), and a row's started_at is the
-#               dispatched_at bin/fm-spawn.sh recorded in state/<id>.meta.
+#               dispatched_at bin/fm-spawn.sh or bin/fm-cloud.sh recorded in
+#               state/<id>.meta.
 #               Either is left out when no such time is recorded, and always
 #               for a second mate's call or work; raised_at is never hashed.
 #           Every card and work row carries `owner`: `(main)` for this home,
@@ -451,7 +452,7 @@ def utc_time(text):
 
 
 def dispatched_at(task):
-    """The dispatch time bin/fm-spawn.sh recorded in this home's task record, or None."""
+    """The dispatch time bin/fm-spawn.sh or bin/fm-cloud.sh recorded in this home's task record, or None."""
     try:
         with open(os.path.join(state_dir, task + ".meta"), encoding="utf-8") as fh:
             values = [l[len("dispatched_at="):].rstrip("\n") for l in fh if l.startswith("dispatched_at=")]
