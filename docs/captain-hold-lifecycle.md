@@ -65,10 +65,14 @@ Repeat and edge cases:
 - `--due` stores the date the call must be settled by as a `Captain hold due:` line directly under the hold-set stamp, because tasks-axi has no deadline field.
   Repeating an active hold keeps its due date unless `--due` replaces it, and a new hold lifecycle starts without one.
   An answer moves the line below its resolution block, where it is inert history.
-- `--option '<value>|<label>[|<hint>]'`, repeatable, with an optional `--recommend <value>`, stores the call's structured answer options as `Captain hold option:` lines under the stamps, in order, so the Today card offers them before its standard `reconcile` option.
+- `--option '<value>|<label>[|<hint>]'`, repeatable, with an optional `--recommend <value>`, stores the call's structured answer options as `Captain hold option:` lines under the stamps and any call line, in order, so the Today card offers them: before `reconcile` on a decision card, in place of the standard option on a merge or go card.
   They follow the due date's lifecycle: kept on repeat, replaced by a new `--option`, and dropped by a new lifecycle; a hold without them stays prose-only.
-  Recorded options reach Today cards only for calls held in the main home; a call held in a secondmate home still offers only `reconcile`.
+  Recorded options reach Today cards only for calls held in the main home; a call held in a secondmate home offers only its standard options.
   The script header owns the value and length rules.
+- `--call merge --pr <url>`, `--call go`, or `--call credential` stores what kind of call it is as a `Captain hold call:` line under the stamps, so the Today card is raised as that kind instead of a decision.
+  It follows the due date's lifecycle: kept on repeat, replaced by a new `--call`, and dropped by a new lifecycle.
+  Recording a merge call grants nothing: the merge still happens only through `bin/fm-pr-merge.sh`.
+- `--reason` may be left out when re-holding a call that is already actively held, which keeps its reason; a Today `later` answer re-holds with `--until` alone this way.
 
 ### Answering a call (`answer`)
 
@@ -217,7 +221,7 @@ An unbound source feeds nothing, so the path is opt-in per source.
 
 ### Channels that feed the intake
 
-Two channels feed that one intake today, and both are ordinary callers rather than special cases.
+Three channels feed that one intake today, and each is an ordinary caller rather than a special case.
 
 `bin/fm-send.sh --resolve-key` is the chat channel:
 
@@ -235,6 +239,18 @@ Two channels feed that one intake today, and both are ordinary callers rather th
 `bin/fm-procevent-lavish.sh answers` is one such built-in adapter command.
 It reads only rows tagged `choice` and relays a card's declared close mode.
 It can never let freeform captain prose forge a task id or a mode.
+
+`bin/fm-today-bridge.sh answers` is the Today channel:
+
+- A decision card offers the hold's structured options when bearings records them, then `reconcile`; until options are recorded it offers only `reconcile`, and the portal adds `later`.
+- It feeds an option answer to a captain question from the admin portal's Today page to the intake as one keyed line, with the option's label and the `done` close.
+- Until firstmate checks the captain's passkey itself, an option answer on held work, whose close would be `release`, is recorded and refused for proof like a merge or go answer, whatever the hold's `--call` tag, and never reaches the intake.
+- An answer that is malformed or cannot be carried is refused with a receipt, and the rest of the batch is still carried.
+- A Today `reconcile` answer goes to `reconcile-requests` under the bridge's own bound source id, `today-bridge`, and a `later` answer re-holds the call with `--until`.
+- Until firstmate checks the captain's passkey itself, a merge or go answer never reaches the intake; the bridge refuses it for proof.
+- A second mate's answer is recorded and refused, and fed to no home's intake.
+- Nothing is fed unless `today-bridge` is bound in this home.
+- The bridge's header owns the order of its checks and every outcome.
 
 Trusted external process-event adapters intentionally expose no answer operation and cannot feed this authority-bearing intake; [`extension-bindings.md`](extension-bindings.md#trust-boundary) owns that boundary.
 
@@ -537,6 +553,7 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 - Deferral through `--until` leaves `captain_actionable` false until due.
 - A `--due` date is stamped under the hold-set stamp, kept on repeat, replaced by a new `--due`, dropped by a new lifecycle, and puts an aged call back on Captain's Call seven days ahead.
 - `--option` lines are stamped under the stamps, kept on repeat, replaced by a new `--option`, refused when malformed or reserved, dropped by a new lifecycle, and carried to Bearings' JSON only; a hold without them is unchanged.
+- A `--call` line is stamped under the stamps, kept on repeat and on a re-hold without `--reason`, replaced by a new `--call`, refused when malformed, dropped by a new lifecycle, and carried to Bearings' JSON only.
 
 ### Legacy paths
 

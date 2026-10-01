@@ -166,4 +166,57 @@ done
   || fail "Claude Code ($VERSION) on $HERDR_VER: operational submit reported '$verdict' but the expected reply never rendered"
 pass "live Herdr submit confirm: Claude Code ($VERSION) on $HERDR_VER submits a U+2063 away-supervisor payload whose read-back drops the mark"
 
+wait_claude_idle() {
+  local i=0 st
+  while [ "$i" -lt 45 ]; do
+    st=$(lab agent get "$PANE" 2>/dev/null | jq -r '.result.agent.agent_status // empty')
+    case "$st" in idle|done) return 0 ;; esac
+    i=$((i + 1))
+    sleep 1
+  done
+  return 0
+}
+
+# A maximal away digest, built by the daemon's own digest path from a buffer
+# far over its budget, must fit what Claude keeps whole from one literal send
+# and be submitted (docs/verification/supervision.md "Away digest size").
+wait_claude_idle
+DIGEST_TOKEN="FMHERDRDIGEST$$_$RANDOM"
+BUF="$TMP_ROOT/escalations"
+{
+  printf 'fleet-ops.status: needs-decision: Reply with exactly %s and nothing else.\n' "$DIGEST_TOKEN"
+  for n in 1 2 3 4 5 6; do
+    printf 'task-%s.status: done: ' "$n"
+    for _ in $(seq 1 400); do printf 'fix shipped, PR https://x/y/pull/%s ; ' "$n"; done
+    printf '\n'
+  done
+} > "$BUF"
+digest=$(bash -c '. "$1/bin/fm-supervise-daemon.sh"
+  escalate_digest_body "$2" "$(escalate_body_budget "$3" "$2")"
+  msg=$(escalate_digest_wrap "$ESCALATE_EVENTS" "$(escalate_digest_bounded_note "$ESCALATE_BODY" "$3/.subsuper-digests/digest-20260101T000000.abcdef")")
+  fm_operational_input_encode away-supervisor "$msg" out && printf "%s" "$out"' _ "$ROOT" "$BUF" "$TMP_ROOT") \
+  || fail "could not build an away digest with the daemon's digest path"
+verdict=$(fm_backend_herdr_send_text_submit "$TARGET" "$digest" 3 0.4 0.4) \
+  || fail "send_text_submit failed to run a maximal away digest against Claude Code ($VERSION) on $HERDR_VER"
+[ "$verdict" = empty ] \
+  || fail "Claude Code ($VERSION) on $HERDR_VER: a maximal $(printf '%s' "$digest" | LC_ALL=C wc -c | tr -d ' ')-byte away digest must be submitted, got '$verdict'; re-measure ESCALATE_INJECT_BYTES"
+pass "live Herdr submit confirm: Claude Code ($VERSION) on $HERDR_VER submits a maximal away digest whole"
+
+# Over the measured per-send limit, Claude keeps only a fragment. The send must
+# be refused and nothing it typed may stay in the composer.
+wait_claude_idle
+OVER=$(printf 'over-limit away digest line with enough words to wrap across rows ; %.0s' $(seq 1 20))
+verdict=$(fm_backend_herdr_send_text_submit "$TARGET" "$OVER" 3 0.4 0.4) \
+  || fail "send_text_submit failed to run an over-limit send against Claude Code ($VERSION) on $HERDR_VER"
+sleep 2
+leftover=$(fm_backend_herdr_composer_content "$TARGET" 200) \
+  || fail "Claude Code ($VERSION) on $HERDR_VER: the composer could not be read after an over-limit send"
+case "$verdict" in
+  empty|send-failed) ;;
+  *) fail "Claude Code ($VERSION) on $HERDR_VER: an over-limit send must be submitted whole or refused, got '$verdict'" ;;
+esac
+[ -z "${leftover//[$' \t']/}" ] \
+  || fail "Claude Code ($VERSION) on $HERDR_VER: an over-limit send ($verdict) left text in the composer: ${leftover:0:120}"
+pass "live Herdr submit confirm: Claude Code ($VERSION) on $HERDR_VER leaves nothing typed after a ${#OVER}-byte send ($verdict)"
+
 [ "$CHECKED" -gt 0 ] || fail "FM_HERDR_SUBMIT_CONFIRM_LIVE=1 checked no harness"

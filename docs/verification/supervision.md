@@ -717,3 +717,35 @@ Observed output:
 ```
 
 The safe command-channel contract is covered without a notification by `tests/fm-daemon.test.sh`: the summary reaches both `$1` and stdin, every channel is process-group bounded, and a failed channel falls through.
+
+## Away digest size
+
+The away digest's injected-size budget (`ESCALATE_INJECT_BYTES` in `bin/fm-supervise-daemon.sh`) is set by what a Claude composer keeps whole from one unbracketed literal send, which is how Herdr's `pane send-text` delivers text.
+Measured on 2026-09-30 on macOS 15.6.1 with Claude Code 2.1.285, in an isolated tmux 3.7c socket with `tmux paste-buffer` (one raw write, no bracketed-paste markers) standing in for Herdr's send, reading the composer back through `bin/backends/herdr.sh` with the Herdr CLI routed to that tmux pane:
+
+```text
+500@1:ok 500@1400:ok 500@2600:ok
+800@1:ok 800@1400:ok 800@2600:ok
+900@1:ok 900@2600:ok
+960@1:ok 960@2600:ok
+1000@1:ok 1000@2600:ok
+1023@1:BAD 1023@2600:BAD
+1024@1:BAD 1024@1400:BAD 1024@2600:BAD
+1500@1:BAD 1500@1400:BAD 1500@2600:BAD
+```
+
+Each cell is `<bytes>@<offset into a real 8,456-byte away digest>`, and `ok` means `fm_backend_herdr_composer_payload_shown` accepted the composer read-back.
+At 1,023 bytes and above Claude kept only a fragment, typically the last few hundred characters, with a `paste again to expand` footer, so the Herdr Claude submit proof refuses the send.
+The same payloads wrapped in bracketed-paste markers (`tmux paste-buffer -p`) collapsed to one `[Pasted text #N]` placeholder at every size up to 8,456 bytes.
+The budget is 768 bytes, a quarter below the measured limit.
+
+Against the same live Claude pane, the previous 8,192-byte body budget reproduced the away-mode failure exactly:
+
+```text
+inject failed at initial send or Enter delivery (verdict=send-failed, bytes=8595; text may be in composer on backends that typed before Enter failed): no transport error output
+```
+
+With the 768-byte budget the same 323,001-byte escalation buffer was delivered on the first attempt, and Claude read the named full-text file.
+`fm_backend_composer_clear_own` cleared a 300-character tail of a typed digest from that composer and left a typed captain draft untouched (`cleared`, then `foreign`).
+The portable regression is `tests/fm-daemon.test.sh`, whose fake Herdr pane keeps only a tail of a send of 1,024 bytes or more.
+The Herdr lab guard `FM_HERDR_SUBMIT_CONFIRM_LIVE=1 tests/fm-herdr-submit-confirm-live-e2e.test.sh` refreshes this record against real Herdr: it submits a maximal away digest and requires an over-limit send to leave nothing typed.

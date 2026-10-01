@@ -1532,8 +1532,8 @@ test_escalate_batches_into_one_digest() {
     || fail "batch digest lacks the exact current away-supervisor kind"
   grep -F "event A" "$sent" >/dev/null || fail "batch digest missing event A"
   grep -F "event B" "$sent" >/dev/null || fail "batch digest missing event B"
-  grep -F 'event A: done: PR 1 | event B: done: PR 2' "$sent" >/dev/null \
-    || fail "batch digest did not join events with literal ' | '"
+  grep -F 'event A: done: PR 1 ¦ event B: done: PR 2' "$sent" >/dev/null \
+    || fail "batch digest did not join events with literal ' ¦ '"
   [ -s "$state/.subsuper-escalations" ] && fail "escalation buffer not cleared after flush"
   [ -e "$state/.subsuper-escalations.since" ] && fail "first-append sidecar not cleared after flush"
   n=$(grep -c '\[ENTER\]' "$sent")
@@ -1555,7 +1555,7 @@ test_escalate_batch_age_uses_first_append() {
   PATH="$fakebin:$PATH" FM_FAKE_TMUX_PANE_ALIVE=1 FM_FAKE_TMUX_SENT="$sent" \
     FM_FAKE_TMUX_CAPTURE="$capture" FM_ESCALATE_BATCH_SECS=90 FM_HOUSEKEEPING_TICK=0 \
     housekeeping "$state"
-  grep -F 'event A: done: PR 1 | event B: done: PR 2' "$sent" >/dev/null \
+  grep -F 'event A: done: PR 1 ¦ event B: done: PR 2' "$sent" >/dev/null \
     || fail "backdated batch did not flush as a joined digest (max-delay measured from last append)"
   [ -s "$state/.subsuper-escalations" ] && fail "escalation buffer not cleared after backdated flush"
   [ -e "$state/.subsuper-escalations.since" ] && fail "first-append sidecar not cleared after flush"
@@ -2272,11 +2272,10 @@ test_oversized_digest_is_bounded_and_kept_durable() {
     || fail "oversized digest was not delivered: $(cat "$dir/daemon.log" 2>/dev/null)"
   digest=$(grep -F 'Supervisor escalate' "$sent")
   [ "$(printf '%s\n' "$digest" | wc -l | tr -d ' ')" -eq 1 ] || fail "expected exactly one typed digest"
-  [ "$(printf '%s' "$digest" | LC_ALL=C wc -c | tr -d ' ')" -le 16384 ] \
-    || fail "delivered digest is not bounded well below the transport ceilings"
-  assert_contains "$digest" 'Supervisor escalate (4 event(s)): secondmate-a.status: done:' "digest lost its header or first event"
-  assert_contains "$digest" 'secondmate-a.status: needs-decision [key=pick]: pick A or B' "a short event did not survive whole"
-  printf '%s' "$digest" | grep -E '\[\+[0-9]+ bytes\]' >/dev/null || fail "truncated items carry no omitted-bytes marker"
+  [ "$(printf '%s' "$digest" | LC_ALL=C wc -c | tr -d ' ')" -le "$ESCALATE_INJECT_BYTES" ] \
+    || fail "delivered digest exceeds the injected-size budget"
+  assert_contains "$digest" 'Supervisor escalate (4 event(s)): secondmate-a.status: needs-decision [key=pick]: pick A or B ¦ secondmate-a.status: done:' "the urgent event did not lead the digest whole"
+  printf '%s' "$digest" | grep -E '\[[0-9]+ more bytes\]' >/dev/null || fail "truncated items carry no omitted-bytes marker"
   if command -v iconv >/dev/null 2>&1; then
     printf '%s' "$digest" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1 || fail "truncation split a UTF-8 sequence"
   fi
@@ -2301,13 +2300,28 @@ test_digest_budget_counts_omitted_events() {
     FM_INJECT_CONFIRM_SLEEP=0.05 escalate_flush "$state" || fail "many-event digest was not delivered"
   digest=$(grep -F 'Supervisor escalate' "$sent")
   assert_contains "$digest" 'Supervisor escalate (20 event(s)): event 1: x' "digest header must count every buffered event"
-  more=$(printf '%s' "$digest" | sed -n 's/.* | +\([0-9][0-9]*\) more event(s).*/\1/p')
-  [ -n "$more" ] || fail "an exhausted budget left no '+K more event(s)' tail: $digest"
+  more=$(printf '%s' "$digest" | sed -n 's/.* ¦ and \([0-9][0-9]*\) more event(s).*/\1/p')
+  [ -n "$more" ] || fail "an exhausted budget left no 'and K more event(s)' tail: $digest"
   shown=$(printf '%s' "$digest" | grep -o 'event [0-9][0-9]*: x' | wc -l | tr -d ' ')
   [ "$((shown + more))" -eq 20 ] || fail "shown ($shown) plus omitted ($more) events do not account for all 20"
   full=$(printf '%s' "$digest" | sed -n 's/.*full text of every event: \([^ )]*\).*/\1/p')
   cmp -s "$full" "$dir/buffer.orig" || fail "omitted events are missing from the full-text file"
   pass "a digest past its byte budget counts the omitted events and keeps them in the full text"
+}
+
+test_digest_orders_only_urgent_status_verbs_first() {
+  local dir state fakebin sent digest
+  dir=$(make_bordered_case digest-urgent-verb)
+  state="$dir/state"; fakebin="$dir/fakebin"
+  sent="$dir/sent.log"; : > "$sent"
+  escalate_add "$state" "secondmate-a.status: done: fixed the failed CI job, unblocked the deploy"
+  escalate_add "$state" "secondmate-b.status: needs-decision [key=pick]: pick A or B"
+  afk_enter "$state"
+  LOG="$dir/daemon.log" PATH="$fakebin:$PATH" FM_FAKE_COMPOSER="$dir/composer" FM_FAKE_SENT="$sent" \
+    FM_INJECT_CONFIRM_SLEEP=0.05 escalate_flush "$state" || fail "urgent-order digest was not delivered"
+  digest=$(grep -F 'Supervisor escalate' "$sent")
+  assert_contains "$digest" 'Supervisor escalate (2 event(s)): secondmate-b.status: needs-decision [key=pick]: pick A or B ¦ secondmate-a.status: done: fixed the failed' "a done item mentioning failed/unblocked was ordered as urgent"
+  pass "only a needs-decision, blocked, or failed status verb orders an item first"
 }
 
 test_inject_send_failure_logs_stage_stderr_and_bytes() {
@@ -2984,6 +2998,306 @@ test_inject_msg_herdr_pane_gone_defers() {
   pass "inject_msg: herdr pane-gone check defers before any busy/composer/submit call"
 }
 
+# make_claude_herdr_fakebin: a stateful fake herdr whose one pane behaves like
+# live Claude 2.1.285 (docs/verification/supervision.md "Away digest size"):
+# a literal send of at least FM_FAKE_CLAUDE_TAIL_ABOVE bytes (default 1024,
+# the measured limit) keeps only its last 280 characters in the composer, ctrl+u deletes the last wrapped
+# 76-column row, Enter submits a non-empty composer into <dir>/submitted
+# and starts a turn unless <dir>/swallow exists, and a read renders the
+# composer between Claude's rules. When <dir>/late exists, a ctrl+u that
+# empties the composer is followed by one read that still shows it empty and
+# then by its text rendered back in, the way a send Claude is still drawing
+# lands just after a clear looked done.
+make_claude_herdr_fakebin() {  # <dir> -> echoes fakebin dir
+  local dir=$1 fb="$1/fakebin-claude-herdr"
+  mkdir -p "$fb"
+  : > "$dir/composer"; : > "$dir/submitted"; : > "$dir/keys"; : > "$dir/typed"
+  printf 'idle' > "$dir/agent"
+  cat > "$fb/herdr" <<'SH'
+#!/usr/bin/env bash
+set -u
+D=${FM_FAKE_CLAUDE_DIR:?}
+args=()
+for a in "$@"; do [ "$a" = --session ] && break; args+=("$a"); done
+set -- "${args[@]}"
+case "${1:-} ${2:-}" in
+  "status --json") printf '{"client":{"version":"0.9.1","protocol":14},"server":{"running":true}}\n' ;;
+  "agent get") printf '{"result":{"agent":{"agent":"claude","agent_status":"%s"}}}\n' "$(cat "$D/agent")" ;;
+  "pane send-text")
+    text=$4
+    printf '%s\n' "$text" >> "$D/typed"
+    if [ "$(printf '%s' "$text" | LC_ALL=C wc -c)" -ge "${FM_FAKE_CLAUDE_TAIL_ABOVE:-1024}" ]; then
+      text=${text: -280}
+    fi
+    printf '%s' "$(cat "$D/composer")$text" > "$D/composer.new" && mv "$D/composer.new" "$D/composer"
+    ;;
+  "pane send-keys")
+    printf '%s\n' "$4" >> "$D/keys"
+    c=$(cat "$D/composer")
+    case "$4" in
+      ctrl+u)
+        c=$(printf '%s' "$c" | fold -s -w 76 | sed '$d' | tr -d '\n')
+        printf '%s' "$c" > "$D/composer"
+        [ -n "$c" ] || [ ! -e "$D/late" ] || mv "$D/late" "$D/late.armed"
+        ;;
+      enter)
+        if [ -n "$c" ] && [ ! -e "$D/swallow" ]; then
+          printf '%s\n' "$c" >> "$D/submitted"; : > "$D/composer"; printf 'working' > "$D/agent"
+        fi
+        ;;
+    esac
+    ;;
+  "pane read")
+    if [ -e "$D/late.ready" ]; then
+      cat "$D/late.ready" > "$D/composer"; rm -f "$D/late.ready"
+    elif [ -e "$D/late.armed" ]; then
+      mv "$D/late.armed" "$D/late.ready"
+    fi
+    c=$(cat "$D/composer")
+    printf 'previous turn output\n'
+    printf '%s\n' '────────────────────────────────────────────────────────────────────────────────'
+    first=1
+    while IFS= read -r row || [ -n "$row" ]; do
+      if [ "$first" = 1 ]; then printf '\xe2\x9d\xaf %s\n' "$row"; first=0; else printf '  %s\n' "$row"; fi
+    done < <(printf '%s' "$c" | fold -s -w 76)
+    [ "$first" = 0 ] || printf '\xe2\x9d\xaf \n'
+    printf '%s\n' '────────────────────────────────────────────────────────────────────────────────'
+    printf '  ? for shortcuts\n'
+    ;;
+  *) printf '{}\n' ;;
+esac
+SH
+  chmod +x "$fb/herdr"
+  printf '%s\n' "$fb"
+}
+
+# claude_herdr_env: run <cmd...> against the fake Claude pane in <dir> as the
+# herdr supervisor target, with the live pane-existence and busy probes stubbed.
+claude_herdr_env() {  # <dir> <cmd...>
+  local dir=$1
+  shift
+  (
+    # shellcheck disable=SC2329  # stubs the daemon calls by name
+    fm_backend_target_exists() { return 0; }
+    # shellcheck disable=SC2329
+    pane_is_busy() { return 1; }
+    # shellcheck disable=SC2030  # exported only for this subshell's command
+    export LOG="$dir/daemon.log" PATH="$dir/fakebin-claude-herdr:$PATH" FM_FAKE_CLAUDE_DIR="$dir" \
+      FM_SUPERVISOR_BACKEND=herdr FM_SUPERVISOR_TARGET=default:w1:p1 FM_BACKEND_HERDR_SUBMIT_POLLS=1 \
+      FM_BACKEND_HERDR_CLEAR_SETTLE=0 FM_INJECT_CONFIRM_SLEEP=0.01
+    "$@"
+  )
+}
+
+# Regression: Claude wraps a digest at word boundaries, and the shared composer
+# classifier reads a wrapped row that starts or ends with `+` as a box edge, so
+# a `+1` or `C++` token on a row edge cut the read-back short and every attempt
+# was refused. The injected copy must carry no edge glyph.
+test_plus_tokens_on_wrapped_rows_reach_a_claude_composer() {
+  local dir state i item
+  dir=$(make_supercase digest-claude-plus)
+  state="$dir/state"
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  item="secondmate-a.status: done: merged C++ fix"
+  for i in $(seq 1 40); do item+=" +1"; done
+  escalate_add "$state" "$item ─ +120/-4 lines"
+  afk_enter "$state"
+  claude_herdr_env "$dir" escalate_flush "$state" \
+    || fail "a digest with + tokens on wrapped row edges was not delivered: $(cat "$dir/daemon.log" 2>/dev/null)"
+  assert_contains "$(cat "$dir/submitted")" 'done: merged C＋＋ fix ＋1 ＋1' "the submitted digest lost its + tokens"
+  [ "$(wc -l < "$dir/submitted" | tr -d ' ')" -eq 1 ] || fail "the digest was not submitted exactly once"
+  [ ! -s "$state/.subsuper-escalations" ] || fail "buffer not cleared after the digest was submitted"
+  pass "a digest whose + tokens wrap onto a row edge is submitted to a Claude composer"
+}
+
+# Regression (away digests undelivered for a whole night on a Claude primary
+# under herdr): the byte-bounded digest was near 8.5 KB, Claude kept only its
+# tail, and the herdr submit proof refused every attempt, so the same digest
+# failed for hours. A maximal digest must fit what Claude keeps whole and be
+# submitted on the first attempt.
+test_maximal_digest_reaches_a_claude_composer_on_herdr() {
+  local dir state i item typed full
+  dir=$(make_supercase digest-claude-herdr)
+  state="$dir/state"
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  for i in a b c d e f; do
+    item="secondmate-$i.status: "
+    while [ "${#item}" -lt 30000 ]; do item+="done: fix shipped, PR https://x/y/pull/1 ; "; done
+    escalate_add "$state" "$item (catch-all scan)"
+  done
+  cp "$state/.subsuper-escalations" "$dir/buffer.orig"
+  afk_enter "$state"
+  claude_herdr_env "$dir" escalate_flush "$state" \
+    || fail "a maximal digest was not delivered to a Claude composer on herdr: $(cat "$dir/daemon.log" 2>/dev/null)"
+  typed=$(cat "$dir/typed")
+  [ "$(printf '%s' "$typed" | LC_ALL=C wc -c | tr -d ' ')" -le $((ESCALATE_INJECT_BYTES + 1)) ] \
+    || fail "the typed digest exceeds the injected-size budget"
+  assert_contains "$typed" 'more event(s)' "events past the budget were not counted"
+  full=$(printf '%s' "$typed" | sed -n 's/.*full text of every event: \([^ )]*\).*/\1/p')
+  if [ -z "$full" ] || ! cmp -s "$full" "$dir/buffer.orig"; then
+    fail "the over-budget events are not kept in full: $typed"
+  fi
+  assert_contains "$(cat "$dir/submitted")" 'Supervisor escalate (6 event(s)): secondmate-a.status: done:' "the submitted digest lost its head"
+  assert_contains "$(cat "$dir/submitted")" 'full text of every event:' "the submitted digest lost its tail"
+  [ "$(wc -l < "$dir/submitted" | tr -d ' ')" -eq 1 ] || fail "the digest was not submitted exactly once"
+  [ ! -s "$state/.subsuper-escalations" ] || fail "buffer not cleared after the digest was submitted"
+  [ ! -s "$dir/composer" ] || fail "the composer still holds text after the submit"
+  pass "a maximal away digest fits what Claude keeps whole and is submitted through herdr on the first attempt"
+}
+
+# Guard for the regression above: a send Claude cuts to its tail is refused
+# and cleared, never submitted, even when the cut text renders back in after
+# the first clear.
+test_tail_only_send_is_cleared_even_when_it_renders_late() {
+  local dir out
+  dir=$(make_supercase claude-herdr-late-tail)
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  printf 'late tail of the refused digest that Claude was still drawing' > "$dir/late"
+  # shellcheck disable=SC2016  # $1/$2 expand in the child shell
+  out=$(claude_herdr_env "$dir" env FM_FAKE_CLAUDE_TAIL_ABOVE=1000 \
+    bash -c '. "$1/bin/backends/herdr.sh"; fm_backend_herdr_send_text_submit default:w1:p1 "$2" 3 0.01 0.01' \
+    _ "$ROOT" "$(printf 'digest event %.0s' $(seq 1 200))")
+  [ "$out" = send-failed ] || fail "a tail-only send should report send-failed, got '$out'"
+  # Let any drawing still pending land before judging what was left behind.
+  FM_FAKE_CLAUDE_DIR="$dir" "$dir/fakebin-claude-herdr/herdr" pane read w1:p1 >/dev/null
+  [ ! -s "$dir/submitted" ] || fail "a tail-only send must never be submitted"
+  [ ! -s "$dir/composer" ] || fail "text rendered after the first clear was left in the composer: $(cat "$dir/composer")"
+  pass "a tail-only send is refused and its composer cleared, including text that renders after the first clear"
+}
+
+# Recovery: a failed attempt left its whole typed digest in the composer. The
+# next attempt removes exactly that text and delivers once.
+test_inject_clears_its_own_undelivered_digest_then_delivers() {
+  local dir state
+  dir=$(make_supercase inject-own-leftover)
+  state="$dir/state"
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  afk_enter "$state"
+  _own_leftover_flow() {
+    touch "$dir/swallow"
+    if inject_msg "needs-decision: pick A or B for the release" "$state"; then
+      fail "a swallowed Enter must not be reported delivered"
+    fi
+    assert_contains "$(cat "$dir/composer")" 'pick A or B' "the swallowed digest should sit in the composer"
+    rm -f "$dir/swallow"
+    inject_msg "needs-decision: pick A or B for the release" "$state" \
+      || fail "the retry did not deliver after clearing its own text: $(cat "$dir/daemon.log")"
+  }
+  claude_herdr_env "$dir" _own_leftover_flow || fail "own-leftover flow failed"
+  grep -F 'inject recovered: cleared the unsubmitted text of an earlier digest' "$dir/daemon.log" >/dev/null \
+    || fail "the recovery was not logged: $(cat "$dir/daemon.log")"
+  [ "$(wc -l < "$dir/submitted" | tr -d ' ')" -eq 1 ] || fail "expected exactly one submitted digest, got: $(cat "$dir/submitted")"
+  assert_contains "$(cat "$dir/submitted")" 'pick A or B' "the retried digest was not the one submitted"
+  [ ! -s "$dir/composer" ] || fail "the composer still holds text after recovery"
+  pass "an undelivered digest left in the composer is cleared by the next attempt, which then delivers once"
+}
+
+# Recovery after afk ends: a failed attempt left its digest in the composer and
+# the captain turned afk off. The next pass is gated from injecting, but still
+# removes the leftover and submits nothing.
+test_afk_off_pass_clears_an_undelivered_digest() {
+  local dir state
+  dir=$(make_supercase inject-own-leftover-afk-off)
+  state="$dir/state"
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  afk_enter "$state"
+  _afk_off_flow() {
+    touch "$dir/swallow"
+    escalate_add "$state" "needs-decision: pick A or B for the release"
+    escalate_flush "$state" && fail "a swallowed Enter must not be reported delivered"
+    assert_contains "$(cat "$dir/composer")" 'pick A or B' "the swallowed digest should sit in the composer"
+    rm -f "$dir/swallow"
+    afk_exit "$state"
+    escalate_flush "$state" && fail "an afk-off pass must not deliver"
+    return 0
+  }
+  claude_herdr_env "$dir" _afk_off_flow || fail "afk-off flow failed"
+  [ ! -s "$dir/composer" ] || fail "the afk-off pass left the digest in the composer: $(cat "$dir/composer")"
+  [ ! -s "$dir/submitted" ] || fail "the afk-off pass submitted something: $(cat "$dir/submitted")"
+  [ -s "$state/.subsuper-escalations" ] || fail "the undelivered escalation was dropped"
+  pass "a pass after afk turns off clears an undelivered digest without submitting it"
+}
+
+# Recovery at shutdown: a failed attempt left its digest in the composer, afk
+# is off, and nothing is buffered to flush; shutdown still removes the leftover.
+test_shutdown_clears_an_undelivered_digest() {
+  local dir state
+  dir=$(make_supercase inject-own-leftover-shutdown)
+  state="$dir/state"
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  afk_enter "$state"
+  _shutdown_flow() {
+    touch "$dir/swallow"
+    inject_msg "needs-decision: pick A or B for the release" "$state" && fail "a swallowed Enter must not be reported delivered"
+    assert_contains "$(cat "$dir/composer")" 'pick A or B' "the swallowed digest should sit in the composer"
+    rm -f "$dir/swallow"
+    afk_exit "$state"
+    shutdown_flush "$state"
+  }
+  claude_herdr_env "$dir" _shutdown_flow || fail "shutdown flow failed"
+  [ ! -s "$dir/composer" ] || fail "shutdown left the digest in the composer: $(cat "$dir/composer")"
+  [ ! -s "$dir/submitted" ] || fail "shutdown submitted something: $(cat "$dir/submitted")"
+  pass "daemon shutdown clears an undelivered digest even with afk off"
+}
+
+# The captain's own text is never cleared or submitted: after a failed attempt
+# the captain replaced the leftover with a draft, and the retry leaves it alone.
+test_inject_leaves_the_captains_draft_alone() {
+  local dir state
+  dir=$(make_supercase inject-captain-draft)
+  state="$dir/state"
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  afk_enter "$state"
+  _captain_draft_flow() {
+    touch "$dir/swallow"
+    inject_msg "needs-decision: pick A or B for the release" "$state" && fail "a swallowed Enter must not be reported delivered"
+    rm -f "$dir/swallow"
+    printf 'captain here, hold the release until I am back and do not merge anything' > "$dir/composer"
+    : > "$dir/keys"; : > "$dir/typed"
+    inject_msg "needs-decision: pick A or B for the release" "$state" && fail "the retry must defer on the captain's draft"
+    return 0
+  }
+  claude_herdr_env "$dir" _captain_draft_flow || fail "captain-draft flow failed"
+  [ "$(cat "$dir/composer")" = 'captain here, hold the release until I am back and do not merge anything' ] \
+    || fail "the captain's draft was changed: $(cat "$dir/composer")"
+  [ ! -s "$dir/keys" ] || fail "a key was sent into the captain's draft: $(cat "$dir/keys")"
+  [ ! -s "$dir/typed" ] || fail "text was typed onto the captain's draft"
+  [ ! -s "$dir/submitted" ] || fail "something was submitted from the captain's composer"
+  grep -F 'left alone' "$dir/daemon.log" >/dev/null || fail "leaving the draft alone was not logged"
+  pass "the captain's own draft is never cleared, typed onto, or submitted by the retry"
+}
+
+# The own-text test at the backend seam: a tail of the typed text is ours; the
+# captain's draft, our tail with the captain's typing added, and a leftover too
+# short to prove are not.
+test_composer_clear_own_distinguishes_own_text() {
+  local dir typed out case_name composer want
+  dir=$(make_supercase clear-own-cases)
+  make_claude_herdr_fakebin "$dir" >/dev/null
+  typed=$(printf 'digest event number %.0s' $(seq 1 60))
+  for case_name in tail draft appended short empty; do
+    case "$case_name" in
+      tail) composer=${typed: -200}; want=cleared ;;
+      draft) composer='please hold everything, I will review when back'; want=foreign ;;
+      appended) composer="${typed: -120} and also hold the merge"; want=foreign ;;
+      short) composer=${typed: -20}; want=foreign ;;
+      empty) composer=; want=empty ;;
+    esac
+    printf '%s' "$composer" > "$dir/composer"; : > "$dir/keys"
+    out=$(claude_herdr_env "$dir" fm_backend_composer_clear_own herdr default:w1:p1 "$typed")
+    [ "$out" = "$want" ] || fail "clear_own on the $case_name composer gave '$out', want '$want'"
+    if [ "$want" = cleared ]; then
+      [ ! -s "$dir/composer" ] || fail "our tail was not cleared"
+    else
+      [ ! -s "$dir/keys" ] || fail "a key was sent into the $case_name composer"
+      [ "$(cat "$dir/composer")" = "$composer" ] || fail "the $case_name composer was changed"
+    fi
+  done
+  [ "$(claude_herdr_env "$dir" fm_backend_composer_clear_own tmux '%1' "$typed")" = unsupported ] \
+    || fail "a backend without the primitive should report unsupported"
+  pass "fm_backend_composer_clear_own clears only a provable piece of the typed text"
+}
+
 test_inject_msg_herdr_submits_through_backend_dispatch() {
   local dir state
   dir=$(make_supercase inject-herdr-submit)
@@ -3137,6 +3451,7 @@ test_max_defer_pending_composer_alarms_without_typing
 test_normal_flush_clears_stale_wedge_marker
 test_oversized_digest_is_bounded_and_kept_durable
 test_digest_budget_counts_omitted_events
+test_digest_orders_only_urgent_status_verbs_first
 test_inject_send_failure_logs_stage_stderr_and_bytes
 test_inject_enter_failure_logs_confirmation_stage
 test_bounded_digest_full_text_kept_after_typing
@@ -3177,3 +3492,11 @@ test_inject_msg_herdr_pane_gone_defers
 test_inject_msg_herdr_submits_through_backend_dispatch
 test_inject_msg_defers_on_dead_shell_unknown
 test_inject_msg_defers_on_unrecognized_composer_state
+test_maximal_digest_reaches_a_claude_composer_on_herdr
+test_plus_tokens_on_wrapped_rows_reach_a_claude_composer
+test_tail_only_send_is_cleared_even_when_it_renders_late
+test_inject_clears_its_own_undelivered_digest_then_delivers
+test_afk_off_pass_clears_an_undelivered_digest
+test_shutdown_clears_an_undelivered_digest
+test_inject_leaves_the_captains_draft_alone
+test_composer_clear_own_distinguishes_own_text

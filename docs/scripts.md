@@ -89,6 +89,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-procevent-remote-reply.sh` | Relay the remote-secondmate status stream through non-destructive process-event deltas |
 | `fm-procevent-quota.sh`  | Wake Firstmate when tracked quota drops below a threshold, is exhausted, or cannot be polled |
 | `fm-procevent-when.sh`   | Fire a trust-bound deterministic action at most once when its registered condition holds, then wake with the outcome |
+| `fm-procevent-today-answers.sh` | Keep the Today bridge's answers long-poll running outside Firstmate's turn and wake Firstmate with each carried round |
 | `fm-gate-refuse-lib.sh`  | Shared gate-context lifecycle boundary for real and lab homes                      |
 | `fm-watch-arm.sh`        | Verified home-scoped watcher arm wrapper with loud cycle endings and bounded lifecycle ledger |
 | `fm-watch-checkpoint.sh` | Run one bounded foreground watcher checkpoint for Codex-style supervision            |
@@ -164,8 +165,9 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-mail.sh`             | General-purpose mail plane: read unseen IMAP mail, send one SMTP message, or surface new mail as a `check` wake via `poll` (configuration in the home's gitignored `.env`) |
 | `fm-mail.py`             | The IMAP/SMTP engine behind `fm-mail.sh` |
 | `fm-mail-check.sh`       | Standing received-mail poll: `arm` registers a watcher check that runs `fm-mail.sh poll` on the watcher cadence (new mail still wakes via the poll; the check's own line also wakes unless the poll is a proven no-op), `disarm` removes it |
-| `fm-today-bridge.sh`     | Build the fleet's `fm-today-snapshot.v1` document, text-check it, and push it outward to the admin portal's Today page ([contract](today-contract.md)) |
+| `fm-today-bridge.sh`     | Build the fleet's `fm-today-snapshot.v1` document, text-check it, and push it outward to the admin portal's Today page, and carry the captain's Today answers back into the hold lifecycle with receipts ([contract](today-contract.md)) |
 | `fm-today-autopush.sh`   | Watcher-driven `tick` that runs `fm-today-bridge.sh push` when the snapshot changed or a top-up is due, and leaves one notice per failure episode ([settings](configuration.md#automatic-push)) |
+| `fm-today-passkey-verify.py` | Check the captain's passkey on a Today merge or go answer against the enrolled key and the call's current card, and keep the permanent answer ledger; releases nothing itself ([contract](today-contract.md#the-passkey)) |
 | `fm-voice-relay.py`      | Hold the spoken conversation on this host, answer from the records, and hand real work to `fm-inbox.sh` ([voice-relay.md](voice-relay.md)) |
 | `fm-voice-client.py`     | The laptop end of the spoken interface: capture, playback, and turn timing over SSH; audio devices unverified |
 | `fm_voice_frame.py`      | The wire format both machines share, copied to the laptop beside the client          |

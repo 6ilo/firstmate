@@ -22,8 +22,8 @@
 #     hold_reason, and hold_until when tasks-axi emits it. They also carry
 #     normalized current_role, requires_child_metadata, blocked_by_ids,
 #     unresolved_blocker_ids, captain_actionable, hold_set, hold_age_days,
-#     hold_due, hold_due_days, hold_due_phase, hold_options, and hold_bucket
-#     fields.
+#     hold_due, hold_due_days, hold_due_phase, hold_call, hold_options, and
+#     hold_bucket fields.
 #     Repeated blocker tokens remain ordered; a blocker resolves only when its
 #     structured record is Done, and missing ids stay open.
 #     There is no separate decision type: any captain-held task is the same
@@ -47,10 +47,15 @@
 #     observation date to it (negative once past), and hold_due_phase is
 #     "window" inside the lead window, "day" on or after the due date, else
 #     null; --captain-holds-due prints exactly the rows with a phase.
-#     hold_options is the call's structured answer options, the run of
-#     `Captain hold option: <json>` lines under the hold-set and due stamps
-#     (bin/fm-captain-hold.sh hold --option owns them), in order, or null when
-#     the hold records none.
+#     hold_call is what kind of call the hold records when it is not an
+#     ordinary decision, `{"kind": "merge", "pr_url"}`, `{"kind": "go"}`, or
+#     `{"kind": "credential"}`,
+#     read from the `Captain hold call: <json>` line among the lines under the
+#     hold-set stamp (bin/fm-captain-hold.sh hold --call owns it), or null.
+#     hold_options is the call's structured answer options, the
+#     `Captain hold option: <json>` lines among the lines under the hold-set
+#     stamp (bin/fm-captain-hold.sh hold --option owns them), in order, or
+#     null when the hold records none.
 #     Aging is a projection safety net only: the durable deferral remains
 #     re-holding with --until.
 #     Renderers keep every non-live bucket out of the default Captain's Call,
@@ -518,6 +523,7 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
              hold_until:metadata($rest; "hold-until"),
              hold_set:null,
              hold_due:null,
+             hold_call:null,
              hold_options:null,
              blocked_by:cap($rest; ".*blocked-by:[[:space:]]*(?<v>[^[:space:])]+).*"),
              blocked_by_ids:blocked_by_ids($rest),
@@ -558,10 +564,21 @@ backlog_json() {  # [<backlog-path>] - defaults to this home's $BACKLOG
           | .hold_due = (if .hold_set != null and (.body_lines | length) > 1
               then cap(.body_lines[1]; "^Captain hold due:[[:space:]]*(?<v>[0-9]{4}-[0-9]{2}-[0-9]{2})$")
               else null end)
+          | .hold_call = (if .hold_set == null then null
+              else [.body_lines[1:][]]
+                | (map(test("^Captain hold ")) | index(false) // length) as $n
+                | [.[:$n][] | select(test("^Captain hold call: "))
+                   | sub("^Captain hold call: "; "") | (fromjson? // empty)
+                   | select(type == "object" and (.kind == "go" or .kind == "credential"
+                       or (.kind == "merge" and (.pr_url | type) == "string")))
+                   | if .kind == "merge" then {kind, pr_url} else {kind} end]
+                | .[0]
+              end)
           | .hold_options = (if .hold_set == null then null
-              else [.body_lines[(if .hold_due == null then 1 else 2 end):][]]
-                | (map(test("^Captain hold option: ")) | index(false) // length) as $n
-                | [.[:$n][] | sub("^Captain hold option: "; "") | (fromjson? // empty)
+              else [.body_lines[1:][]]
+                | (map(test("^Captain hold ")) | index(false) // length) as $n
+                | [.[:$n][] | select(test("^Captain hold option: "))
+                   | sub("^Captain hold option: "; "") | (fromjson? // empty)
                    | select(type == "object")]
                 | if length == 0 then null else . end
               end)

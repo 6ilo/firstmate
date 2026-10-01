@@ -155,9 +155,12 @@ Default fields: schema, home, generated, prs, in_flight{id,kind,state,repo,name,
 --json only: main-home in_flight and gates rows carry an optional plan object
   {urgency,size,type,order,target,waits_on} when any is recorded
   (bin/fm-backlog-plan.sh); rows with none, and TOON output, are unchanged.
-  Main-home decisions_open rows likewise carry an optional options array
-  [{value,label,hint?,recommended}] when the hold recorded any
-  (bin/fm-captain-hold.sh hold --option). Secondmate-home rows carry none.
+  Main-home decisions_open rows likewise carry the held task's backlog kind as
+  task_kind, an optional call object {kind,pr_url?} when the hold recorded
+  a merge, go, or credential call (bin/fm-captain-hold.sh hold --call), and an
+  optional options array [{value,label,hint?,recommended}] when the hold
+  recorded any (bin/fm-captain-hold.sh hold --option). Secondmate-home rows
+  carry no options.
 Default gates are selected newest filed first before their bound; undated gates
   retain input order after dated gates.
 landed merges this home's Done with registered secondmate homes' Done, bounded by
@@ -558,6 +561,8 @@ MODEL=$(printf '%s' "$SNAP" | jq \
          | select(($all_decisions == 1) or live_captain_call)
          | {id,key:.id,verb:"captain-hold",
             summary:hold_summary(.title; .hold_reason),owner:"(main)"}
+           + (if .kind != null then {task_kind:.kind} else {} end)
+           + (if .hold_call != null then {call:.hold_call} else {} end)
            + (if .hold_options != null then {options:.hold_options} else {} end) ]
      + [ (.secondmate_current.records // [])[] as $m
          | ([ $m.decisions_open[]?
@@ -738,11 +743,11 @@ fi
 # the tabular array form
 # (key[N]{fields}: + comma rows at +2 indent), and the empty-array form (key: []),
 # per the TOON spec. Quoting follows the spec exactly.
-# Planning fields and call options are nested per-row values that tabular TOON
-# rows cannot carry, so they are a --json-only surface.
+# Planning fields, a call's kind, and call options are per-row values that
+# tabular TOON rows cannot carry uniformly, so they are a --json-only surface.
 TOON=$(printf '%s\n' "$MODEL" | jq -r '
   (.in_flight, .gates) |= map(del(.plan)) |
-  .decisions_open |= map(del(.options)) |
+  .decisions_open |= map(del(.task_kind, .call, .options)) |
   def q:
     tostring
     | if (. == "")
