@@ -25,7 +25,7 @@
   ],
   "repo": "MMEG-PIT/relay-platform",
   "due": "2026-10-02",
-  "raised_at": "2026-09-27T16:40:00Z",
+  "raised_at": "2026-09-27T17:40:00+01:00",
   "text_check": {
     "verdict": "pass",
     "checker": "fm-today-text-check@1.0.0",

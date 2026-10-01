@@ -90,7 +90,8 @@ make_home() {  # <name>
 EOF
   fm_write_meta "$home/state/ship-task.meta" \
     "window=firstmate:fm-ship-task" "worktree=$home/projects" "project=firstmate" \
-    "harness=claude" "kind=ship" "mode=no-mistakes" "pr=https://github.com/acme/widget/pull/9"
+    "harness=claude" "kind=ship" "mode=no-mistakes" "pr=https://github.com/acme/widget/pull/9" \
+    "dispatched_at=2026-09-20T08:30:00Z"
   printf 'working: building the thing\n' > "$home/state/ship-task.status"
   printf '%s\n' "$home"
 }
@@ -242,6 +243,30 @@ test_every_decision_card_ends_with_reconcile() {
   pass "every decision card ends with the one reconcile option, labelled Already settled"
 }
 
+# A call's raised_at is the time its hold was set and an underway row's
+# started_at is the dispatch time in its task record, both read from this
+# home's durable records through the real bearings snapshot; a hold or record
+# without a usable time leaves the field out rather than guessing.
+test_pacing_times_come_from_durable_records() {
+  local snap=$TMP_ROOT/snap.json home snap2
+  [ "$(jq -r '.sections.calls[] | select(.task_id == "call-cut-noted") | .raised_at' "$snap")" = 2000-01-01T00:00:00Z ] \
+    || fail "a call held at a recorded time did not carry it: $(jq -c '.sections.calls[] | select(.task_id == "call-cut-noted")' "$snap")"
+  [ "$(jq '[.sections.calls[] | select(has("raised_at"))] | length' "$snap")" -eq 1 ] \
+    || fail "a call with no recorded hold time carried raised_at: $(jq -c '[.sections.calls[] | {task_id, raised_at}]' "$snap")"
+  [ "$(jq -r '.sections.underway[] | select(.id == "ship-task") | .started_at' "$snap")" = 2026-09-20T08:30:00Z ] \
+    || fail "underway work did not carry its dispatch time: $(jq -c .sections.underway "$snap")"
+  home=$(make_home home-unpaced)
+  sed -i.bak 's/^  Captain hold set: .*/  Captain hold set: 2000-01-01/' "$home/data/backlog.md"
+  sed -i.bak 's/^dispatched_at=.*/dispatched_at=2026-09-20 08:30/' "$home/state/ship-task.meta"
+  bridge "$home" snapshot
+  [ "$CODE" -eq 0 ] || fail "snapshot without usable times exited $CODE: $(cat "$ERR")"
+  snap2=$OUT
+  "${CHECK[@]}" "$snap2" >/dev/null || fail "snapshot without usable times fails the contract: $("${CHECK[@]}" "$snap2")"
+  [ "$(jq '[.sections.calls[] | select(has("raised_at"))] + [.sections.underway[] | select(has("started_at"))] | length' "$snap2")" -eq 0 ] \
+    || fail "a date-only hold or an unusable dispatch time was sent as a time: $(jq -c '.sections | {calls: [.calls[] | {task_id, raised_at}], underway}' "$snap2")"
+  pass "raised_at and started_at come from the hold and dispatch records, and are left out when no usable time is recorded"
+}
+
 # Second mates' calls and work come from the bearings snapshot as `mate/task`
 # ids with the mate as owner. A copy of the bridge whose bearings snapshot is a
 # fixed document stands in for a fleet with a second mate: its calls go out
@@ -255,11 +280,13 @@ test_second_mate_calls_and_work_travel() {
   cp -R "$ROOT/docs/today-contract" "$tree/docs/today-contract"
   cat > "$tree/bin/fm-bearings-snapshot.sh" <<'EOF'
 #!/usr/bin/env bash
-cat <<'JSON'
+held=''
+[ -z "${FM_TEST_HELD_AT:-}" ] || held=", \"held_at\": \"$FM_TEST_HELD_AT\""
+cat <<JSON
 {"home": "firstmate",
  "decisions_open": [
-  {"id": "rail-order", "key": "rail-order", "verb": "captain-hold", "summary": "Choose the rail order", "owner": "(main)"},
-  {"id": "portal-mate/rail-order", "key": "rail-order", "verb": "captain-hold", "summary": "Choose the rail order", "owner": "portal-mate"},
+  {"id": "rail-order", "key": "rail-order", "verb": "captain-hold", "summary": "Choose the rail order", "owner": "(main)"$held},
+  {"id": "portal-mate/rail-order", "key": "rail-order", "verb": "captain-hold", "summary": "Choose the rail order", "owner": "portal-mate"$held},
   {"id": "portal-mate/kit-order", "key": "kit-order", "verb": "captain-hold", "summary": "Choose the kit order", "owner": "portal-mate"},
   {"id": "bad mate/odd-call", "key": "odd-call", "verb": "captain-hold", "summary": "Odd", "owner": "bad mate"}],
  "in_flight": [
@@ -300,7 +327,22 @@ EOF
       || fail "$section work did not travel under both owners: $(jq -c --arg s "$section" '.sections[$s]' "$snap")"
   done
   ! grep -q 'already listed' "$ERR" || fail "work sharing an id with another home was left out: $(cat "$ERR")"
-  pass "second mates' calls and work travel under their owner, keyed with the task id, owner hashed"
+  # The same fleet with hold times recorded: only this home's call carries
+  # raised_at, only this home's work carries started_at, and no card_hash moves.
+  run_n=$((run_n + 1))
+  FM_TEST_HELD_AT=2026-09-27T16:40:00Z FM_HOME="$HOME_A" "$tree/bin/fm-today-bridge.sh" snapshot \
+    > "$OUTPUTS/$run_n.out" 2> "$OUTPUTS/$run_n.err" || fail "snapshot with hold times failed: $(cat "$OUTPUTS/$run_n.err")"
+  "${CHECK[@]}" "$OUTPUTS/$run_n.out" >/dev/null \
+    || fail "snapshot with hold times fails the contract: $("${CHECK[@]}" "$OUTPUTS/$run_n.out")"
+  [ "$(jq -c '[.sections.calls[] | [.owner, .task_id, .raised_at]]' "$OUTPUTS/$run_n.out")" \
+    = '[["(main)","rail-order","2026-09-27T16:40:00Z"],["portal-mate","rail-order",null],["portal-mate","kit-order",null]]' ] \
+    || fail "raised_at did not travel on this home's call alone: $(jq -c '[.sections.calls[] | [.owner, .task_id, .raised_at]]' "$OUTPUTS/$run_n.out")"
+  [ "$(jq -c '[.sections.underway[] | [.owner, .started_at]]' "$OUTPUTS/$run_n.out")" \
+    = '[["(main)","2026-09-20T08:30:00Z"],["portal-mate",null]]' ] \
+    || fail "started_at did not travel on this home's work alone: $(jq -c .sections.underway "$OUTPUTS/$run_n.out")"
+  [ "$(jq -c '[.sections.calls[].card_hash]' "$OUTPUTS/$run_n.out")" = "$(jq -c '[.sections.calls[].card_hash]' "$snap")" ] \
+    || fail "raised_at changed a card_hash"
+  pass "second mates' calls and work travel under their owner, keyed with the task id, owner hashed, raised_at not"
 }
 
 # The portal validates with ajv over its vendored copy of these schemas, which
@@ -1221,6 +1263,7 @@ test_snapshot_is_valid_and_withholds_each_rule_family
 test_snapshot_carries_the_fleet
 test_recorded_options_reach_the_card
 test_card_hash_recomputes
+test_pacing_times_come_from_durable_records
 test_every_row_carries_repo
 test_every_row_carries_its_owner
 test_every_decision_card_ends_with_reconcile

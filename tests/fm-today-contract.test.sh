@@ -74,6 +74,7 @@ card--owner-not-hashed $.card_hash: card_hash
 card--owner-qualified $.owner: pattern
 card--proof-not-hashed $.card_hash: card_hash
 card--proof-short-nonce $.proof.nonce: pattern
+card--raised-at-not-utc $.raised_at: pattern
 card--reconcile-not-last $.options[0].value: reconcile: only a decision card's final option
 card--reconcile-on-go $.options[2].value: reconcile: only a decision card's final option
 card--stale-hash $.card_hash: card_hash
@@ -106,6 +107,7 @@ snapshot--mockup-without-visible $.sections.charted_next[0]: required: missing v
 snapshot--parked-and-deferred $.sections.charted_next[2]: not: matches a forbidden shape
 snapshot--passkeys-credential-twice $.passkeys.credentials: credential_id: a credential appears twice
 snapshot--passkeys-origin-outside-relying-party $.passkeys.origin: origin
+snapshot--started-at-not-a-time $.sections.underway[0].started_at: pattern
 snapshot--underway-extra-field $.sections.underway[0]: additionalProperties: body
 snapshot--unknown-audience $.sections.charted_next[1].aud: enum
 snapshot--until-not-a-date $.sections.charted_next[1].until: pattern
@@ -165,6 +167,10 @@ EOF
   want=$(printf '%s' "$canonical" | sha256_hex)
   got=$("${CHECK[@]}" hash "$card") || fail "hash refused the fixture card"
   [ "$got" = "$want" ] || fail "card_hash $got does not match the published definition $want"
+  # raised_at is not hashed: a card carrying it hashes exactly as one without it.
+  jq '. + {raised_at: "2026-09-27T16:40:00Z"}' "$card" > "$card.raised"
+  got=$("${CHECK[@]}" hash "$card.raised") || fail "hash refused the raised fixture card"
+  [ "$got" = "$want" ] || fail "raised_at changed card_hash to $got from $want"
   # An owner is hashed in its sorted place; a card without one hashes as above.
   jq '. + {owner: "relay-platform"}' "$card" > "$card.owned"
   canonical='{"due":"2026-10-01","kind":"decision","options":[{"label":"Yes","recommended":true,"value":"yes"},{"hint":"Hold","label":"No","recommended":false,"value":"no"}],"owner":"relay-platform","question":"Ship it?\nSay “yes”.","repo":null,"schema":"fm-today-card.v1","task_id":"t-1","title":"Ship"}'
@@ -185,7 +191,7 @@ EOF
   want=$(printf '%s' "$canonical" | sha256_hex)
   got=$("${CHECK[@]}" hash "$card.go") || fail "hash refused the go fixture card"
   [ "$got" = "$want" ] || fail "go card_hash $got does not match the published definition $want"
-  pass "card_hash matches SHA-256 of the hand-written canonical serialization, with and without an owner, head_sha, subject_sha256 and proof"
+  pass "card_hash matches SHA-256 of the hand-written canonical serialization, with and without an owner, head_sha, subject_sha256 and proof, and unchanged by raised_at"
 }
 
 # The card example a call or answer names: same task_id and same owner, an
@@ -343,6 +349,27 @@ test_passkey_fields_are_additive() {
   pass "all $n cards and the snapshot stay valid without the passkey fields"
 }
 
+# raised_at and started_at are optional and unhashed: every valid card and the
+# snapshot without them still pass with their card hashes unchanged, so a
+# document valid before they existed stays valid.
+test_pacing_fields_are_additive() {
+  local f bare=$TMP_ROOT/unpaced.json out n=0
+  for f in "$CONTRACT"/examples/valid/card-*.json; do
+    jq 'del(.raised_at)' "$f" > "$bare"
+    out=$("${CHECK[@]}" check "$CONTRACT" "$bare" 2>&1) \
+      || fail "$(basename "$f") without raised_at was refused: $out"
+    n=$((n + 1))
+  done
+  jq -e '[.sections.calls[] | select(has("raised_at"))] | length > 0' "$SNAPSHOT" >/dev/null \
+    || fail "the example snapshot carries no raised_at, so this case would be vacuous"
+  jq -e '[.sections.underway[] | select(has("started_at"))] | length > 0' "$SNAPSHOT" >/dev/null \
+    || fail "the example snapshot carries no started_at, so this case would be vacuous"
+  jq '.sections.calls |= map(del(.raised_at)) | .sections.underway |= map(del(.started_at))' "$SNAPSHOT" > "$bare"
+  out=$("${CHECK[@]}" check "$CONTRACT" "$bare" "${CONTEXT[@]}" 2>&1) \
+    || fail "the snapshot without raised_at and started_at was refused: $out"
+  pass "all $n cards and the snapshot stay valid, hashes unchanged, without raised_at and started_at"
+}
+
 # The portal compiles its snapshot validator from the card and snapshot
 # schemas alone, so the snapshot schema may reference no other file.
 test_snapshot_needs_only_the_card_schema() {
@@ -398,6 +425,7 @@ test_passkey_challenge_matches_published_definition
 test_example_signatures_verify_under_openssl
 test_fresh_keys_round_trip
 test_passkey_fields_are_additive
+test_pacing_fields_are_additive
 test_snapshot_needs_only_the_card_schema
 test_portal_ajv_accepts_the_examples
 

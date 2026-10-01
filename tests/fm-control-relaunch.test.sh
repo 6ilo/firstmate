@@ -379,6 +379,8 @@ test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint() {
     || fail "the worktree must be reused, not reallocated"
   [ "$(meta_field "$dir" rl1 kind)" = ship ] || fail "kind must survive the relaunch"
   [ "$(meta_field "$dir" rl1 project)" = "$dir/proj" ] || fail "project must survive the relaunch"
+  ! grep -q '^dispatched_at=' "$dir/home/state/rl1.meta" \
+    || fail "a relaunch must not invent a dispatch time the record never had"
   gen_after=$(meta_field "$dir" rl1 busy_gen)
   [ -n "$gen_after" ] && [ "$gen_after" != "$gen_before" ] \
     || fail "a relaunch must arm a fresh busy generation, got '$gen_after'"
@@ -474,6 +476,7 @@ test_relaunch_preserves_durable_task_metadata() {
     printf '%s\n' 'pr_head=feature/relaunch'
     printf '%s\n' 'x_request=request-19'
     printf '%s\n' 'decisions_reviewed=1'
+    printf '%s\n' 'dispatched_at=2026-09-20T08:30:00Z'
   } >> "$dir/home/state/rl19.meta"
 
   out=$(run_control "$dir" rl19 relaunch --note "continuing review work"); rc=$?
@@ -486,6 +489,9 @@ test_relaunch_preserves_durable_task_metadata() {
     || fail "the task X request must survive relaunch"
   [ "$(meta_field "$dir" rl19 decisions_reviewed)" = 1 ] \
     || fail "the task decision state must survive relaunch"
+  [ "$(grep -c '^dispatched_at=' "$dir/home/state/rl19.meta")" -eq 1 ] \
+    && [ "$(meta_field "$dir" rl19 dispatched_at)" = 2026-09-20T08:30:00Z ] \
+    || fail "the task's dispatch time must survive relaunch once, unchanged"
   pass "fm-control relaunch: durable task metadata survives replacement launch publication"
 }
 

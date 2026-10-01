@@ -41,6 +41,13 @@
 #               title or body.
 #             day
 #               the calendar day file (below)
+#             raised_at on a card, started_at on an underway row
+#               this home's own records only: a call's raised_at is the time
+#               its hold was set (bearings' decisions_open held_at, from
+#               bin/fm-captain-hold.sh), and a row's started_at is the
+#               dispatched_at bin/fm-spawn.sh recorded in state/<id>.meta.
+#               Either is left out when no such time is recorded, and always
+#               for a second mate's call or work; raised_at is never hashed.
 #           Every card and work row carries `owner`: `(main)` for this home,
 #           otherwise the second mate whose home holds it, with the bare task
 #           id in that home (bearings' `mate/task` becomes owner `mate`, id
@@ -315,7 +322,7 @@ import re
 import subprocess
 import sys
 
-GENERATOR_VERSION = "1.3.0"
+GENERATOR_VERSION = "1.4.0"
 CHECKER = "fm-today-text-check@1.0.0"
 # docs/today-contract.md owns this definition.
 CARD_HASH_FIELDS = ("schema", "task_id", "owner", "kind", "title", "question",
@@ -330,6 +337,7 @@ REPO = re.compile(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
 PR_URL = re.compile(r"^https://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?/[^\s]*$")
 LINK = re.compile(r"^https?://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?/[^\s]*$")
 GITHUB = re.compile(r"github\.com[:/]([A-Za-z0-9_.-]{1,100})/([A-Za-z0-9_.-]{1,100}?)(?:\.git)?(?:/|$)")
+UTC_STAMP = re.compile(r"^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$")
 INSTANT = re.compile(r"^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]{1,6})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$")
 DATE = re.compile(r"^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])")
 
@@ -429,6 +437,27 @@ def utc_now():
 
 def utc_stamp(epoch):
     return datetime.datetime.fromtimestamp(epoch, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def utc_time(text):
+    """A UTC stamp naming a real instant, or None."""
+    if not isinstance(text, str) or not UTC_STAMP.match(text):
+        return None
+    try:
+        datetime.datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return None
+    return text
+
+
+def dispatched_at(task):
+    """The dispatch time bin/fm-spawn.sh recorded in this home's task record, or None."""
+    try:
+        with open(os.path.join(state_dir, task + ".meta"), encoding="utf-8") as fh:
+            values = [l[len("dispatched_at="):].rstrip("\n") for l in fh if l.startswith("dispatched_at=")]
+    except (OSError, UnicodeDecodeError):
+        return None
+    return utc_time(values[0]) if len(values) == 1 else None
 
 
 def instant(text):
@@ -613,6 +642,9 @@ for dec in bearings.get("decisions_open") or []:
             "repo": repo_for(None, pr) if pr else None}
     if pr:
         card["pr_url"] = pr
+    raised = utc_time(dec.get("held_at")) if owner == MAIN else None
+    if raised:
+        card["raised_at"] = raised
     card["text_check"] = {"verdict": verdict, "checker": CHECKER, "checked_at": now}
     card["card_hash"] = card_hash(card)
     calls.append(card)
@@ -639,6 +671,9 @@ for row in bearings.get("in_flight") or []:
     out.update(plan_fields(row.get("plan"), row.get("kind"), False))
     if pr:
         out["pr_url"] = pr
+    started = dispatched_at(raw) if owner == MAIN else None
+    if started:
+        out["started_at"] = started
     underway.append(out)
 
 charted = []
