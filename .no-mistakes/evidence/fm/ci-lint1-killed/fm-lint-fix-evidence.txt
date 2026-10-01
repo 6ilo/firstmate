@@ -1,0 +1,21 @@
+Target change (bin/fm-lint.sh fm_lint_worker): one ShellCheck process per root in ALL modes,
+replacing source-following mode's single process over all roots (which retained heap and
+outgrew a 16GB CI runner -> exit 143 on Lint 1 / canonical partition).
+
+1) New regression test test_source_following_invokes_shellcheck_once_per_root
+   drives the REAL bin/fm-lint.sh (4 roots, FM_LINT_JOBS=1, stub shellcheck counts
+   invocations/flag log):
+   $ bash tests/.fmlint_focused.sh   (only that test, target commit)
+   RESULT: ok - fm-lint.sh source-following mode invokes ShellCheck once per root
+   (4 external-sources=yes invocations == 4 roots)
+
+2) Regression origin check - same test against BASE commit 7cb7b52 bin/fm-lint.sh:
+   RESULT: not ok - source-following lint used 2 ShellCheck calls for four roots
+   => base spawned one long-lived ShellCheck per worker shard (2 total, each over
+   multiple roots); fix spawns one per root (4 total). Test fails before, passes after.
+
+3) Partition completeness/disjointness (no shellcheck/actionlint needed):
+   p1=$(bin/fm-lint.sh --partition 1of2 --list-files)=230
+   p2=$(bin/fm-lint.sh --partition 2of2 --list-files)=230
+   union unique = 460 == total canonical count; overlap duplicates = 0
+   => partitions complete and disjoint; change did not alter partition routing.
