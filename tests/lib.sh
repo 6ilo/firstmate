@@ -543,6 +543,19 @@ fm_git_init_commit() {
   git -C "$dir" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' commit -qm initial
 }
 
+# fm_git_no_auto_maintenance <repo>: stop git's automatic maintenance in a
+# fixture repository that a later step clones locally. A commit triggers
+# `git maintenance run --auto`, which detaches by default and, on newer git,
+# packs loose objects and deletes the packed originals in the background. A
+# local `git clone` of that repository copies loose objects file by file, so it
+# fails with "failed to copy file to ...: No such file or directory" whenever
+# the detached maintenance removes an object mid-copy. Call this after
+# `git init` and before the first commit.
+fm_git_no_auto_maintenance() {
+  git -C "$1" config maintenance.auto false
+  git -C "$1" config gc.auto 0
+}
+
 # fm_git_add_origin <repo> <bare>: clone <repo> bare into <bare> and register it
 # as <repo>'s origin via a file:// URL (so later clones resolve an absolute path).
 fm_git_add_origin() {
