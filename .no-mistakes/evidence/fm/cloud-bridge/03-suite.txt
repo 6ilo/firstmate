@@ -1,0 +1,5 @@
+ok - launch refuses before starting anything without a backlog item, a cloud delivery mode, or a merge posture
+ok - a cloud task launches from its brief, reports its pull request as ready, and is cleaned up with no local copy
+ok - a cloud task's ready report is accepted only for its recorded repository, in any casing
+ok - a reused scratch clone switches to another base branch
+ok - two launches on one repository at once both start from its scratch clone

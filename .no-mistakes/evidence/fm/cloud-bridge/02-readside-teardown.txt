@@ -1,0 +1,18 @@
+# Live read-side supervision + teardown guard on a cloud task (real product scripts, isolated temp home)
+task record: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-cloud-live.qd9HSM/state/proj1.meta (backend=cloud, cloud_session=https://claude.ai/code/session_LIVEdef456, no worktree/window)
+
+## crew-state (real fm-crew-state.sh)
+state: working · source: cloud-session · https://claude.ai/code/session_LIVEdef456 (no pull request yet)
+
+## fleet snapshot (real fm-fleet-snapshot.sh)
+cloud	working	example/widgets	open the cloud session https://claude.ai/code/session_LIVEdef456
+
+## session-start endpoint (real fm-session-start.sh)
+endpoint: cloud session https://claude.ai/code/session_LIVEdef456 (no local endpoint; its pull request is the ready report)
+
+## teardown without a recorded PR (expect REFUSED, record preserved)
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+REFUSED: cloud task proj1 has no recorded pull request; its work is still only in cloud session https://claude.ai/code/session_LIVEdef456.
+Wait for its pull request to arrive as the ready report, or use --force after explicit discard approval.
+rc=1
+meta still present: yes
