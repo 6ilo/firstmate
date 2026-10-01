@@ -143,6 +143,30 @@ test_env_configuration_pushes() {
   pass "a home configured by environment pushes with its token"
 }
 
+# The bridge assembles each snapshot in one python3 run that reads the bearings
+# document named by FM_TODAY_BEARINGS; a python3 shim counts those runs.
+test_tick_builds_the_snapshot_once() {
+  local home shim=$TMP_ROOT/build-count-bin builds=$TMP_ROOT/builds real_python
+  reset_requests
+  real_python=$(command -v python3)
+  mkdir -p "$shim"
+  cat > "$shim/python3" <<SH
+#!/usr/bin/env bash
+[ -z "\${FM_TODAY_BEARINGS:-}" ] || printf 'build\n' >> '$builds'
+exec '$real_python' "\$@"
+SH
+  chmod +x "$shim/python3"
+  : > "$builds"
+  home=$(make_home build-once configured)
+  PATH="$shim:$PATH" tick "$home"
+  [ "$(requests)" -eq 1 ] || fail "the tick did not push (got $(requests))"
+  [ "$(wc -l < "$builds" | tr -d ' ')" -eq 1 ] \
+    || fail "one tick built the snapshot $(wc -l < "$builds" | tr -d ' ') times"
+  jq -r .body "$STUB/requests/req-0.json" | jq -e '[.sections.charted_next[].id] | index("first")' >/dev/null \
+    || fail "the pushed snapshot did not carry the home's queued work"
+  pass "a tick builds the snapshot once and pushes that same document"
+}
+
 test_debounce_coalesces_changes() {
   local home
   reset_requests
@@ -233,8 +257,7 @@ test_one_notice_per_failure_episode() {
 
 # A python3 that first sleeps $SLOWBIN/delay seconds when it is the snapshot
 # assembly (the python3 run with FM_TODAY_BEARINGS set, not its own python3
-# children), so a build runs slow by a chosen amount; the push rebuilds the
-# snapshot, so it slows too.
+# children), so a build runs slow by a chosen amount.
 SLOWBIN="$TMP_ROOT/slowbin"
 mkdir -p "$SLOWBIN"
 REAL_PYTHON3=$(command -v python3)
@@ -254,7 +277,7 @@ test_slow_build_pushes_within_the_bound() {
   home=$(make_home slow-build configured)
   export FM_TODAY_PUSH_MIN_SECS=1 FM_TODAY_PUSH_TOPUP_SECS=3600 FM_TODAY_PUSH_TIMEOUT=12
   # A build slower than the old 60-second default, scaled: 3s under a 12s
-  # bound that the push's own rebuild, contract check, and send must also fit.
+  # bound that the push's own contract check and send must also fit.
   printf '3\n' > "$SLOWBIN/delay"
   PATH="$SLOWBIN:$PATH" tick "$home"
   take_notice "$home"
@@ -370,6 +393,7 @@ test_token_never_reaches_output() {
 
 test_unconfigured_is_a_silent_noop
 test_env_configuration_pushes
+test_tick_builds_the_snapshot_once
 test_debounce_coalesces_changes
 test_topup_after_idle_interval
 test_one_notice_per_failure_episode

@@ -10,7 +10,7 @@
 #
 # Usage:
 #   fm-today-bridge.sh snapshot
-#   fm-today-bridge.sh push [--dry-run <out.json>]
+#   fm-today-bridge.sh push [--snapshot <in.json>] [--dry-run <out.json>]
 #   fm-today-bridge.sh answers once [--wait <0-25>]
 #   fm-today-bridge.sh answers poll [--wait <1-25>] [--retries <n>]
 #   fm-today-bridge.sh answers check
@@ -79,6 +79,8 @@
 #           passed to curl through a private header file, never on a command
 #           line, and is never printed. The URL must be https://, or http://
 #           only to 127.0.0.1 or localhost; any other URL sends nothing.
+#           --snapshot <in.json> sends that already-built document instead of
+#           building another, after the same check and size limit.
 #           --dry-run <out.json> writes the checked document to that file and
 #           sends nothing; it needs neither the URL nor the token.
 #
@@ -872,17 +874,22 @@ cmd_snapshot() {
 }
 
 cmd_push() {
-  local dry='' snap body code heard
+  local dry='' given='' snap body code heard
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --dry-run) [ "$#" -ge 2 ] || die "--dry-run needs an output file" 2; dry=$2; shift 2 ;;
+      --snapshot) [ "$#" -ge 2 ] || die "--snapshot needs an input file" 2; given=$2; shift 2 ;;
       *) die "unknown push argument: $1" 2 ;;
     esac
   done
   [ -n "$dry" ] || load_config
   make_tmp
   snap="$TMP_DIR/snapshot.json"
-  build_snapshot "$snap"
+  if [ -n "$given" ]; then
+    cp -- "$given" "$snap" 2>/dev/null || die "cannot read the snapshot $given"
+  else
+    build_snapshot "$snap"
+  fi
   check_snapshot "$snap"
   if [ -n "$dry" ]; then
     cp -- "$snap" "$dry" || die "cannot write $dry"
