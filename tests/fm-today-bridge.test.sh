@@ -1193,6 +1193,10 @@ make_signed_tree() {  # <tree>
   cat > "$1/bin/fm-pr-merge.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FM_TEST_GH_DIR/merge.log"
+if [ -e "$FM_TEST_GH_DIR/merge-refuse-${2##*/}" ]; then
+  echo "error: refusing to merge $2: checks are not green" >&2
+  exit 1
+fi
 live=$(cat "$FM_TEST_GH_DIR/merge-head-${2##*/}" 2>/dev/null || cat "$FM_TEST_GH_DIR/head-${2##*/}")
 if [ "$3" != --head-sha ] || [ "$4" != "$live" ]; then
   echo "error: refusing to merge $2: head moved: the live head is $live, not the signed head $4" >&2
@@ -1342,6 +1346,29 @@ test_answers_signed_merge_on_a_moved_head_is_never_merged() {
     || fail "the re-raised card does not carry the new head and a new nonce: $(card_of "$OUT" m-fix)"
   stop_portal
   pass "a signed merge whose head moved is set aside or refused, never merged, and the call is raised again with the new head"
+}
+
+test_answers_signed_merge_that_does_not_land_is_raised_again() {
+  local tree=$TMP_ROOT/signed-tree home portal=$TMP_ROOT/portal-red m s nonce
+  home=$(make_signed_home answers-home-red)
+  use_gh red
+  abridge "$tree" "$home" snapshot
+  m=$(card_of "$OUT" m-fix | jq -r .card_hash)
+  nonce=$(card_of "$OUT" m-fix | jq -r .proof.nonce)
+  : > "$FM_TEST_GH_DIR/merge-refuse-9"
+  start_portal "$portal"
+  jq -s . <(signed phone ans_rd_000001 m-fix merge merge "$m") > "$portal/answers.json"
+  abridge "$tree" "$home" answers once
+  s=$(summary_of ans_rd_000001)
+  [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "refused re-raised" ] || fail "a refused merge was not re-raised: $s"
+  jq -e '.reason | test("checks are not green")' <<< "$s" >/dev/null || fail "the refusal does not name the merge's reason: $s"
+  ! grep -q '^pr comment ' "$FM_TEST_GH_DIR/gh.log" 2>/dev/null || fail "an unmerged pull request was commented on"
+  row_of "$home" m-fix | grep -q 'hold-kind: captain' || fail "the call was not raised again: $(row_of "$home" m-fix)"
+  abridge "$tree" "$home" snapshot
+  card_of "$OUT" m-fix | jq -e --arg h "$HEAD_A" --arg n "$nonce" '.kind == "merge" and .head_sha == $h and .proof.nonce != $n' >/dev/null \
+    || fail "the re-raised card does not ask for a fresh signed merge: $(card_of "$OUT" m-fix)"
+  stop_portal
+  pass "a signed merge that fm-pr-merge.sh refuses merges nothing and is raised again for a fresh signed word"
 }
 
 test_answers_signed_later_is_raised_again_with_a_fresh_nonce() {
@@ -1561,6 +1588,7 @@ test_answers_unbound_home_applies_nothing
 test_answers_merge_and_go_are_refused_without_proof
 test_answers_signed_merge_and_go_are_released_and_merged
 test_answers_signed_merge_on_a_moved_head_is_never_merged
+test_answers_signed_merge_that_does_not_land_is_raised_again
 test_answers_signed_later_is_raised_again_with_a_fresh_nonce
 test_answers_signed_answers_that_fail_the_passkey_are_refused
 test_answers_enrolments_are_checked_and_left_for_the_machine

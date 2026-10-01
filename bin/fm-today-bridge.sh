@@ -82,8 +82,9 @@
 #           head or the subject - and the call's raising, from
 #           bin/fm-captain-hold.sh open --identity) and reused until it
 #           expires 24 hours after it was minted, the anchor changes (the
-#           pull request's head moved, or the go's words changed), or the call
-#           is raised again; then a new one is minted.
+#           pull request's head moved, or the go's words changed), the call
+#           is raised again, or a verified answer spends it; then a new one is
+#           minted.
 #           The snapshot also carries the `passkeys` and `enrolment` members
 #           that bin/fm-today-passkey.sh blocks prints, each passkey label
 #           passing the text check; with no active credential `passkeys` is
@@ -168,13 +169,13 @@
 #   on success it is `applied` with action `merged`, one comment naming the
 #   passkey label, answer id, and head is posted on the pull request
 #   (`gh pr comment`), and the answer-json line carries `announce`, the chat
-#   line firstmate relays; a moved head (exit 3) merged nothing, so the call
-#   is held again with --call merge and refused `passkey: head moved`, action
-#   `re-raised`; any other refusal leaves the call released and is `applied`
-#   with action `merge-failed` and the merge's reason. Any other released
-#   value is `applied` with action `released` and an `announce` line. A
-#   verified answer that is not applied drops the call's stored nonce, so the
-#   next snapshot raises it with a fresh one.
+#   line firstmate relays; any refusal merged nothing and spends the signed
+#   word, so the call is held again with --call merge --pr and refused,
+#   action `re-raised`: a moved head (exit 3) as `passkey: head moved`, any
+#   other refusal with the merge's reason. Any other released value is
+#   `applied` with action `released` and an `announce` line. Every verified
+#   answer, applied or not, drops the call's stored nonce, so the next
+#   snapshot raises it with a fresh one.
 #   6. `later` re-holds the call with bin/fm-captain-hold.sh hold --until the
 #      captain's local date of later_until; `seen` on a credential card is
 #      recorded and the call stays open; `reconcile` files a reconcile request
@@ -1337,20 +1338,21 @@ def carry_signed(answer, card):
                 % (value, owner, task, signed))
     pr, head = card["pr_url"], card["head_sha"]
     rc, _out, err = run([MERGE, task, pr, "--head-sha", head])
-    if rc == 3 and "head moved" in err:
-        # The head moved after the signature: never merged; the call is raised
-        # again, and the new head gets a new nonce.
-        hrc, _out, herr = run([HOLD, "hold", task, "--reason",
-                               "merge %s again: its head moved after the signed merge word" % pr,
+    if rc != 0:
+        # Nothing merged: the released word is spent, so the call is raised
+        # again and only a fresh signed word, under a new nonce, can merge it.
+        if rc == 3 and "head moved" in err:
+            why = "passkey: head moved; nothing was merged"
+            hold_reason = "its head moved after the signed merge word"
+        else:
+            why = "the merge did not land: %s; nothing was merged" % first_line(err, "fm-pr-merge.sh refused")
+            hold_reason = "the signed merge did not land"
+        hrc, _out, herr = run([HOLD, "hold", task, "--reason", "merge %s again: %s" % (pr, hold_reason),
                                "--call", "merge", "--pr", pr])
         if hrc == 0:
-            return ("refused", "passkey: head moved; nothing was merged, and the call is raised "
-                    "again with the new head", None, "re-raised")
-        return ("refused", "passkey: head moved; nothing was merged, and the call could not be "
-                "raised again: %s" % first_line(herr, "hold failed"), None, "refused")
-    if rc != 0:
-        return ("applied", "released on the signed word, but the merge did not land: %s"
-                % first_line(err, "fm-pr-merge.sh refused"), None, "merge-failed")
+            return "refused", why + ", and the call is raised again", None, "re-raised"
+        return ("refused", "%s, and the call could not be raised again: %s"
+                % (why, first_line(herr, "hold failed")), None, "refused")
     comment = ("Merged by firstmate on a passkey-signed merge word from Today.\n\n"
                "- Passkey: %s\n- Answer: %s\n- Head: %s\n" % (passkey, aid, head))
     crc, _out, cerr = run(["gh", "pr", "comment", pr, "--body", comment])

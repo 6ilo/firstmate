@@ -1557,7 +1557,7 @@ A portal that cannot be reached or answers anything but 200 exits 3 with its sta
 The token never appears on a command line or in the bridge's output.
 
 A merge word or a go to build given on Today is carried only when firstmate has checked the captain's passkey on it against the call as it stands: a verified merge releases the call and merges exactly the head the captain signed, then posts one comment on the pull request naming the passkey and the answer, and a verified go releases the call.
-A pull request whose head moved after the signature is never merged; the call is raised again with the new head.
+A pull request whose head moved after the signature is never merged, and a merge that refuses for any other reason does not stand on the old word: either way the call is raised again for a fresh signed word.
 With no active passkey, a merge word or a go is recorded and refused; give that word at the machine.
 An unsigned option answer that would release held work is refused the same way.
 A second mate's answer is recorded in the main home and refused, and applied in neither home; answer a second mate's call at the machine for now.
