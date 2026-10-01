@@ -1,0 +1,31 @@
+# Today contract v1 change-encoding fields: real checker transcript
+## valid snapshot (aud/visible/mockup_url/until/parked present)
+ok
+exit=0
+## snapshot--audience-on-underway
+error: $.sections.underway[0]: additionalProperties: aud is not allowed
+exit=1
+## snapshot--unknown-audience
+error: $.sections.charted_next[1].aud: enum: "everyone" is not one of ['public', 'team', 'agents']
+exit=1
+## snapshot--until-not-a-date
+error: $.sections.charted_next[1].until: pattern: "2026-11" does not match
+exit=1
+## snapshot--visible-for-agents
+error: $.sections.charted_next[0].aud: enum: "agents" is not one of ['public', 'team']
+exit=1
+## snapshot--visible-without-audience
+error: $.sections.charted_next[0]: required: missing aud
+exit=1
+## snapshot--mockup-not-https
+error: $.sections.charted_next[0].mockup_url: pattern: "http://example.com/mockup" does not match
+exit=1
+## snapshot--mockup-not-visible
+error: $.sections.charted_next[0].visible: const: expected true
+exit=1
+## snapshot--mockup-without-visible
+error: $.sections.charted_next[0]: required: missing visible
+exit=1
+## snapshot--parked-and-deferred
+error: $.sections.charted_next[2]: not: matches a forbidden shape
+exit=1
