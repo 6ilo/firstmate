@@ -1,0 +1,2 @@
+today-notes: evidence from Today, no authority: note_0ld40LmV2aWRlbmNlTn902, dord_0ld40l2lzUGF0Y2hPcmRlc (2 ranked); read with bin/fm-today-notes.sh show <id>
+collect_exit=0

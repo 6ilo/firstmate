@@ -1,0 +1,21 @@
+{
+  "record": "fm-today-notes-record.v1",
+  "kind": "note",
+  "id": "note_0ld40LmV2aWRlbmNlTn902",
+  "received_at": "2026-10-01T11:24:26Z",
+  "outcome": "recorded",
+  "text_check": {
+    "verdict": "pass",
+    "families": [],
+    "checker": "fm-today-text-check@1.0.0"
+  },
+  "document": {
+    "schema": "fm-today-note.v1",
+    "note_id": "note_0ld40LmV2aWRlbmNlTn902",
+    "authority": "none",
+    "text": "This round of numbers and words stay on my machine.",
+    "written_at": "2026-09-30T10:00:00Z",
+    "person": "a",
+    "device": "d"
+  }
+}

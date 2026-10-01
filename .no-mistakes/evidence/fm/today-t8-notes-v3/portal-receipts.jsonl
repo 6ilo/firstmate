@@ -1,0 +1,5 @@
+portal_receipts:
+{"schema":"fm-today-note-receipt.v1","ref":"note_0ld40LmV2aWRlbmNlTn902","outcome":"recorded","recorded_at":"2026-10-01T11:24:26Z"}
+{"schema":"fm-today-note-receipt.v1","ref":"dord_0ld40l2lzUGF0Y2hPcmRlc","outcome":"recorded","reason":"1 of 3 items is no longer charted in this home and was left out","recorded_at":"2026-10-01T11:24:28Z"}
+recorded_note_receipt:
+{"schema":"fm-today-note-receipt.v1","ref":"note_0ld40LmV2aWRlbmNlTn902","outcome":"recorded","recorded_at":"2026-10-01T11:24:26Z"}

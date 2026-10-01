@@ -1,0 +1,9 @@
+=== plan after dispatch order ===
+{
+  "alpha": {
+    "order": 2
+  },
+  "bravo": {
+    "order": 1
+  }
+}
