@@ -11,9 +11,12 @@
 # from the day file or is empty for today, and the token never reaches output.
 # The answers half runs against a stub portal for POST /api/fleet/answers:
 # held merge, go, and credential calls become cards of that kind; decision
-# answers close through bin/fm-captain-hold.sh's intake; merge and go answers
-# are refused for proof with every merging script a tripwire; stale cards are
-# set aside; later, reconcile, and seen never close; an unbound home and a
+# answers close through bin/fm-captain-hold.sh's intake; with no passkey
+# enrolled, merge and go answers are refused for proof with every merging
+# script a tripwire; signed merge and go answers are verified, released, and a
+# merge binds the signed head, while a moved head, a replayed signature, an
+# unknown credential, and an expired nonce merge nothing; enrolments are
+# checked and left for the machine; stale cards are set aside; later, reconcile, and seen never close; an unbound home and a
 # second mate's answer apply nothing; receipts survive a failed call; repeats
 # are duplicates;
 # and poll reports one round bin/fm-procevent-today-answers.sh reads.
@@ -36,6 +39,23 @@ mkdir -p "$FM_ROOT_OVERRIDE"
 export FM_ROOT_OVERRIDE
 export LAVISH_AXI_STATE_DIR="$TMP_ROOT/lavish"
 unset FM_TODAY_PORTAL_URL FM_TODAY_BRIDGE_TOKEN FM_TODAY_DAY_FILE
+
+# A stub gh, so no test reaches a forge: `pr view <url> ... headRefOid` prints
+# the head written to $FM_TEST_GH_DIR/head-<number> (and fails when there is
+# none), and `pr comment` is logged to $FM_TEST_GH_DIR/gh.log.
+export FM_TEST_GH_DIR="$TMP_ROOT/gh"
+mkdir -p "$TMP_ROOT/fakebin" "$FM_TEST_GH_DIR"
+cat > "$TMP_ROOT/fakebin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_GH_DIR/gh.log"
+case "$1 $2" in
+  "pr view") cat "$FM_TEST_GH_DIR/head-${3##*/}" 2>/dev/null ;;
+  "pr comment") exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$TMP_ROOT/fakebin/gh"
+export PATH="$TMP_ROOT/fakebin:$PATH"
 
 # Every output the bridge produces is kept, so the leak check covers them all.
 OUTPUTS="$TMP_ROOT/outputs"
@@ -722,6 +742,9 @@ class H(http.server.BaseHTTPRequestHandler):
             except (OSError, ValueError):
                 answers = []
             out = {"answers": [a for a in answers if a["answer_id"] not in closed]}
+            if os.path.exists(os.path.join(d, "enrolments.json")):
+                with open(os.path.join(d, "enrolments.json")) as fh:
+                    out["enrolments"] = json.load(fh)
             if not out["answers"]:
                 time.sleep(min(json.loads(body)["wait_seconds"], 1))
         else:
@@ -924,7 +947,8 @@ test_answers_unbound_home_applies_nothing() {
 # Until firstmate checks the captain's passkey itself, a merge or go answer is
 # refused however well-formed, and nothing that could merge, release, start,
 # or close is ever run: this copy's hold, merge, spawn, send, and control
-# scripts are tripwires.
+# scripts are tripwires, except the hold script's read-only `open`, which the
+# snapshot asks for a call's raising.
 test_answers_merge_and_go_are_refused_without_proof() {
   local tree=$TMP_ROOT/proof-tree home portal=$TMP_ROOT/portal-proof before f m g
   make_answers_tree "$tree"
@@ -932,7 +956,8 @@ test_answers_merge_and_go_are_refused_without_proof() {
   m=$(hash_of "$tree" "$home" m-fix)
   g=$(hash_of "$tree" "$home" g-build)
   for f in fm-captain-hold.sh fm-pr-merge.sh fm-merge-local.sh fm-spawn.sh fm-send.sh fm-control.sh fm-teardown.sh; do
-    printf '#!/usr/bin/env bash\necho "%s $*" >> "%s/tripwire"\nexit 0\n' "$f" "$TMP_ROOT/proof" > "$tree/bin/$f"
+    printf '#!/usr/bin/env bash\n[ "$1" != open ] || exec "%s/bin/%s" "$@"\necho "%s $*" >> "%s/tripwire"\nexit 0\n' \
+      "$ROOT" "$f" "$f" "$TMP_ROOT/proof" > "$tree/bin/$f"
     chmod +x "$tree/bin/$f"
   done
   mkdir -p "$TMP_ROOT/proof"
@@ -1129,6 +1154,274 @@ test_answers_interrupted_carry_is_refused_not_carried_again() {
   pass "an answer stored without a receipt is refused and never carried again"
 }
 
+# --- signed merge and go -------------------------------------------------------
+# A merge word or a go carries the captain's passkey, made here by the software
+# authenticator (tests/fm-today-soft-authenticator.py) with keys enrolled in
+# the home's store. gh is the stub above; this copy's fm-pr-merge.sh is a stub
+# that logs its arguments and refuses with exit 3, as the real one does, unless
+# --head-sha is the pull request's live head at merge time (merge-head-<n>, or
+# head-<n> when that is absent). Nothing ever reaches a forge.
+
+AUTH=(python3 "$ROOT/tests/fm-today-soft-authenticator.py")
+SIGN_KEYS="$TMP_ROOT/sign-keys"
+HEAD_A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+HEAD_B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+PR9=https://github.com/acme/widget/pull/9
+mkdir -p "$SIGN_KEYS"
+"${AUTH[@]}" keygen "$SIGN_KEYS/phone.pem" es256 > "$SIGN_KEYS/phone.json" || fail "keygen failed"
+"${AUTH[@]}" keygen "$SIGN_KEYS/stranger.pem" es256 > "$SIGN_KEYS/stranger.json" || fail "keygen failed"
+"${AUTH[@]}" keygen "$SIGN_KEYS/new.pem" es256 > "$SIGN_KEYS/new.json" || fail "keygen failed"
+
+# One store entry, in the shape the enrolment writes, for a keygen credential.
+store_entry() {  # <credential.json> <label> <status>
+  python3 - "$1" "$2" "$3" <<'PY'
+import base64, json, sys, textwrap
+cred, label, status = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3]
+der = base64.urlsafe_b64decode(cred["public_key_spki"] + "=" * (-len(cred["public_key_spki"]) % 4))
+pem = "-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n" % "\n".join(
+    textwrap.wrap(base64.b64encode(der).decode("ascii"), 64))
+print(json.dumps({"credential_id": cred["credential_id"], "public_key_pem": pem, "alg": cred["alg"],
+                  "rp_id": "relay-api.mmeg.us", "origin": "https://relay-api.mmeg.us",
+                  "label": label, "enrolled_at": "2026-09-28T12:00:00Z", "enrolled_via": "portal",
+                  "backup_eligible": True, "sign_count": 0, "status": status,
+                  "revoked_at": "2026-09-29T12:00:00Z" if status == "revoked" else None}))
+PY
+}
+
+make_signed_tree() {  # <tree>
+  make_answers_tree "$1"
+  cat > "$1/bin/fm-pr-merge.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_GH_DIR/merge.log"
+live=$(cat "$FM_TEST_GH_DIR/merge-head-${2##*/}" 2>/dev/null || cat "$FM_TEST_GH_DIR/head-${2##*/}")
+if [ "$3" != --head-sha ] || [ "$4" != "$live" ]; then
+  echo "error: refusing to merge $2: head moved: the live head is $live, not the signed head $4" >&2
+  exit 3
+fi
+echo "verified: $2 is merged"
+EOF
+  chmod +x "$1/bin/fm-pr-merge.sh"
+}
+
+make_signed_home() {  # <name> [<status>]: an answers home whose store enrols the phone key
+  local home
+  home=$(make_answers_home "$1")
+  store_entry "$SIGN_KEYS/phone.json" "iPhone passkey" "${2:-active}" | jq -s '{credentials: .}' \
+    > "$home/config/today-passkeys.json"
+  printf '%s\n' "$home"
+}
+
+use_gh() {  # <name>: a fresh stub forge whose PR 9 head is HEAD_A
+  export FM_TEST_GH_DIR="$TMP_ROOT/gh-$1"
+  mkdir -p "$FM_TEST_GH_DIR"
+  printf '%s\n' "$HEAD_A" > "$FM_TEST_GH_DIR/head-9"
+}
+
+# signed <key> <id> <task> <kind> <value> <card_hash> [<extra-json>]: one answer
+# signed with <key>'s credential by the software authenticator.
+signed() {
+  local f="$TMP_ROOT/signed.$2" extra=${7:-}
+  [ -n "$extra" ] || extra='{}'
+  jq -nc --arg id "$2" --arg t "$3" --arg k "$4" --arg v "$5" --arg h "$6" --argjson x "$extra" \
+    '{schema: "fm-today-answer.v1", answer_id: $id, task_id: $t, kind: $k, value: $v, card_hash: $h,
+      owner: "(main)", answered_at: "2026-09-30T01:00:00Z", person: "captain", device: "phone-1"} + $x' \
+    > "$f.unsigned"
+  "${AUTH[@]}" assert "$SIGN_KEYS/$1.pem" "$(jq -r .credential_id "$SIGN_KEYS/$1.json")" \
+    relay-api.mmeg.us "$PASSKEY_ORIGIN" "$f.unsigned" > "$f" || fail "the authenticator could not sign $2"
+  jq -c . "$f"
+}
+
+card_of() {  # <snapshot> <task>
+  jq -c --arg t "$2" '.sections.calls[] | select(.task_id == $t and .owner == "(main)")' "$1"
+}
+
+test_answers_signed_merge_and_go_are_released_and_merged() {
+  local tree=$TMP_ROOT/signed-tree home portal=$TMP_ROOT/portal-signed snap m g nonce s before
+  make_signed_tree "$tree"
+  home=$(make_signed_home answers-home-signed)
+  use_gh signed
+  abridge "$tree" "$home" snapshot
+  [ "$CODE" -eq 0 ] || fail "snapshot exited $CODE: $(cat "$ERR")"
+  snap=$TMP_ROOT/signed-snap.json
+  cp "$OUT" "$snap"
+  "${CHECK[@]}" "$snap" >/dev/null || fail "the snapshot fails the contract: $("${CHECK[@]}" "$snap")"
+  card_of "$snap" m-fix | jq -e --arg h "$HEAD_A" '.head_sha == $h and (.proof.nonce | length) >= 22
+    and (.proof.expires_at | type == "string")' >/dev/null \
+    || fail "the merge card does not carry its head and proof: $(card_of "$snap" m-fix)"
+  card_of "$snap" g-build | jq -e '(.subject_sha256 | length) == 64 and has("proof")' >/dev/null \
+    || fail "the go card does not carry its subject and proof: $(card_of "$snap" g-build)"
+  jq -e --arg c "$(jq -r .credential_id "$SIGN_KEYS/phone.json")" '.passkeys.credentials
+    == [{credential_id: $c, label: "iPhone passkey"}] and .passkeys.rp_id == "relay-api.mmeg.us"' "$snap" >/dev/null \
+    || fail "the snapshot does not carry the enrolled passkey: $(jq -c .passkeys "$snap")"
+  m=$(card_of "$snap" m-fix | jq -r .card_hash)
+  g=$(card_of "$snap" g-build | jq -r .card_hash)
+  nonce=$(card_of "$snap" m-fix | jq -r .proof.nonce)
+  [ "$(hash_of "$tree" "$home" m-fix)" = "$m" ] || fail "a second snapshot re-minted an unexpired nonce"
+  start_portal "$portal"
+  jq -s . <(signed phone ans_sm_000001 m-fix merge merge "$m") \
+    <(signed phone ans_sg_000001 g-build go go "$g") > "$portal/answers.json"
+  abridge "$tree" "$home" answers once
+  [ "$CODE" -eq 0 ] || fail "answers once exited $CODE: $(cat "$ERR")"
+  s=$(summary_of ans_sm_000001)
+  [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "applied merged" ] || fail "the signed merge was not merged: $s"
+  jq -e '.announce | test("passkey \"iPhone passkey\"") and test("ans_sm_000001") and test("pull/9")' <<< "$s" >/dev/null \
+    || fail "the merge was not announced with its passkey and answer: $s"
+  [ "$(cat "$FM_TEST_GH_DIR/merge.log")" = "m-fix $PR9 --head-sha $HEAD_A" ] \
+    || fail "the merge did not bind the signed head: $(cat "$FM_TEST_GH_DIR/merge.log")"
+  grep -q "^pr comment $PR9 --body Merged by firstmate on a passkey-signed merge word from Today" "$FM_TEST_GH_DIR/gh.log" \
+    || fail "no pull request comment was posted: $(cat "$FM_TEST_GH_DIR/gh.log")"
+  grep -q -- '- Passkey: iPhone passkey' "$FM_TEST_GH_DIR/gh.log" && grep -q -- '- Answer: ans_sm_000001' "$FM_TEST_GH_DIR/gh.log" \
+    || fail "the comment does not name the passkey and the answer: $(cat "$FM_TEST_GH_DIR/gh.log")"
+  ! grep -qi captain "$FM_TEST_GH_DIR/gh.log" || fail "the pull request comment addresses the captain"
+  [ "$(grep -c '^pr comment ' "$FM_TEST_GH_DIR/gh.log")" = 1 ] || fail "more than one comment was posted"
+  grep -q 'Answer: merge, signed with passkey iPhone passkey from Today, answer ans_sm_000001, device phone-1' \
+    "$home/data/backlog.md" || fail "the signed words were not recorded"
+  ! row_of "$home" m-fix | grep -q 'hold-kind' || fail "the merge call was not released: $(row_of "$home" m-fix)"
+  s=$(summary_of ans_sg_000001)
+  [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "applied released" ] || fail "the signed go was not released: $s"
+  jq -e '.announce | test("ans_sg_000001")' <<< "$s" >/dev/null || fail "the go was not announced: $s"
+  ! row_of "$home" g-build | grep -q 'hold-kind' || fail "the go call was not released: $(row_of "$home" g-build)"
+  [ "$(grep -c '^pr comment ' "$FM_TEST_GH_DIR/gh.log")" = 1 ] || fail "a go posted a pull request comment"
+  abridge "$tree" "$home" answers once
+  [ "$(jq -c '[.body.receipts[] | [.answer_id, .outcome]] | sort' "$portal/req-1.json")" \
+    = '[["ans_sg_000001","applied"],["ans_sm_000001","applied"]]' ] \
+    || fail "the receipts did not go out: $(jq -c .body.receipts "$portal/req-1.json")"
+  jq -c '.body.receipts[]' "$portal/req-1.json" | while IFS= read -r s; do
+    printf '%s' "$s" > "$TMP_ROOT/receipt.json"
+    "${CHECK[@]}" "$TMP_ROOT/receipt.json" >/dev/null || fail "a receipt fails the contract: $s"
+  done
+  # The portal delivers the same signed answer again: a duplicate, never a second merge.
+  : > "$portal/ignore-receipts"
+  before=$(cat "$home/data/backlog.md")
+  abridge "$tree" "$home" answers once
+  grep -qx 'duplicate: ans_sm_000001' "$OUT" || fail "a replayed signed answer was not a duplicate: $(cat "$OUT")"
+  [ "$(wc -l < "$FM_TEST_GH_DIR/merge.log" | tr -d ' ')" = 1 ] || fail "a replayed answer merged again"
+  [ "$(cat "$home/data/backlog.md")" = "$before" ] || fail "a replayed answer changed the backlog"
+  [ -n "$nonce" ] || fail "no nonce"
+  stop_portal
+  pass "a signed merge is verified, released, merged at the signed head, commented, and announced; a signed go is released; a replay is a duplicate"
+}
+
+test_answers_signed_merge_on_a_moved_head_is_never_merged() {
+  local tree=$TMP_ROOT/signed-tree home portal=$TMP_ROOT/portal-moved m s nonce
+  # The head moves after the card was shown: the call as it stands has a new
+  # head and nonce, so the signed answer is set aside and nothing merges.
+  home=$(make_signed_home answers-home-moved-early)
+  use_gh moved-early
+  m=$(hash_of "$tree" "$home" m-fix)
+  printf '%s\n' "$HEAD_B" > "$FM_TEST_GH_DIR/head-9"
+  start_portal "$portal"
+  jq -s . <(signed phone ans_mv_000001 m-fix merge merge "$m") > "$portal/answers.json"
+  abridge "$tree" "$home" answers once
+  s=$(summary_of ans_mv_000001)
+  [ "$(jq -r .outcome <<< "$s")" = set-aside ] || fail "an answer for a moved head was not set aside: $s"
+  [ ! -e "$FM_TEST_GH_DIR/merge.log" ] || fail "a moved head reached the merge: $(cat "$FM_TEST_GH_DIR/merge.log")"
+  stop_portal
+  # The head moves between the release and the merge: the merge refuses the
+  # signed head, nothing merges, and the call is raised again with a new nonce.
+  home=$(make_signed_home answers-home-moved-late)
+  use_gh moved-late
+  m=$(hash_of "$tree" "$home" m-fix)
+  nonce=$(FM_HOME="$home" "$tree/bin/fm-today-bridge.sh" snapshot 2>/dev/null | jq -r '.sections.calls[] | select(.task_id == "m-fix") | .proof.nonce')
+  printf '%s\n' "$HEAD_B" > "$FM_TEST_GH_DIR/merge-head-9"
+  start_portal "$TMP_ROOT/portal-moved-late"
+  jq -s . <(signed phone ans_mv_000002 m-fix merge merge "$m") > "$TMP_ROOT/portal-moved-late/answers.json"
+  abridge "$tree" "$home" answers once
+  s=$(summary_of ans_mv_000002)
+  [ "$(jq -r '.outcome + " " + .action' <<< "$s")" = "refused re-raised" ] || fail "a moved head was not refused and re-raised: $s"
+  jq -e '.reason | startswith("passkey: head moved")' <<< "$s" >/dev/null || fail "the refusal does not name the moved head: $s"
+  [ "$(cat "$FM_TEST_GH_DIR/merge.log")" = "m-fix $PR9 --head-sha $HEAD_A" ] \
+    || fail "the merge was not asked for the signed head: $(cat "$FM_TEST_GH_DIR/merge.log")"
+  ! grep -q '^pr comment ' "$FM_TEST_GH_DIR/gh.log" || fail "an unmerged pull request was commented on"
+  row_of "$home" m-fix | grep -q 'hold-kind: captain' || fail "the call was not raised again: $(row_of "$home" m-fix)"
+  grep -q "Captain hold call: {\"kind\":\"merge\",\"pr_url\":\"$PR9\"}" "$home/data/backlog.md" \
+    || fail "the re-raised call is not a merge call"
+  printf '%s\n' "$HEAD_B" > "$FM_TEST_GH_DIR/head-9"
+  abridge "$tree" "$home" snapshot
+  card_of "$OUT" m-fix | jq -e --arg h "$HEAD_B" --arg n "$nonce" '.head_sha == $h and .proof.nonce != $n' >/dev/null \
+    || fail "the re-raised card does not carry the new head and a new nonce: $(card_of "$OUT" m-fix)"
+  stop_portal
+  pass "a signed merge whose head moved is set aside or refused, never merged, and the call is raised again with the new head"
+}
+
+test_answers_signed_answers_that_fail_the_passkey_are_refused() {
+  local tree=$TMP_ROOT/signed-tree home portal=$TMP_ROOT/portal-badsig m g s before f
+  home=$(make_signed_home answers-home-badsig)
+  use_gh badsig
+  m=$(hash_of "$tree" "$home" m-fix)
+  g=$(hash_of "$tree" "$home" g-build)
+  # The nonce the go was signed under expires before the answer arrives.
+  for f in "$home"/state/today-proof/*.json; do
+    if [ "$(jq -r .task_id "$f")" = g-build ]; then
+      jq '.expires_at = "2000-01-01T00:00:00Z"' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+    fi
+  done
+  # A signature replayed under another answer id, and one from a key never enrolled.
+  signed phone ans_bs_000001 m-fix merge merge "$m" | jq -c '.answer_id = "ans_bs_replay1"' > "$TMP_ROOT/replayed.json"
+  jq -s . "$TMP_ROOT/replayed.json" <(signed stranger ans_bs_000002 m-fix merge merge "$m") \
+    <(signed phone ans_bs_000003 g-build go go "$g") > "$TMP_ROOT/badsig.json"
+  before=$(cat "$home/data/backlog.md")
+  start_portal "$portal"
+  cp "$TMP_ROOT/badsig.json" "$portal/answers.json"
+  abridge "$tree" "$home" answers once
+  [ "$CODE" -eq 0 ] || fail "answers once exited $CODE: $(cat "$ERR")"
+  s=$(summary_of ans_bs_replay1)
+  [ "$(jq -r .outcome <<< "$s")" = refused ] && jq -e '.reason | startswith("passkey: challenge")' <<< "$s" >/dev/null \
+    || fail "a replayed signature was not refused: $s"
+  s=$(summary_of ans_bs_000002)
+  [ "$(jq -r .outcome <<< "$s")" = refused ] && jq -e '.reason | startswith("passkey: unknown credential")' <<< "$s" >/dev/null \
+    || fail "an unknown credential was not refused: $s"
+  s=$(summary_of ans_bs_000003)
+  [ "$(jq -r .outcome <<< "$s")" = set-aside ] && [ "$(jq -r .action <<< "$s")" = set-aside ] \
+    || fail "an answer under an expired nonce was not set aside: $s"
+  [ "$(hash_of "$tree" "$home" g-build)" != "$g" ] || fail "the expired nonce was not re-minted"
+  [ ! -e "$FM_TEST_GH_DIR/merge.log" ] || fail "a refused answer reached the merge"
+  [ "$(cat "$home/data/backlog.md")" = "$before" ] || fail "a refused answer changed the backlog"
+  abridge "$tree" "$home" answers once
+  [ "$(jq -c '[.body.receipts[] | [.answer_id, .outcome]] | sort' "$portal/req-1.json")" \
+    = '[["ans_bs_000002","refused"],["ans_bs_000003","set-aside"],["ans_bs_replay1","refused"]]' ] \
+    || fail "the refusals were not receipted: $(jq -c .body.receipts "$portal/req-1.json")"
+  stop_portal
+  # With only a revoked credential nothing can be signed: proof_required.
+  home=$(make_signed_home answers-home-revoked revoked)
+  m=$(hash_of "$tree" "$home" m-fix)
+  abridge "$tree" "$home" snapshot
+  jq -e 'has("passkeys") | not' "$OUT" >/dev/null || fail "a revoked credential was offered for signing"
+  start_portal "$TMP_ROOT/portal-revoked"
+  jq -s . <(signed phone ans_rv_000001 m-fix merge merge "$m") > "$TMP_ROOT/portal-revoked/answers.json"
+  abridge "$tree" "$home" answers once
+  s=$(summary_of ans_rv_000001)
+  [ "$(jq -r .outcome <<< "$s")" = refused ] && jq -e '.reason | startswith("proof_required: ")' <<< "$s" >/dev/null \
+    || fail "a merge with no active credential was not refused for proof: $s"
+  stop_portal
+  pass "a replayed signature, an unknown credential, and an expired nonce are refused or set aside, and no active credential means proof_required"
+}
+
+test_answers_enrolments_are_checked_and_left_for_the_machine() {
+  local tree=$TMP_ROOT/signed-tree home portal=$TMP_ROOT/portal-enrol s
+  home=$(make_answers_home answers-home-enrol)
+  use_gh enrol
+  FM_HOME="$home" "$tree/bin/fm-today-passkey.sh" enrol --label "iPhone passkey" >/dev/null || fail "enrol failed"
+  abridge "$tree" "$home" snapshot
+  jq -e '.enrolment.rp_id == "relay-api.mmeg.us" and (has("passkeys") | not)' "$OUT" >/dev/null \
+    || fail "the snapshot does not carry the open enrolment: $(jq -c '{passkeys, enrolment}' "$OUT")"
+  start_portal "$portal"
+  "${AUTH[@]}" enrol "$SIGN_KEYS/new.pem" "$(jq -r .credential_id "$SIGN_KEYS/new.json")" "$OUT" \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" user_2captain mac-studio | jq -s . > "$portal/enrolments.json" \
+    || fail "the authenticator could not register"
+  abridge "$tree" "$home" answers once
+  [ "$CODE" -eq 0 ] || fail "answers once exited $CODE: $(cat "$ERR")"
+  s=$(sed -n 's/^enrolment-json: //p' "$OUT")
+  jq -e --arg c "$(jq -r .credential_id "$SIGN_KEYS/new.json")" '.credential_id == $c and .check == "ok"
+    and (.confirm | startswith("bin/fm-today-passkey.sh confirm "))' <<< "$s" >/dev/null \
+    || fail "the enrolment was not checked and left for the machine: $(cat "$OUT")"
+  [ ! -e "$home/config/today-passkeys.json" ] || fail "the bridge trusted a passkey without the captain's confirm"
+  abridge "$tree" "$home" answers once
+  ! grep -q '^enrolment-json: ' "$OUT" || fail "an enrolment handed back again was reported again"
+  stop_portal
+  pass "an enrolment the portal hands back is checked once and left for the captain to confirm at the machine"
+}
+
 test_answers_poll_reports_through_the_process_event_adapter() {
   local tree=$TMP_ROOT/answers-tree home portal=$TMP_ROOT/portal-poll result
   home=$(make_answers_home answers-home-poll)
@@ -1245,6 +1538,10 @@ test_recorded_options_lead_a_decision_card
 test_answers_decision_closes_and_held_work_needs_proof
 test_answers_unbound_home_applies_nothing
 test_answers_merge_and_go_are_refused_without_proof
+test_answers_signed_merge_and_go_are_released_and_merged
+test_answers_signed_merge_on_a_moved_head_is_never_merged
+test_answers_signed_answers_that_fail_the_passkey_are_refused
+test_answers_enrolments_are_checked_and_left_for_the_machine
 test_answers_that_do_not_fit_the_call_are_set_aside_or_refused
 test_answers_later_reconcile_and_seen_never_close
 test_answers_second_mate_answer_is_refused_in_every_home

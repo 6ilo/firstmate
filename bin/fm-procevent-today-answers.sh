@@ -19,8 +19,12 @@
 #            that child does. A missing or unusable setting exits 2 and
 #            registers nothing.
 # read       Print the captured result as one JSON document: status, detail,
-#            and answers (one object per answer carried: answer_id, owner,
-#            task_id, kind, value, later_until, note, outcome, action, reason).
+#            answers (one object per answer carried: answer_id, owner,
+#            task_id, kind, value, later_until, note, outcome, action, reason,
+#            and announce for an applied passkey-signed word), and enrolments
+#            (one object per passkey enrolment the portal handed back: enrol_id,
+#            credential_id, check, errors, file, and the confirm command the
+#            captain runs at the machine).
 # classify   Print answers, error, or unknown.
 # terminal   Exit 0 for an error result, which retires the source; a round of
 #            answers keeps it armed so the runner polls again.
@@ -98,7 +102,9 @@ cmd_read() {
     {status: $status,
      detail: (if $detail == "" then null else $detail end),
      answers: [$body | split("\n")[] | select(startswith("answer-json: "))
-               | ltrimstr("answer-json: ") | fromjson]}'
+               | ltrimstr("answer-json: ") | fromjson],
+     enrolments: [$body | split("\n")[] | select(startswith("enrolment-json: "))
+                  | ltrimstr("enrolment-json: ") | fromjson]}'
 }
 
 case "${1-}" in
