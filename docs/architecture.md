@@ -270,7 +270,7 @@ cmux is experimental, GUI-first, macOS-only, and can be selected explicitly or b
 cmux's container shape is one workspace per task with one surface, no per-home container split; workspace titles are scoped by the active home label plus a short hash of the resolved `FM_ROOT` path, and `--secondmate` spawns are refused, mirroring Orca.
 Codex App support is recorded in `docs/codex-app-backend.md`; it is not selectable as a runtime backend.
 A cloud task is not a session backend: `bin/fm-cloud.sh` launches a `claude --cloud` session from the written brief and records `backend=cloud` with the session URL and no window or worktree, so nothing on this machine is created, captured, steered, or closed for it.
-`bin/fm-cloud.sh adopt` gives a cloud session's existing pull request the same record, with `cloud_session=unknown` when no session URL is known.
+`bin/fm-cloud.sh adopt` gives a cloud session's existing pull request the same record, with `cloud_session=unknown`.
 It enters supervision at the same seams as a `direct-PR` ship: the backlog gate at launch, a registered check that turns the session's pull request into the task's ready report and arms `bin/fm-pr-check.sh`'s merge poll, `bin/fm-crew-state.sh` and the fleet view for current state, and `bin/fm-teardown.sh` for cleanup; the script's header owns that contract.
 
 ## Worktrees, not branches in your checkout

@@ -8,7 +8,6 @@
 #                      [--base <branch>] [--branch-prefix <prefix>]
 #                      [--project <local-clone>] [--brief <file>]
 #   fm-cloud.sh adopt <task-id> <owner/repo> <pr-url> --mode direct-PR --yolo <on|off>
-#                     [--session <session-url>] [--project <local-clone>]
 #   fm-cloud.sh poll <task-id>
 #
 # launch reads the written brief (default data/<task-id>/brief.md), appends the
@@ -58,11 +57,11 @@
 # in this home - one from before this script existed - and gives it the record
 # launch would have published, so bin/fm-pr-merge.sh and bin/fm-teardown.sh
 # treat it like any cloud task. It starts nothing. The pull request must be on
-# GitHub at <owner/repo>, open or merged, and not a draft; anything else is
+# GitHub at <owner/repo>, open, and not a draft; anything else is
 # refused before a record is written. Its repository, base, and branch are read
 # from the forge, the record carries the same fields as launch's (mode
 # direct-PR only), and it passes the same backlog gate and moves the item to In
-# flight. With no --session, the record says cloud_session=unknown. adopt then
+# flight. The record says cloud_session=unknown. adopt then
 # arms merge monitoring through bin/fm-pr-check.sh and appends the same
 # `done [at=<epoch>]: PR <url>` ready report poll does; when monitoring cannot be
 # armed it arms poll's discovery check instead and reports the refusal.
@@ -310,7 +309,7 @@ cmd_launch() {
 }
 
 cmd_adopt() {
-  local id repo raw mode='' yolo='' session=unknown project='' meta lock row
+  local id repo raw mode='' yolo='' project='' meta lock row
   local url state draft base branch gen tmp err failed
   [ "$#" -ge 3 ] || usage
   id=$1 repo=$2 raw=$3
@@ -320,8 +319,6 @@ cmd_adopt() {
     case "$1" in
       --mode) mode=$2 ;;
       --yolo) yolo=$2 ;;
-      --session) session=$2 ;;
-      --project) project=$2 ;;
       *) usage ;;
     esac
     shift 2
@@ -334,8 +331,6 @@ cmd_adopt() {
     *) die "a cloud task ships mode direct-PR only; $mode needs a local copy a cloud session does not have" ;;
   esac
   case "$yolo" in on|off) ;; *) die "pass --yolo on or --yolo off; merge posture is never guessed" ;; esac
-  [ "$session" = unknown ] || [[ "$session" =~ ^https://claude\.ai/code/session_[A-Za-z0-9]+$ ]] \
-    || die "the session must be a https://claude.ai/code/session_... URL: $session"
   fm_pr_url_parse "$raw" && [ "$FM_PR_PROVIDER" = github ] \
     || die "not a GitHub pull request URL: $raw"
   [ "$(printf '%s' "$FM_PR_PATH" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')" ] \
@@ -359,8 +354,8 @@ cmd_adopt() {
   [ "$(printf '%s' "$FM_PR_PATH" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')" ] \
     || die "pull request $raw is on $FM_PR_PATH, not the named repository $repo"
   case "$state" in
-    OPEN|MERGED) ;;
-    *) die "pull request $url is ${state:-in an unreadable state}; only an open or merged pull request is adopted" ;;
+    OPEN) ;;
+    *) die "pull request $url is ${state:-in an unreadable state}; only an open pull request is adopted" ;;
   esac
   [ "$draft" = false ] || die "pull request $url is a draft; mark it ready for review, then adopt it"
   cloud_ref_valid "$base" || die "pull request $url has an invalid base branch: $base"
@@ -385,7 +380,7 @@ cmd_adopt() {
     printf 'cloud_repo=%s\n' "$FM_PR_PATH"
     printf 'base=%s\n' "$base"
     printf 'branch=%s\n' "$branch"
-    printf 'cloud_session=%s\n' "$session"
+    printf 'cloud_session=unknown\n'
     [ -z "$project" ] || printf 'project=%s\n' "$project"
     printf 'spawn_gen=%s\n' "$gen"
   } > "$tmp" || { rm -f "$tmp"; die "the task record for $url could not be prepared"; }
@@ -408,8 +403,8 @@ cmd_adopt() {
     failed="${failed:+$failed; }merge monitoring could not be armed ($err) and neither could its pull-request check (re-run bin/fm-cloud.sh poll $id by hand)"
   fi
   [ -z "$failed" ] || die "task $id's record for $url is published, but $failed"
-  printf 'adopted %s backend=cloud repo=%s branch=%s mode=%s yolo=%s session=%s pr=%s\n' \
-    "$id" "$FM_PR_PATH" "$branch" "$mode" "$yolo" "$session" "$url"
+  printf 'adopted %s backend=cloud repo=%s branch=%s mode=%s yolo=%s pr=%s\n' \
+    "$id" "$FM_PR_PATH" "$branch" "$mode" "$yolo" "$url"
 }
 
 cmd_poll() {
