@@ -43,10 +43,96 @@ unset BASH_ENV ENV
 export FM_TEST_SKIP_ORPHAN_REAP=1
 HOME_AT_LOAD=${HOME-}
 
+# --- fail-closed initialization ------------------------------------------------------
+#
+# Nothing below the sourcing may build a path from TMP_ROOT, create a directory, or
+# write a file until the helper library demonstrably loaded to its end and the task temp
+# root was created, is private, and is physically inside the literal TMPDIR. Two earlier
+# facts make a plain `. fixtures.sh || exit` insufficient:
+#   - tests/lib.sh ends its own load with `return 1` when the owner-identity probe at
+#     tests/lib.sh:114-117 yields nothing, and every helper defined after that line
+#     (fm_test_tmproot, fm_git_identity, the assertions, the traps) is then absent;
+#   - tests/fixtures.sh sources the library without testing the result and ends on a
+#     function definition, so this script's own `. fixtures.sh` still returns 0, and this
+#     script runs under `set -u` without `set -e`.
+# An empty TMP_ROOT then made STUB_BIN and REAL_BIN the literal paths /bin-stub and
+# /bin-real. The checks below use only bash 3.2 builtins plus `stat`, touch nothing
+# outside TMPDIR, delete nothing, and change neither tests/lib.sh nor any helper.
+
+bootstrap_fail() {  # <what failed>
+  printf 'not ok - fixture bootstrap: %s\n' "$1" >&2
+  exit 1
+}
+
+# True when <dir> is a directory this user owns that neither the group nor others can
+# write. A fresh 0700 directory (what the driver makes, and what mktemp -d makes) passes.
+bootstrap_dir_private() {  # <dir>
+  local d=$1 mode
+  [ -d "$d" ] && [ -O "$d" ] || return 1
+  mode=$(stat -c %a "$d" 2>/dev/null || stat -f %Lp "$d" 2>/dev/null) || return 1
+  case "$mode" in '' | *[!0-7]*) return 1 ;; esac
+  [ $((8#$mode & 8#022)) -eq 0 ]
+}
+
+# Before the library loads: it registers its first temp file under ${TMPDIR:-/tmp}, so an
+# unset TMPDIR would send that write to /tmp. Require an explicit absolute TMPDIR that is
+# either the caller's own private directory (the driver's fresh 0700 one) or a sticky
+# shared one such as /tmp. The root created inside it is separately required to be private.
+case "${TMPDIR-}" in
+  /*) ;;
+  *) bootstrap_fail "TMPDIR must be set to an absolute directory path (it is '${TMPDIR-}'); tests/lib.sh would otherwise register its temp files under /tmp" ;;
+esac
+if ! bootstrap_dir_private "$TMPDIR" && ! { [ -d "$TMPDIR" ] && [ -k "$TMPDIR" ]; }; then
+  bootstrap_fail "TMPDIR '$TMPDIR' must be an existing directory that is either owned by this user and not group- or world-writable, or sticky"
+fi
+
 # shellcheck source=tests/fixtures.sh
 . "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
 
-TMP_ROOT=$(fm_test_tmproot fm-attended-job)
+# Every helper this script calls from tests/lib.sh or tests/fixtures.sh, by name. Each is
+# defined after tests/lib.sh:117 or in tests/fixtures.sh, so any of them missing means the
+# library stopped early or fixtures.sh did not complete. `fail` and `pass` are included
+# because they are the only reporters used below.
+for bootstrap_fn in fm_test_tmproot fm_git_identity fm_test_cleanup fm_test_pid_identity \
+  fm_test_track_watcher_state fm_write_meta fm_git_worktree fm_test_make_spawn_fakebin \
+  fm_test_spawn_home fm_test_spawn_brief fail pass expect_code assert_equals assert_not_equals \
+  assert_contains assert_not_contains assert_absent assert_present; do
+  if [ "$(type -t "$bootstrap_fn")" != function ]; then
+    if [ -z "${FM_TEST_OWNER_IDENTITY:-}" ]; then
+      bootstrap_fail "required helper '$bootstrap_fn' is not defined and tests/lib.sh recorded no owner identity for this shell, so its probe at tests/lib.sh:114-117 failed and the library returned early; the likely cause on a host without /proc is the per-PID query ps -p <pid> -o lstart= -o command= in fm_pid_identity, which is a hypothesis and was not measured here; no temp root or farm was created"
+    fi
+    bootstrap_fail "required helper '$bootstrap_fn' is not defined although an owner identity was recorded, so tests/lib.sh or tests/fixtures.sh stopped loading early for another reason; no temp root or farm was created"
+  fi
+done
+
+TMP_ROOT=$(fm_test_tmproot fm-attended-job) \
+  || bootstrap_fail "fm_test_tmproot failed to create the task temp root under TMPDIR '$TMPDIR'"
+[ -n "$TMP_ROOT" ] || bootstrap_fail "fm_test_tmproot returned an empty task temp root"
+case "$TMP_ROOT" in
+  /*) ;;
+  *) bootstrap_fail "the task temp root '$TMP_ROOT' is not an absolute path" ;;
+esac
+[ -d "$TMP_ROOT" ] && [ ! -L "$TMP_ROOT" ] \
+  || bootstrap_fail "the task temp root '$TMP_ROOT' is not a real directory"
+bootstrap_dir_private "$TMP_ROOT" \
+  || bootstrap_fail "the task temp root '$TMP_ROOT' is not owned by this user or is group- or world-writable"
+bootstrap_root_physical=$(cd -P -- "$TMP_ROOT" 2>/dev/null && pwd -P) || bootstrap_root_physical=
+[ "$bootstrap_root_physical" = "$TMP_ROOT" ] \
+  || bootstrap_fail "the task temp root '$TMP_ROOT' is not its own physical path ('$bootstrap_root_physical')"
+bootstrap_tmp_physical=$(cd -P -- "$TMPDIR" 2>/dev/null && pwd -P) || bootstrap_tmp_physical=
+case "$TMP_ROOT" in
+  "$bootstrap_tmp_physical"/fm-attended-job.?*) ;;
+  *) bootstrap_fail "the task temp root '$TMP_ROOT' is not directly under the physical TMPDIR '$bootstrap_tmp_physical'" ;;
+esac
+case "${TMP_ROOT#"$bootstrap_tmp_physical"/}" in
+  */*) bootstrap_fail "the task temp root '$TMP_ROOT' is not a direct child of the physical TMPDIR" ;;
+esac
+[ -f "$TMP_ROOT/.fm-test-fixture" ] \
+  || bootstrap_fail "the task temp root '$TMP_ROOT' lacks the owner marker fm_test_tmproot writes"
+# The library's own cleanup contract is what removes this root: it must be registered.
+grep -Fxq -- "$TMP_ROOT" "${FM_TEST_CLEANUP_REGISTRY:-/dev/null}" 2>/dev/null \
+  || bootstrap_fail "the task temp root '$TMP_ROOT' is not in the library's cleanup registry"
+
 fm_git_identity fmtest fmtest@example.invalid
 unset LAVISH_AXI_HOST
 RAN=0
@@ -66,7 +152,11 @@ done_case() {
 
 make_bin_farm() {  # <dir> <stub|real arm>
   local dir=$1 arm=$2 f
-  mkdir -p "$dir"
+  case "$dir" in
+    "$TMP_ROOT"/?*) ;;
+    *) bootstrap_fail "make_bin_farm was asked to build '$dir', which is not inside the task temp root '$TMP_ROOT'" ;;
+  esac
+  mkdir -p "$dir" || bootstrap_fail "make_bin_farm could not create '$dir'"
   for f in "$ROOT"/bin/*; do
     # The Claude trust writer is never linked, so no farm can reach it through a
     # symlink; the spawn farm installs its own stub in its place.
