@@ -4,8 +4,12 @@
 #
 # It runs only when FM_ATTENDED_TMUX=1 is set and tmux is installed, and otherwise
 # prints one skip line naming the gate (tests/lib.sh fm_live_gate). Requested with tmux
-# absent it fails rather than passing over nothing. It is NOT admitted to run until the
-# coordinator qualifies this exact script (work/chief-92-fixture-driver-plan.md stage 4).
+# absent it fails rather than passing over nothing.
+#
+# Before any fixture farm, stub, or tmux server exists it requires an absolute TMPDIR, a
+# helper library that loaded to its end, and a private physical task temp root, and
+# otherwise stops with "not ok - fixture bootstrap: ...". The helper library itself makes
+# that owned temp root, so it can exist before the checks on it finish.
 #
 # Isolation:
 #   - HOME is never replaced for any process this script starts. Nothing here reads or
@@ -48,8 +52,67 @@ unset BASH_ENV ENV
 export FM_TEST_SKIP_ORPHAN_REAP=1
 HOME_AT_LOAD=${HOME-}
 
+# --- fail-closed initialization ------------------------------------------------------
+#
+# Nothing below the sourcing may build a path from TMP_ROOT, create a directory, start a
+# server, or write a file until the helper library demonstrably loaded to its end and the
+# task temp root was created, is private, and is physically inside the literal TMPDIR. A
+# plain `. fixtures.sh || exit` is not enough:
+#   - tests/lib.sh ends its own load with `return 1` when the owner-identity probe at
+#     tests/lib.sh:114-117 yields nothing, and every helper defined after that line
+#     (fm_live_gate, fm_test_tmproot, fm_git_identity, the assertions, the traps) is then
+#     absent;
+#   - tests/fixtures.sh sources the library without testing the result, so this script's
+#     own `. fixtures.sh` still returns 0, and this script runs under `set -u` without
+#     `set -e`, so an absent helper would only print "command not found" and the run
+#     would go on, with an empty TMP_ROOT turning every path below into a root-level path.
+# The checks use only bash builtins plus `stat` and `grep`, touch nothing outside TMPDIR,
+# delete nothing, and change neither tests/lib.sh nor any helper.
+
+bootstrap_fail() {  # <what failed>
+  printf 'not ok - fixture bootstrap: %s\n' "$1" >&2
+  exit 1
+}
+
+# True when <dir> is a directory this user owns that neither the group nor others can
+# write. A fresh 0700 directory (what mktemp -d makes) passes.
+bootstrap_dir_private() {  # <dir>
+  local d=$1 mode
+  [ -d "$d" ] && [ -O "$d" ] || return 1
+  mode=$(stat -c %a "$d" 2>/dev/null || stat -f %Lp "$d" 2>/dev/null) || return 1
+  case "$mode" in '' | *[!0-7]*) return 1 ;; esac
+  [ $((8#$mode & 8#022)) -eq 0 ]
+}
+
+# Before the library loads: it registers its first temp file under ${TMPDIR:-/tmp}, so an
+# unset TMPDIR would send that write to /tmp. Require an explicit absolute TMPDIR that is
+# either the caller's own private directory or a sticky shared one such as /tmp. The root
+# created inside it is separately required to be private.
+case "${TMPDIR-}" in
+  /*) ;;
+  *) bootstrap_fail "TMPDIR must be set to an absolute directory path (it is '${TMPDIR-}'); tests/lib.sh would otherwise register its temp files under /tmp" ;;
+esac
+if ! bootstrap_dir_private "$TMPDIR" && ! { [ -d "$TMPDIR" ] && [ -k "$TMPDIR" ]; }; then
+  bootstrap_fail "TMPDIR '$TMPDIR' must be an existing directory that is either owned by this user and not group- or world-writable, or sticky"
+fi
+
 # shellcheck source=tests/fixtures.sh
 . "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
+
+# Every helper this script calls from tests/lib.sh or tests/fixtures.sh, by name. All but
+# `fail` and `pass` are defined after tests/lib.sh:117 or in tests/fixtures.sh, so any of
+# them missing means the library stopped early or fixtures.sh did not complete.
+# fm_live_gate is first: it is the first helper this script calls.
+for bootstrap_fn in fm_live_gate fm_test_tmproot fm_git_identity fm_test_cleanup fm_fake_exit0 \
+  fm_git_worktree fm_test_spawn_home fm_test_spawn_brief fail pass expect_code assert_equals \
+  assert_not_equals assert_present assert_absent; do
+  if [ "$(type -t "$bootstrap_fn")" != function ]; then
+    if [ -z "${FM_TEST_OWNER_IDENTITY:-}" ]; then
+      bootstrap_fail "required helper '$bootstrap_fn' is not defined and tests/lib.sh recorded no owner identity for this shell, so its probe at tests/lib.sh:114-117 failed and the library returned early; the likely cause on a host without /proc is the per-PID query ps -p <pid> -o lstart= -o command= in fm_pid_identity, which is a hypothesis and was not measured here; no temp root or farm was created"
+    fi
+    bootstrap_fail "required helper '$bootstrap_fn' is not defined although an owner identity was recorded, so tests/lib.sh or tests/fixtures.sh stopped loading early for another reason; no temp root or farm was created"
+  fi
+done
 
 fm_live_gate opt-in FM_ATTENDED_TMUX tmux
 
@@ -61,7 +124,36 @@ case "$REAL_TMUX" in /*) ;; *) fail "tmux did not resolve to an absolute path: $
 
 STRICT_SYSTEM_PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
-TMP_ROOT=$(fm_test_tmproot fm-attended-tmux)
+TMP_ROOT=$(fm_test_tmproot fm-attended-tmux) \
+  || bootstrap_fail "fm_test_tmproot failed to create the task temp root under TMPDIR '$TMPDIR'"
+[ -n "$TMP_ROOT" ] || bootstrap_fail "fm_test_tmproot returned an empty task temp root"
+case "$TMP_ROOT" in
+  /*) ;;
+  *) bootstrap_fail "the task temp root '$TMP_ROOT' is not an absolute path" ;;
+esac
+[ -d "$TMP_ROOT" ] && [ ! -L "$TMP_ROOT" ] \
+  || bootstrap_fail "the task temp root '$TMP_ROOT' is not a real directory"
+bootstrap_dir_private "$TMP_ROOT" \
+  || bootstrap_fail "the task temp root '$TMP_ROOT' is not owned by this user or is group- or world-writable"
+# Physical-path equality matters here: the staged launch path below is hashed from
+# $TMP_ROOT/<world>/home, and fm-spawn.sh hashes the physical home.
+bootstrap_root_physical=$(cd -P -- "$TMP_ROOT" 2>/dev/null && pwd -P) || bootstrap_root_physical=
+[ "$bootstrap_root_physical" = "$TMP_ROOT" ] \
+  || bootstrap_fail "the task temp root '$TMP_ROOT' is not its own physical path ('$bootstrap_root_physical')"
+bootstrap_tmp_physical=$(cd -P -- "$TMPDIR" 2>/dev/null && pwd -P) || bootstrap_tmp_physical=
+case "$TMP_ROOT" in
+  "$bootstrap_tmp_physical"/fm-attended-tmux.?*) ;;
+  *) bootstrap_fail "the task temp root '$TMP_ROOT' is not directly under the physical TMPDIR '$bootstrap_tmp_physical'" ;;
+esac
+case "${TMP_ROOT#"$bootstrap_tmp_physical"/}" in
+  */*) bootstrap_fail "the task temp root '$TMP_ROOT' is not a direct child of the physical TMPDIR" ;;
+esac
+[ -f "$TMP_ROOT/.fm-test-fixture" ] \
+  || bootstrap_fail "the task temp root '$TMP_ROOT' lacks the owner marker fm_test_tmproot writes"
+# The library's own cleanup contract is what removes this root: it must be registered.
+grep -Fxq -- "$TMP_ROOT" "${FM_TEST_CLEANUP_REGISTRY:-/dev/null}" 2>/dev/null \
+  || bootstrap_fail "the task temp root '$TMP_ROOT' is not in the library's cleanup registry"
+
 fm_git_identity fmtest fmtest@example.invalid
 unset LAVISH_AXI_HOST TMUX
 RAN=0
