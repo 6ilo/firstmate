@@ -811,6 +811,57 @@ test_superseded_host_leaves_the_owner_untouched() {
   pass "host: a host under a superseded auto-arm generation stands down without touching the owner"
 }
 
+# G5: a held attended one-job home (bin/fm-attended-job-lib.sh) has no supervision for the
+# host to own, so the host stands down through its existing ownership check before it
+# starts a watcher cycle or an engine turn. The armed-record home is the control: the same
+# host in the same kind of home starts its watcher, so the stand-down below cannot be a
+# side effect of anything else in the fixture. The record is written through the library's
+# own writer; the host, arm, and watcher are the real scripts.
+write_attended_record() {  # <home> <phase> <launch> <reason>
+  FM_HOME="$1" bash -c '
+    . "$FM_REPO/bin/fm-attended-job-lib.sh"
+    FM_ATT_SEQ=0
+    FM_ATT_PHASE=$2
+    FM_ATT_TASK=demo
+    FM_ATT_HOME=$(fm_attended_physical "$1")
+    FM_ATT_GEN=gen-1
+    FM_ATT_WORKTREE=$1/worktree
+    FM_ATT_HARNESS=claude
+    FM_ATT_BACKEND=tmux
+    FM_ATT_BRIEF=digest
+    FM_ATT_LAUNCH=$3
+    FM_ATT_REASON=$4
+    FM_ATT_OUTCOME=
+    FM_ATT_CREATED=$(date +%s)
+    FM_ATT_BOUND=$FM_ATTENDED_BOUND_MAX
+    FM_ATT_DEADLINE=$((FM_ATT_CREATED + FM_ATT_BOUND))
+    FM_ATT_HW=$FM_ATT_CREATED
+    fm_attended_record_publish "$1/state"
+  ' _ "$1" "$2" "$3" "$4" || fail "fixture: could not write the attended record"
+}
+
+test_held_attended_home_stands_the_host_down() {
+  local held armed
+  armed=$(make_home attended-armed away)
+  : > "$armed/config/attended-one-job"
+  write_attended_record "$armed" armed claimed ''
+  start_host "$armed"
+  wait_until 150 watcher_live "$armed" || fail "control: the host never started a watcher cycle in an armed attended home"
+
+  held=$(make_home attended-held away)
+  : > "$held/config/attended-one-job"
+  write_attended_record "$held" terminal refused stop
+  start_host "$held"
+  wait_until 200 host_exited "$held" || fail "held: the host did not return"
+  expect_code 0 "$(cat "$held/host.rc")" "a host in a held attended home exits 0"
+  assert_re '^supervision-host stood down: this session does not own supervision' "$held/host.out" \
+    "a held attended home must stand the host down through its ownership check"
+  watcher_live "$held" && fail "a held attended home had a watcher started by the host"
+  [ ! -e "$held/state/.supervision-host" ] || fail "a held attended home got a host record"
+  ! ls "$held"/engine-call.* >/dev/null 2>&1 || fail "an engine turn ran in a held attended home"
+  pass "host: a held attended one-job home stands the host down before any watcher or engine turn, and an armed one does not"
+}
+
 test_report_surface_enforces_actor_turn_and_scope
 test_report_after_the_return_is_queued_for_main
 test_dispatch_entry_scopes_rows_and_renders_the_away_tail
@@ -834,3 +885,4 @@ test_first_cycle_status_streams_and_owner_options_reach_it
 test_unverified_engine_hands_every_away_wake_to_main
 test_host_outside_the_lock_owner_stands_down
 test_superseded_host_leaves_the_owner_untouched
+test_held_attended_home_stands_the_host_down

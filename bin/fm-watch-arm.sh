@@ -32,6 +32,9 @@
 #   watcher: FAILED - cycle ended without an actionable reason
 #                                                        - a clean cycle ended with no wake and no
 #                                                          verified healthy successor
+#   watcher: HELD - the attended one-job hold is in force (<reason>); no watcher was started or stopped
+#                                                        - exit 3; only a held opted-in home
+#                                                          (bin/fm-attended-job-lib.sh) prints it
 # It NEVER reports started/attached/healthy off a stale beacon or a dead/reused pid: a
 # stale-beacon or dead-pid holder either self-heals (the fresh child steals the
 # dead lock per the singleton self-eviction/steal path and is confirmed) or this
@@ -430,6 +433,21 @@ if [ "$mode" = handling-delivered ]; then
     && fm_watcher_lock_matches_pid "$STATE" "$WATCH" "$handling_watcher_pid" "$FM_HOME" \
     && fm_recovery_marker_begin_handling "$STATE/.watcher-down" "$handling_generation"
   exit $?
+fi
+
+# A held attended one-job home (bin/fm-attended-job-lib.sh) starts no watcher. Every
+# arm owner funnels through this wrapper, so refusing here, before anything is
+# stopped or forked, also closes the retry loop and the detached successor. --stop
+# and --handling-delivered stay available, and the refusal signals nothing.
+if [ "$mode" = arm ] || [ "$mode" = restart ]; then
+  if [ -f "$SCRIPT_DIR/fm-attended-job-lib.sh" ]; then
+    # shellcheck source=bin/fm-attended-job-lib.sh
+    . "$SCRIPT_DIR/fm-attended-job-lib.sh"
+    if fm_attended_home_held "$STATE" "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" "$FM_HOME"; then
+      echo "watcher: HELD - the attended one-job hold is in force ($FM_ATT_HOLD_REASON); no watcher was started or stopped"
+      exit 3
+    fi
+  fi
 fi
 
 # Home-scoped stop: only the watcher pid recorded in THIS home's lock. Waits

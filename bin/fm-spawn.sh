@@ -279,6 +279,17 @@
 #   prevents equal task ids in different Firstmate homes from sharing a file.
 #   Spawn refuses an unsafe pre-existing task temp root or launch namespace, and
 #   task teardown removes only the current home's launch namespace.
+# Attended one-job hold (config/attended-one-job or state/.attended-job):
+#   Absent both, nothing below applies. Otherwise only the one fresh tmux ship task
+#   that bin/fm-attended-job.sh reserve named may spawn: a secondmate, a scout, a
+#   relaunch, another backend or harness, a second task, or a changed brief refuses
+#   before any endpoint, local copy, or trust entry exists. The reservation is bound
+#   to the spawn generation under the record mutex just before the task record is
+#   published, and the staged launch file begins with bin/fm-attended-job.sh
+#   launch-gate, which claims the launch in the worker pane or returns before the
+#   agent command is read. The spawn waits a bounded number of polls for that claim
+#   before its commit point and otherwise fails through the ordinary unwind.
+#   bin/fm-attended-job-lib.sh owns the contract and the lock order.
 # Launch environment (config/launch-env-allowlist):
 #   Absent means unchanged ambient inheritance. A present readable regular file
 #   opts every launch (ship, scout, secondmate, raw command, and relaunch) into
@@ -594,6 +605,12 @@ fi
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 # shellcheck source=bin/fm-classify-lib.sh
 . "$SCRIPT_DIR/fm-classify-lib.sh"
+# Attended one-job hold (bin/fm-attended-job-lib.sh): opt-in, gated below at the early
+# gate, the bind before publication, and the staged launch file.
+if [ -f "$SCRIPT_DIR/fm-attended-job-lib.sh" ]; then
+  # shellcheck source=bin/fm-attended-job-lib.sh
+  . "$SCRIPT_DIR/fm-attended-job-lib.sh"
+fi
 fm_backlog_directory_present "$STATE" "state directory" || {
   echo "error: spawn refused: $FM_BACKLOG_TRANSITION_ERROR" >&2
   exit 1
@@ -1231,6 +1248,8 @@ CONFIG_INHERIT_LOCK_HELD=0
 GIT_HOOKS_DIR=
 SPAWN_LAUNCH_SENT=0
 SPAWN_ENDPOINT_CLOSED=0
+SPAWN_ATTENDED=0
+SPAWN_ATTENDED_BOUND=0
 
 spawn_fresh_commit_rollback() {
   if fm_backlog_atomic_transition rollback "$STATE/$ID.meta" \
@@ -1261,6 +1280,14 @@ parse_orca_worktree_result() {
 
 spawn_abort_cleanup() {
   local status=$?
+  # An attended launch that was typed but never confirmed is settled under the record
+  # mutex before any lock below is released: a claim that already landed stays a
+  # claim, and anything else becomes a recorded refusal, so a late pane gate can only
+  # refuse. The mutex is taken after the per-task meta lock, the documented order.
+  if [ "$SPAWN_ATTENDED_BOUND" = 1 ] && [ "$SPAWN_LAUNCH_SENT" = 1 ]; then
+    SPAWN_ATTENDED_BOUND=0
+    fm_attended_launch_receipt "$STATE" "$FM_HOME" "$ID" "$SPAWN_GEN" settle >/dev/null 2>&1 || true
+  fi
   if [ "$RELAUNCH_REPLACEMENT_PENDING" = 1 ] &&
     [ "$SPAWN_META_PUBLISH_STARTED" = 1 ] &&
     [ -n "$SPAWN_META_TMP" ] &&
@@ -3388,6 +3415,26 @@ else
   fi
 fi
 
+# Attended one-job hold (bin/fm-attended-job-lib.sh), early gate. In an opted-in home,
+# or one that holds a record, the only spawn allowed is the fresh ship task the
+# reservation names, and it is refused here, before any endpoint, local copy, or trust
+# entry exists. This check is stale by the time the worker starts; the bind before the
+# record is published and the launch gate in the worker pane are what close the race.
+SPAWN_ATTENDED=0
+if [ -e "$CONFIG/attended-one-job" ] || [ -e "$STATE/.attended-job" ] || [ -L "$STATE/.attended-job" ]; then
+  if ! command -v fm_attended_spawn_gate >/dev/null 2>&1; then
+    echo "error: attended one-job hold: this home is opted in but bin/fm-attended-job-lib.sh is missing; refusing to spawn" >&2
+    exit 1
+  fi
+  # The brief bound to the reservation is the operator's source brief, not the launch
+  # brief this spawn renders from it on every run.
+  if ! fm_attended_spawn_gate "$STATE" "$CONFIG" "$FM_HOME" "$ID" "$KIND" "$RELAUNCH" "$BACKEND" "$HARNESS" "${SOURCE_BRIEF:-}"; then
+    echo "error: attended one-job hold: $FM_ATT_REFUSAL" >&2
+    exit 1
+  fi
+  SPAWN_ATTENDED=1
+fi
+
 if [ "$SPAWN_META_LOCK_HELD" != 1 ]; then
   SPAWN_META_LOCK=$(fm_meta_lock_path "$STATE/$ID.meta") || exit 1
   fm_lock_acquire_wait "$SPAWN_META_LOCK"
@@ -4799,6 +4846,17 @@ preserve_relaunch_meta() {
   echo "error: task record for $ID could not be prepared at $SPAWN_META_PATH" >&2
   exit 1
 }
+# Attended one-job hold: bind the reservation to this spawn generation and worktree
+# under the record mutex, still under this task's meta lock and immediately before the
+# record is published, so no task record exists without a bound attended record. A
+# reservation that lapsed, was held, changed, or lost its opt-in flag refuses here.
+if [ "$SPAWN_ATTENDED" = 1 ]; then
+  if ! fm_attended_spawn_bind "$STATE" "$CONFIG" "$FM_HOME" "$ID" "$SPAWN_GEN" "$WT" "$SOURCE_BRIEF"; then
+    echo "error: attended one-job hold: $FM_ATT_REFUSAL" >&2
+    exit 1
+  fi
+  SPAWN_ATTENDED_BOUND=1
+fi
 if [ "$RELAUNCH" -eq 0 ]; then
   if ! fm_backlog_atomic_transition publish "$SPAWN_META_TMP" "$STATE/$ID.meta" "task record" "$STATE"; then
     echo "error: task record for $ID could not be published ($FM_BACKLOG_TRANSITION_ERROR)" >&2
@@ -5149,6 +5207,15 @@ if [ -e "$LAUNCH_FILE" ] || [ -L "$LAUNCH_FILE" ]; then
   echo "error: task launch file $LAUNCH_FILE already exists; refusing to replace it" >&2
   exit 1
 fi
+if [ "$SPAWN_ATTENDED" = 1 ]; then
+  # Final launch gate (bin/fm-attended-job.sh launch-gate). The pane shell sources this
+  # file, so the gate runs at the real last moment, under the same record mutex a hold
+  # takes, and a refusal returns before the agent command is read. A shell where
+  # `return` is not valid here falls through to `exit`, which also never starts the agent.
+  LAUNCH_GATE="FM_HOME=$(shell_quote "$FM_HOME") FM_STATE_OVERRIDE=$(shell_quote "$STATE") FM_CONFIG_OVERRIDE=$(shell_quote "$CONFIG")"
+  LAUNCH_GATE="$LAUNCH_GATE $(shell_quote "$SCRIPT_DIR/fm-attended-job.sh") launch-gate --task $(shell_quote "$ID") --gen $(shell_quote "$SPAWN_GEN") --brief $(shell_quote "$SOURCE_BRIEF")"
+  LAUNCH="$LAUNCH_GATE || { return 1 2>/dev/null; exit 1; }"$'\n'"$LAUNCH"
+fi
 if ! (umask 077 && printf '%s\n' "$LAUNCH" >"$LAUNCH_STAGE" &&
   chmod 0600 "$LAUNCH_STAGE" && mv -f "$LAUNCH_STAGE" "$LAUNCH_FILE"); then
   rm -f "$LAUNCH_STAGE"
@@ -5232,6 +5299,30 @@ if [ "$KIND" = secondmate ] && [ "${FM_SKIP_SECONDMATE_INHERIT:-0}" != 1 ]; then
       echo "CONFIG_REREAD: secondmate $ID: cleanup failed; pre-relaunch generations were force-cleared where possible (destination=$PROJ_ABS source=$FM_HOME)" >&2
     fi
   fi
+fi
+
+# Attended one-job hold: the launch receipt must read "claimed" before the commit point.
+# The wait is counted in polls, not wall-clock time. A launch still pending after it is
+# settled under the record mutex, so exactly one of "claimed" and "refused" is true
+# from then on and a late pane gate can only refuse. Anything but claimed fails the
+# spawn through the ordinary unwind; the home stays held.
+if [ "$SPAWN_ATTENDED" = 1 ]; then
+  spawn_attended_polls=0
+  SPAWN_ATTENDED_RECEIPT=pending
+  while [ "$spawn_attended_polls" -lt "$FM_ATTENDED_LAUNCH_WAIT_POLLS" ]; do
+    SPAWN_ATTENDED_RECEIPT=$(fm_attended_launch_receipt "$STATE" "$FM_HOME" "$ID" "$SPAWN_GEN")
+    [ "$SPAWN_ATTENDED_RECEIPT" = pending ] || break
+    sleep 0.1
+    spawn_attended_polls=$((spawn_attended_polls + 1))
+  done
+  if [ "$SPAWN_ATTENDED_RECEIPT" = pending ]; then
+    SPAWN_ATTENDED_RECEIPT=$(fm_attended_launch_receipt "$STATE" "$FM_HOME" "$ID" "$SPAWN_GEN" settle)
+  fi
+  if [ "$SPAWN_ATTENDED_RECEIPT" != claimed ]; then
+    echo "error: attended one-job hold: the launch gate did not claim the launch of $ID ($SPAWN_ATTENDED_RECEIPT), so no worker is expected; the home stays held - run bin/fm-attended-job.sh stop to stop its chain and worker; nothing here releases the hold" >&2
+    exit 1
+  fi
+  SPAWN_ATTENDED_BOUND=0
 fi
 
 # This is the commit point: all endpoint and harness delivery that can reject

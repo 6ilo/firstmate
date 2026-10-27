@@ -133,6 +133,11 @@ CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 . "$SCRIPT_DIR/fm-timeout-lib.sh"
 # shellcheck source=bin/fm-supervision-engine-lib.sh
 . "$SCRIPT_DIR/fm-supervision-engine-lib.sh"
+# The attended one-job hold is opt-in; without the library the host reads as before.
+if [ -f "$SCRIPT_DIR/fm-attended-job-lib.sh" ]; then
+  # shellcheck source=bin/fm-attended-job-lib.sh
+  . "$SCRIPT_DIR/fm-attended-job-lib.sh"
+fi
 
 FIRST_ARM_RESTART=0
 case "${1:-}" in
@@ -369,6 +374,12 @@ retire_arm() {  # <pid> <output-file>
 
 host_still_owner() {
   fm_session_lock_owned_by_self "$STATE" || return 1
+  # A held attended one-job home (bin/fm-attended-job-lib.sh) has no supervision to
+  # own: standing down here ends the park before any successor cycle or engine turn.
+  if command -v fm_attended_home_held >/dev/null 2>&1 \
+    && fm_attended_home_held "$STATE" "$CONFIG" "$FM_HOME"; then
+    return 1
+  fi
   [ -n "$AUTOARM_GEN" ] || return 0
   fm_autoarm_ledger_read "$STATE" || return 1
   [ "$FM_AUTOARM_GEN" = "$AUTOARM_GEN" ] && [ "$FM_AUTOARM_OWNER" = "$AUTOARM_OWNER" ] \

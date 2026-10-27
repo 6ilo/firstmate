@@ -11,7 +11,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Task windows and worker tools | [Runtime backend](#runtime-backend-configbackend--fm_backend) and [harness support](#harness-support) |
 | Worker permissions, accounts, or environment | [Claude permission mode](#claude-permission-mode-configclaude-permission-mode), [worker account pin](#worker-account-pin-configclaude-account-configpi-account), and [worker launch environment](#worker-launch-environment-configlaunch-env-allowlist) |
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), and [startup memory budget](#startup-memory-budget-configstartup-memory-budget) |
-| Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
+| Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), [attended one-job hold](#attended-one-job-hold-configattended-one-job), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
 | The admin portal's Today page | [Today bridge](#today-bridge-env) |
 | Staff requests from the admin portal | [Fleet request queue](#fleet-request-queue-env) |
@@ -97,6 +97,7 @@ Each effective `FM_HOME` contains private operational directories.
 - Per-task steering-inbox records under `state/<id>.inbox/` (`bin/fm-task-inbox-lib.sh`).
 - Parent-owned secondmate pending-reply records under `state/pending-replies/` (`bin/fm-pending-reply-lib.sh`).
 - Backlog-lane gate load samples and its dry-run verdict log (`bin/fm-lanes.sh`).
+- The attended one-job record and its mutex, written only in a home that opted in (`bin/fm-attended-job-lib.sh`).
 
 `config/` holds local gitignored operating choices, including explicit extension bindings under `config/extensions.d/`.
 
@@ -335,6 +336,71 @@ The file is read at every wake, so a change applies at the next one without a re
 
 It is local to each home and not part of secondmate inherited configuration.
 While the file exists, main's lease-checked commands also take the per-task lease lock, so a claim by the host's engine cannot race a mutation main already started (`bin/fm-lease-lib.sh`).
+
+## Attended one-job hold (config/attended-one-job)
+
+The optional local, gitignored `config/attended-one-job` presence flag opts a dedicated home in to one attended job at a time.
+Nothing in Firstmate writes the flag; whoever has access to the home creates and removes it.
+The flag, and any flag or argument a caller passes to the command, are assertions by whoever supplies them.
+Firstmate cannot verify who that was, so none of them is consent, approval, authorization, or proof that a worker is stopped.
+A home with neither the flag nor a `state/.attended-job` record behaves exactly as it does without this feature.
+`bin/fm-attended-job.sh` owns the commands and exit codes, and `bin/fm-attended-job-lib.sh` owns the record format and the lock order.
+
+### What an opted-in home allows
+
+`reserve` allows exactly one fresh ship task, bound to the task id and to a digest of its source brief.
+The spawn then refuses, before it creates an endpoint, a local copy, or a trust entry, anything else: a second task, a scout, a secondmate, a relaunch, another backend or harness, or a brief that changed after the reservation.
+The only supported pairing is the `tmux` backend with the `claude` harness.
+`reserve` also refuses a home that has `config/supervision-host`, the away posture, or any task record.
+The spawn binds the reservation to its generation just before it publishes the task record.
+The staged launch file begins with `bin/fm-attended-job.sh launch-gate`, which claims the launch in the worker pane before the agent command is read and otherwise returns without starting it.
+The spawn waits a bounded number of polls for that claim before its commit point and unwinds through its ordinary path when the claim is refused or never arrives.
+
+### The hold
+
+`stop` writes the hold first, under the same mutex a launch claim takes, so exactly one of "claim" and "hold" wins.
+While the hold applies, the supervision need predicate reads false, the arm wrapper and the watcher refuse to start and a running watcher ends at its next poll, the Stop hook starts no successor, and the supervision host stands down.
+`stop` then stops this home's own watcher chain through `bin/fm-watch-arm.sh --stop` and the worker through `bin/fm-control.sh <task> exit`.
+It signals only a process whose identity the existing owners match, and it never tears down a worktree or discards work.
+The outcome is `quiescent` or `uncertain`, and `stop` is safe to repeat.
+`quiescent` is derived from what the existing owners report, not independently proven: the watcher chain stopped or no live lock holder remains, and the worker either was stopped by the control plane or never launched, which is vetoed by the hold and not observed.
+
+A launch that was claimed before the hold stays `uncertain` until a repeat of `stop` observes the worker being stopped.
+The control plane's `already-stopped` and `endpoint-gone` answers do not resolve a claim, because the agent may simply not have started yet.
+A live process that holds the watcher lock without being this home's watcher, a watcher that ignores the stop, and an unreadable control plane answer are also `uncertain`.
+An unreadable, altered, symlinked, or foreign record holds the home, and so does a home with task records whose record was deleted.
+Record presence dominates the flag: removing `config/attended-one-job` does not release a hold.
+A dedicated one-job home stays held after `stop` and `expire`, including when the outcome is `quiescent`.
+
+### The time bound
+
+`reserve` fixes a deadline from the home's own clock: now plus `--bound-seconds`, from 300 to 28800 and defaulting to 3600.
+A caller supplies a duration and never a time, and no command takes a timestamp.
+The record also keeps the highest clock reading it has seen.
+The watcher checks the deadline at every poll and the Stop hook checks it before its need gate, and either runs `expire`, which holds the home with the reason `expired` and then performs the same stop as `stop`.
+The spawn's bind step and the pane's launch gate also hold the home when the deadline has lapsed, so a first job that has no watcher yet cannot start late.
+A clock that reads more than 120 seconds below the recorded high-water mark has gone backward and can no longer say how long the job ran, so it expires the job with the reason `clock-rollback`.
+A rolled-back clock never extends a deadline, and an unreadable clock refuses a spawn or launch without holding the home.
+
+### Leaving a hold
+
+This release has no way to leave a hold.
+`clear` is disabled pending a separate qualification: it prints an explanation, says whether the home is held, and exits 3 without taking a lock or changing, removing, or signalling anything, whatever arguments it is given.
+It never treats a stored `quiescent` outcome, a flag such as the old `--accept-unresolved-worker`, or a note as permission to release or rearm, because a stored outcome is only a record of what an earlier `stop` saw and no flag can verify who passed it or what happened to the worker.
+A missing, invalid, or apparently quiescent record is held exactly like any other, and the supervision predicate, the arm wrapper, the watcher, and the host never resume on their account.
+`reserve` refuses while any record exists, so a held home is single-use here.
+Removing or editing state by hand is outside this contract and is not recognised as a release.
+
+### Limits
+
+The hold is verified for the `tmux` backend and the `claude` harness with a pane shell that supports `return` from a sourced file (`sh`, `bash`, `zsh`).
+The Stop hook, the arm wrapper, the watcher, and the supervision host's stand-down check read the hold.
+Other owners of supervision, including the Cursor park, the OpenCode and omp plugins, the Grok and Codex checkpoints, and the Pi branch, are not covered and must not be used in an opted-in home.
+`fm-control.sh relaunch` stops the old agent before it asks the spawn for a replacement, so in an opted-in home the spawn's refusal leaves that agent stopped.
+A launch claimed before a hold may still start; the result is reported `uncertain` until it is resolved, so this is not a guarantee that no worker ever starts after a hold.
+The time bound is measured on the machine's wall clock, so a clock set back while nothing observes the job is not detected until the next observation.
+A record deleted from a home that has no task record left is indistinguishable from a home that never reserved, and is not held.
+Nothing here writes the Claude trust or import-consent store, and that consent stays a separate human step.
 
 ## Backlog backend (.tasks.toml / config/backlog-backend)
 
