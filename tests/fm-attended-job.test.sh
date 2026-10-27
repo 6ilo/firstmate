@@ -22,10 +22,26 @@
 #     only records that it started. That proves the staged gate runs before the agent
 #     command in a bash pane. It is not harness, tmux, or provider proof; the real-tmux
 #     fixture is tests/fm-attended-job-tmux.test.sh, which is opt-in.
+#   - A spawn's PATH is the fixture stub directory plus fixed system directories only,
+#     and each stub (claude, tmux, timeout, treehouse) is proved to be the file the bare
+#     name resolves to before any spawn; the suite fails closed otherwise. Nothing here
+#     starts, resolves, or reads a real claude, its trust store, or a provider.
+#   - Every fixed /tmp path a spawn can create (the launch directory and the task temp
+#     root, per world) is preflighted absent before any spawn and removed only by exact
+#     recorded path; see the notes above cleanup_owned_launch_dirs.
+#   - Settle failure uses the real record mutex, held by a fixture-owned process.
 #   - Hold-versus-claim concurrency is barrier-synchronized: both processes wait for
 #     one release file, and the assertions are about the invariant between the
 #     outcomes, never about which one won or how long anything took.
 set -u
+
+# Nothing the caller exported may run code in, or reroute, a bash this suite starts:
+# BASH_ENV and ENV are read by every non-interactive shell. The sweep of fm-* roots in
+# tests/lib.sh is also off, because this suite removes only the exact paths it listed
+# as absent before it created them and never matches by prefix.
+unset BASH_ENV ENV
+export FM_TEST_SKIP_ORPHAN_REAP=1
+HOME_AT_LOAD=${HOME-}
 
 # shellcheck source=tests/fixtures.sh
 . "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
@@ -762,6 +778,22 @@ if [ "${1:-}" = send-keys ] && [ -n "${FM_PANE_DIR:-}" ]; then
   if [ "$last" = Enter ] && [ -s "$FM_PANE_DIR/typed" ]; then
     typed=$(cat "$FM_PANE_DIR/typed")
     rm -f "$FM_PANE_DIR/typed"
+    if [ -n "${FM_PANE_HOLD_SCRIPT:-}" ]; then
+      # Contention seam: before the spawn starts waiting for its launch receipt, a
+      # fixture-owned process takes the REAL record mutex through the library and holds
+      # it until a release file appears (at most 30 seconds). This script proceeds only
+      # once the holder says it has the mutex, so the order is fixed by construction.
+      (bash "$FM_PANE_HOLD_SCRIPT" "$FM_PANE_HOLD_LIBDIR" "$FM_PANE_HOLD_STATE" \
+        "$FM_PANE_HOLD_READY" "$FM_PANE_HOLD_RELEASE" >/dev/null 2>&1 </dev/null) &
+      held=0
+      i=0
+      while [ "$i" -lt 100 ]; do
+        [ -e "$FM_PANE_HOLD_READY" ] && { held=1; break; }
+        sleep 0.1
+        i=$((i + 1))
+      done
+      [ "$held" = 1 ] || { echo "fixture: the mutex holder never became ready" >&2; exit 1; }
+    fi
     (
       : > "$FM_PANE_DIR/pane-waiting"
       i=0
@@ -780,19 +812,42 @@ SH
   chmod +x "$fakebin/tmux"
 }
 
-# fm-spawn.sh stages every launch file under /tmp/fm-<task id>+<home hash>, a fixed
-# location that ignores TMPDIR. Each world therefore computes that exact path from its
-# own unique task id and fresh home, requires it to be ABSENT before anything is created
-# (an existing or ambiguous path stops the suite; nothing is reused, stolen, or deleted),
-# and records it so the exit trap removes only the paths this run preflighted as absent.
+# fm-spawn.sh writes two kinds of fixed location under /tmp that ignore TMPDIR:
+#   launch   /tmp/fm-<task id>+<home hash>   the staged launch file's directory
+#   taskroot /tmp/fm-<task id>               the per-task temp root; the spawn makes
+#                                            gotmp inside it and reuses a private one
+# Each world computes both exact paths from its own unique task id and fresh home and
+# requires each to be ABSENT before anything is created, including as a dangling
+# symlink (an existing or ambiguous path stops the suite at load; nothing is reused,
+# stolen, or deleted). Each pair is recorded with this run's generation, the test shell
+# pid that is part of every task id, and the exit trap removes only a recorded path that
+# still has the exact shape for its kind and this generation, is a real directory and
+# not a symlink, and is owned by the user. It never globs, matches a prefix, or removes
+# anything it did not list. A run killed too hard to reach its trap leaves the record
+# and the paths in place for inventory.
 OWNED_LAUNCH_DIRS="$TMP_ROOT/owned-launch-dirs"
 : > "$OWNED_LAUNCH_DIRS"
 
 cleanup_owned_launch_dirs() {
-  local d
+  local kind d gen label rest
   [ -f "$OWNED_LAUNCH_DIRS" ] || return 0
-  while IFS= read -r d; do
-    case "$d" in /tmp/fm-attended-[0-9]*+*) ;; *) continue ;; esac
+  while IFS=$'\t' read -r kind d gen label; do
+    [ "$gen" = "$$" ] || continue
+    rest=${d#/tmp/fm-attended-"$$"-}
+    [ "$rest" != "$d" ] || continue
+    case "$rest" in ''|*/*) continue ;; esac
+    case "$kind" in
+      launch)
+        case "$rest" in "$label"+*) ;; *) continue ;; esac
+        rest=${rest#"$label"+}
+        case "$rest" in ''|*[!0-9a-f]*) continue ;; esac
+        [ "${#rest}" -eq 64 ] || continue
+        ;;
+      taskroot)
+        [ "$rest" = "$label" ] || continue
+        ;;
+      *) continue ;;
+    esac
     if [ -d "$d" ] && [ ! -L "$d" ] && [ -O "$d" ]; then
       rm -rf -- "$d"
     fi
@@ -803,14 +858,15 @@ trap 'cleanup_owned_launch_dirs; fm_test_cleanup; exit 129' HUP
 trap 'cleanup_owned_launch_dirs; fm_test_cleanup; exit 130' INT
 trap 'cleanup_owned_launch_dirs; fm_test_cleanup; exit 143' TERM
 
-# Every spawn world this suite will create, as <directory name>:<task id label>. The
-# staged launch path of each is computable now, because a world's home is the
+# Every spawn world this suite will create, as <directory name>:<task id label>. Both
+# fixed paths of each (see above) are computable now, because a world's home is the
 # deterministic path $TMP_ROOT/<name>/home (TMP_ROOT is already physical) and the task
 # id is attended-<pid>-<label>. All of them are required ABSENT here, before any case
 # runs and before anything is created under /tmp; one that exists stops the suite with
 # nothing touched. spawn_launch_home_token in bin/fm-spawn.sh hashes the physical home
-# path with SHA-256, and the path is /tmp/fm-<task id>+<that hash>.
-SPAWN_WORLD_TABLE="spawn-refuse:attended-refuse-1 spawn-pass:attended-pass-1 spawn-hold:attended-hold-1 spawn-mid-flag:attended-mid-flag-1 spawn-mid-record:attended-mid-record-1 spawn-claim:attended-claim-1 spawn-preserve:preserve spawn-control:attended-control-1"
+# path with SHA-256, the launch path is /tmp/fm-<task id>+<that hash>, and the task temp
+# root is /tmp/fm-<task id> (TASK_TMP in bin/fm-spawn.sh).
+SPAWN_WORLD_TABLE="spawn-refuse:attended-refuse-1 spawn-pass:attended-pass-1 spawn-hold:attended-hold-1 spawn-mid-flag:attended-mid-flag-1 spawn-mid-record:attended-mid-record-1 spawn-claim:attended-claim-1 spawn-preserve:preserve spawn-control:attended-control-1 spawn-settle:attended-settle-1"
 
 launch_dir_for() {  # <world directory name> <label>
   local hash
@@ -823,18 +879,79 @@ launch_dir_for() {  # <world directory name> <label>
   printf '/tmp/fm-attended-%s-%s+%s\n' "$$" "$2" "$hash"
 }
 
+task_root_for() {  # <label>
+  printf '/tmp/fm-attended-%s-%s\n' "$$" "$1"
+}
+
+# Preflight every exact path of every world in one pass, and record each as a
+# kind/path/generation/label row. Nothing is created until all of them were absent.
 preflight_all_launch_dirs() {
-  local entry d
+  local entry d t label
   for entry in $SPAWN_WORLD_TABLE; do
-    d=$(launch_dir_for "${entry%%:*}" "${entry#*:}") || fail "cannot compute the staged launch path for $entry"
+    label=${entry#*:}
+    d=$(launch_dir_for "${entry%%:*}" "$label") || fail "cannot compute the staged launch path for $entry"
+    t=$(task_root_for "$label")
     if [ -e "$d" ] || [ -L "$d" ]; then
       fail "the staged launch path $d already exists; refusing to continue (this suite never reuses, steals, or deletes a path it did not create)"
     fi
-    printf '%s\n' "$d" >> "$OWNED_LAUNCH_DIRS"
+    if [ -e "$t" ] || [ -L "$t" ]; then
+      fail "the task temp root $t already exists; refusing to continue (this suite never reuses, steals, or deletes a path it did not create)"
+    fi
+  done
+  for entry in $SPAWN_WORLD_TABLE; do
+    label=${entry#*:}
+    d=$(launch_dir_for "${entry%%:*}" "$label")
+    t=$(task_root_for "$label")
+    printf 'launch\t%s\t%s\t%s\n' "$d" "$$" "$label" >> "$OWNED_LAUNCH_DIRS"
+    printf 'taskroot\t%s\t%s\t%s\n' "$t" "$$" "$label" >> "$OWNED_LAUNCH_DIRS"
     printf 'info - staged launch path, absent at preflight and owned by this run: %s\n' "$d"
+    printf 'info - staged task root, absent at preflight and owned by this run: %s\n' "$t"
   done
 }
 preflight_all_launch_dirs
+
+# A spawn never sees the caller's PATH. The agent command is the bare name `claude`, so
+# a PATH that fell through to the caller's directories could start a real Claude under
+# the real HOME. The spawn world's PATH is the fixture stub directory first and then
+# these fixed system directories only, and before ANY spawn the fixture proves, under
+# exactly that environment, that every tool a launch could reach by bare name that has
+# a stub resolves to the stub file, and that no fixed system directory has a claude at
+# all. A missing guard fails the case closed; it never falls back.
+STRICT_SYSTEM_PATH=/usr/bin:/bin:/usr/sbin:/sbin
+
+assert_strict_tool_resolution() {  # <fakebin>
+  local fb=$1 d tool got
+  for d in ${STRICT_SYSTEM_PATH//:/ }; do
+    [ ! -e "$d/claude" ] && [ ! -L "$d/claude" ] \
+      || fail "strict claude: $d/claude exists, so the system-only fallback could start a real claude"
+  done
+  for tool in claude tmux timeout treehouse; do
+    [ -f "$fb/$tool" ] && [ ! -L "$fb/$tool" ] && [ -x "$fb/$tool" ] \
+      || fail "strict $tool: the fixture stub $fb/$tool is missing, a symlink, or not executable"
+    got=$(PATH="$fb:$STRICT_SYSTEM_PATH" FM_PANE_DIR=/nonexistent "$BASH" -c 'command -v "$1"' _ "$tool" 2>/dev/null) || got=
+    [ "$got" = "$fb/$tool" ] \
+      || fail "strict $tool: it resolves to '$got' under the spawn environment, not to the stub $fb/$tool"
+  done
+}
+
+# Fixture-owned process that takes the REAL record mutex through the library and holds
+# it until a release file appears or 30 seconds pass, whichever is first, then releases
+# it by the library's own unlock. It never steals, clears, or forces anything.
+# Arguments: <lib dir> <state dir> <ready file> <release file>; FM_HOME and
+# FM_STATE_OVERRIDE come from the environment.
+HOLD_MUTEX_SCRIPT="$TMP_ROOT/hold-mutex.sh"
+cat > "$HOLD_MUTEX_SCRIPT" <<'SH'
+#!/usr/bin/env bash
+. "$1/fm-attended-job-lib.sh"
+fm_attended_lock "$2" || exit 1
+: > "$3"
+i=0
+while [ ! -e "$4" ] && [ "$i" -lt 300 ]; do
+  sleep 0.1
+  i=$((i + 1))
+done
+fm_attended_unlock
+SH
 
 # One firstmate root shared by the spawn worlds: every top-level entry of the checkout
 # except .git, bin/, tests/, and the private-home directories is linked in, and bin/ is
@@ -870,8 +987,10 @@ make_spawn_world() {  # <name> <label> <yes|no opted in>
   W_PROJ="$W_DIR/project"
   W_WT="$W_DIR/wt"
   W_ID="attended-$$-$2"
-  grep -qxF "$(launch_dir_for "$1" "$2")" "$OWNED_LAUNCH_DIRS" \
+  grep -qxF "$(printf 'launch\t%s\t%s\t%s' "$(launch_dir_for "$1" "$2")" "$$" "$2")" "$OWNED_LAUNCH_DIRS" \
     || fail "spawn world $1:$2 is not in SPAWN_WORLD_TABLE, so its staged launch path was never preflighted"
+  grep -qxF "$(printf 'taskroot\t%s\t%s\t%s' "$(task_root_for "$2")" "$$" "$2")" "$OWNED_LAUNCH_DIRS" \
+    || fail "spawn world $1:$2 is not in SPAWN_WORLD_TABLE, so its task temp root was never preflighted"
   W_PANE="$W_DIR/pane"
   W_STUB_TRUST="$W_DIR/trust-calls"
   ensure_spawn_farm
@@ -880,11 +999,12 @@ make_spawn_world() {  # <name> <label> <yes|no opted in>
   printf '#!/usr/bin/env bash\nshift\nexec "$@"\n' > "$W_FAKEBIN/timeout"
   cat > "$W_FAKEBIN/claude" <<'SH'
 #!/usr/bin/env bash
-printf '%s\n' "$$" >> "${FM_PANE_DIR:?}/agent-started"
+printf '%s %s\n' "$$" "$0" >> "${FM_PANE_DIR:?}/agent-started"
 exit 0
 SH
   chmod +x "$W_FAKEBIN/timeout" "$W_FAKEBIN/claude"
   make_pane_tmux "$W_FAKEBIN"
+  assert_strict_tool_resolution "$W_FAKEBIN"
   fm_test_spawn_home "$W_HOME" claude
   fm_git_worktree "$W_PROJ" "$W_WT" "wt-$1"
   fm_test_spawn_brief "$W_HOME" "$W_ID"
@@ -904,15 +1024,19 @@ world_reserve() {
 
 # The real fm-spawn.sh from the farm, with the same environment overrides
 # tests/fixtures.sh's fm_test_run_spawn passes EXCEPT that HOME is left exactly as the
-# caller has it and CLAUDE_CONFIG_DIR is pinned empty. Nothing in the tmux and claude
-# path of the spawn reads HOME (its other references are in harness branches this suite
-# does not take). A caller may export FM_PANE_GO before calling.
+# caller has it, CLAUDE_CONFIG_DIR is pinned empty, and PATH is the stub directory plus
+# STRICT_SYSTEM_PATH only (never the caller's PATH). Nothing in the tmux and claude path
+# of the spawn reads HOME (its other references are in harness branches this suite does
+# not take). A caller may export FM_PANE_GO before calling. The launch wait is counted
+# in polls, so a world whose pane never claims fails after about 20 seconds at most
+# rather than the default 30; the count is a bound and not an assertion about timing.
 world_spawn() {  # [extra fm-spawn args]
   FM_ROOT_OVERRIDE='' FM_HOME="$W_HOME" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$W_HOME/state" FM_DATA_OVERRIDE="$W_HOME/data" \
     FM_PROJECTS_OVERRIDE="$W_HOME/projects" FM_CONFIG_OVERRIDE="$W_HOME/config" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$W_WT" TMUX="fake,1,0" \
-    FM_PANE_DIR="$W_PANE" FM_STUB_TRUST_LOG="$W_STUB_TRUST" PATH="$W_FAKEBIN:$PATH" \
+    FM_ATTENDED_LAUNCH_WAIT_POLLS="${FM_ATTENDED_LAUNCH_WAIT_POLLS:-200}" \
+    FM_PANE_DIR="$W_PANE" FM_STUB_TRUST_LOG="$W_STUB_TRUST" PATH="$W_FAKEBIN:$STRICT_SYSTEM_PATH" \
     "$SPAWN_FARM/bin/fm-spawn.sh" "$W_ID" "$W_PROJ" --mode no-mistakes --yolo off "$@" 2>&1
 }
 
@@ -957,6 +1081,8 @@ test_spawn_claims_the_launch_then_starts_the_agent() {
   assert_equals "$(sed -n 's/^spawn_gen=//p' "$W_HOME/state/$W_ID.meta")" "$(rec_field "$W_HOME" gen)" \
     "the record is not bound to the published generation"
   wait_for_file "$W_PANE/agent-started" 100 || fail "the stub agent never started after a claimed launch: $(cat "$W_PANE/pane.log" 2>/dev/null)"
+  assert_equals "$W_FAKEBIN/claude" "$(awk 'NR == 1 { print $2 }' "$W_PANE/agent-started")" \
+    "the agent that started was not the fixture stub, so a real claude may have run"
   assert_equals "needed=true held=false" "$(sup_view "$W_HOME")" "a bound running job must be supervised"
   assert_present "$W_STUB_TRUST" "an admitted spawn never reached the stub trust step"
   done_case "spawn: a reserved fresh ship task is bound, the pane gate claims the launch before the agent command, and the agent then starts"
@@ -1062,6 +1188,123 @@ test_non_opted_in_spawn_is_unchanged() {
   assert_present "$W_HOME/state/$W_ID.meta" "the control spawn wrote no task record"
   wait_for_file "$W_PANE/agent-started" 100 || fail "the control agent never started"
   done_case "spawn: a home without the flag or a record spawns exactly as before and writes no attended record"
+}
+
+# --- settle failure: the public failure path ---------------------------------------
+#
+# The spawn's settle (fm_attended_launch_receipt ... settle, bin/fm-attended-job-lib.sh)
+# makes one bounded attempt at the real record mutex. The cases here make that attempt
+# fail through the real mutex: a fixture-owned process takes it through the library and
+# holds it, the order is fixed by construction (the holder reports ready before the
+# spawn starts waiting, and before the direct settle call), and the assertions are about
+# what is reported and recorded, never about which side was faster.
+
+settle_for() {  # <home> <id> <gen>: the settle the spawn runs, against that home
+  FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" bash -c '
+    . "$1/fm-attended-job-lib.sh"
+    fm_attended_launch_receipt "$2" "$3" "$4" "$5" settle
+  ' _ "$STUB_BIN" "$1/state" "$1" "$2" "$3"
+}
+
+test_settle_failure_is_uncertain_and_never_claims_held() {
+  local out rc go
+  make_spawn_world spawn-settle attended-settle-1 yes
+  world_reserve
+  go="$W_DIR/pane-go"
+  out=$(FM_PANE_GO="$go" FM_PANE_HOLD_SCRIPT="$HOLD_MUTEX_SCRIPT" FM_PANE_HOLD_LIBDIR="$SPAWN_FARM/bin" \
+    FM_PANE_HOLD_STATE="$W_HOME/state" FM_PANE_HOLD_READY="$W_DIR/hold-ready" \
+    FM_PANE_HOLD_RELEASE="$W_DIR/hold-release" FM_ATTENDED_LAUNCH_WAIT_POLLS=3 FM_ATTENDED_LOCK_SECONDS=2 \
+    world_spawn 2>&1); rc=$?
+  assert_present "$W_DIR/hold-ready" "the fixture's mutex holder never became ready, so the settle path was not exercised: $out"
+  assert_not_equals 0 "$rc" "a spawn whose settle failed must exit nonzero"
+  assert_contains "$out" "UNCERTAIN" "the failed settle was not reported as uncertain: $out"
+  assert_contains "$out" "NOT confirmed held" "the failed settle did not say the home is not confirmed held"
+  assert_not_contains "$out" "stays held" "a failed settle claimed the home stays held"
+  assert_not_contains "$out" "no worker is expected" "a failed settle claimed no worker is expected"
+  assert_not_contains "$out" "quiescent" "a failed settle claimed quiescence"
+  assert_not_contains "$out" "is recorded as refused" "a failed settle claimed a refusal was recorded"
+  assert_equals 1 "$(printf '%s\n' "$out" | grep -c '^UNCERTAIN: ')" "the failure was reported more than once, so the settle was retried"
+  assert_equals armed "$(rec_field "$W_HOME" phase)" "the record claims a hold that could not be written"
+  assert_equals none "$(rec_field "$W_HOME" launch)" "the record claims a launch outcome that was never written"
+  assert_contains "$(world_att status 2>&1)" "held=no" "status reported a hold that was never written"
+
+  # The repair path the message names: once the holder lets go, stop holds and vetoes.
+  : > "$W_DIR/hold-release"
+  out=$(world_att stop 2>&1); rc=$?
+  expect_code 0 "$rc" "stop after the holder released must hold and report the unlaunched job: $out"
+  assert_equals terminal "$(rec_field "$W_HOME" phase)" "stop did not write the hold"
+  # The pane that was parked all along now runs; whatever it does, no agent may start.
+  : > "$go"
+  wait_for_file "$W_PANE/pane-rc" 300 || fail "the parked pane never finished"
+  assert_absent "$W_PANE/agent-started" "an agent started after the hold was written"
+  done_case "settle failure: a mutex that cannot be taken makes the spawn exit nonzero UNCERTAIN once, with nothing recorded as held, and stop afterwards holds and no agent starts"
+}
+
+test_settle_reports_each_outcome_and_never_overrides_a_claim() {
+  local c out rc before holder variant
+  c=$(armed_case settle-claimed job-1 g1)
+  gate "$c" job-1 g1 >/dev/null 2>&1 || fail "setup claim failed"
+  before=$(cat "$c/state/.attended-job")
+  out=$(settle_for "$c" job-1 g1); rc=$?
+  assert_equals claimed "$out" "a settle over a claimed launch must report claimed"
+  expect_code 0 "$rc" "a settle over a claimed launch is not a failure"
+  assert_equals "$before" "$(cat "$c/state/.attended-job")" "a settle rewrote a record whose launch was already claimed"
+  assert_equals armed "$(rec_field "$c" phase)" "a settle made a claimed launch terminal"
+
+  c=$(armed_case settle-open job-1 g1)
+  out=$(settle_for "$c" job-1 g1); rc=$?
+  assert_equals refused "$out" "a settle over an open launch must report refused"
+  expect_code 0 "$rc" "a settle that wrote the refusal succeeded"
+  assert_equals terminal "$(rec_field "$c" phase)" "the settle did not write the hold"
+  assert_equals refused "$(rec_field "$c" launch)" "the settle did not record the refusal"
+  assert_equals launch-unconfirmed "$(rec_field "$c" reason)" "the settle recorded the wrong reason"
+
+  c=$(armed_case settle-wrong-id job-1 g1)
+  before=$(cat "$c/state/.attended-job")
+  out=$(settle_for "$c" other-job g1); rc=$?
+  assert_equals uncertain "$out" "a settle for a task the record is not bound to must be uncertain"
+  expect_code 3 "$rc" "an unresolved settle must exit nonzero"
+  assert_equals "$before" "$(cat "$c/state/.attended-job")" "an uncertain settle changed the record"
+
+  c=$(armed_case settle-no-record job-1 g1)
+  rm -f "$c/state/.attended-job"
+  out=$(settle_for "$c" job-1 g1); rc=$?
+  assert_equals uncertain "$out" "a settle with no record must be uncertain"
+  expect_code 3 "$rc" "an unresolved settle must exit nonzero"
+  assert_absent "$c/state/.attended-job" "a failed settle recreated a deleted record"
+
+  for variant in then-settle then-claim; do
+    c=$(armed_case "settle-busy-$variant" job-1 g1)
+    before=$(cat "$c/state/.attended-job")
+    FM_HOME="$c" FM_STATE_OVERRIDE="$c/state" bash "$HOLD_MUTEX_SCRIPT" "$STUB_BIN" "$c/state" \
+      "$c/hold-ready" "$c/hold-release" >/dev/null 2>&1 </dev/null &
+    holder=$!
+    wait_for_file "$c/hold-ready" 100 || fail "$variant: the fixture's mutex holder never became ready"
+    out=$(FM_ATTENDED_LOCK_SECONDS=1 settle_for "$c" job-1 g1); rc=$?
+    assert_equals uncertain "$out" "$variant: a settle that cannot take the mutex must be uncertain"
+    expect_code 3 "$rc" "$variant: a settle that cannot take the mutex must exit nonzero"
+    assert_equals "$before" "$(cat "$c/state/.attended-job")" "$variant: a failed settle changed the record"
+    assert_contains "$(att "$c" status 2>&1)" "held=no" "$variant: a failed settle left a record that reads as held"
+    : > "$c/hold-release"
+    wait "$holder" 2>/dev/null || true
+    case "$variant" in
+      then-settle)
+        out=$(settle_for "$c" job-1 g1); rc=$?
+        assert_equals refused "$out" "$variant: once the mutex is free the settle must be able to hold"
+        assert_equals terminal "$(rec_field "$c" phase)" "$variant: the later settle did not write the hold"
+        ;;
+      then-claim)
+        # The reason the failed settle may not say "held": a pane gate that runs later
+        # can still claim, and the stop then has an unresolved claim to report.
+        gate "$c" job-1 g1 >/dev/null 2>&1; rc=$?
+        expect_code 0 "$rc" "$variant: the late pane gate could not claim although nothing was held"
+        out=$(att "$c" stop 2>&1); rc=$?
+        expect_code 3 "$rc" "$variant: a claim that landed after a failed settle must leave the stop uncertain: $out"
+        assert_contains "$out" "outcome=uncertain" "$variant: the stop did not report uncertain"
+        ;;
+    esac
+  done
+  done_case "settle: claimed is left alone, an open launch becomes a recorded refusal, and a wrong task, no record, or a busy mutex is a nonzero uncertain that writes nothing and does not read as held"
 }
 
 # --- deadline observation with a dummy clock -----------------------------------------
@@ -1250,9 +1493,12 @@ test_flag_or_record_removed_mid_spawn_prevents_the_agent
 test_claim_before_hold_leaves_the_stop_uncertain_until_replayed
 test_stop_leaves_uncommitted_work_and_calls_only_exit
 test_non_opted_in_spawn_is_unchanged
+test_settle_failure_is_uncertain_and_never_claims_held
+test_settle_reports_each_outcome_and_never_overrides_a_claim
 test_expire_is_a_noop_until_the_deadline_then_holds
 test_lapsed_reservation_is_refused_and_held_at_each_gate
 test_clock_rollback_expires_and_never_extends
 test_bound_must_be_a_whole_number_in_range
 
-[ "$RAN" -eq 31 ] || fail "$RAN cases ran, expected 31; a silent partial pass is not a pass"
+[ "${HOME-}" = "$HOME_AT_LOAD" ] || fail "HOME changed during the suite; no case may replace it"
+[ "$RAN" -eq 33 ] || fail "$RAN cases ran, expected 33; a silent partial pass is not a pass"

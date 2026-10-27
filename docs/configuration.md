@@ -368,8 +368,8 @@ The outcome is `quiescent` or `uncertain`, and `stop` is safe to repeat.
 A launch that was claimed before the hold stays `uncertain` until a repeat of `stop` observes the worker being stopped.
 The control plane's `already-stopped` and `endpoint-gone` answers do not resolve a claim, because the agent may simply not have started yet.
 A live process that holds the watcher lock without being this home's watcher, a watcher that ignores the stop, and an unreadable control plane answer are also `uncertain`.
-An unreadable, altered, symlinked, or foreign record holds the home, and so does a home with task records whose record was deleted.
-Record presence dominates the flag: removing `config/attended-one-job` does not release a hold.
+An unreadable, altered, symlinked, or foreign record holds the home, and so does an opted-in home with task records whose record was deleted while `config/attended-one-job` still exists.
+Record presence dominates the flag: removing `config/attended-one-job` does not release a hold while the record exists.
 A dedicated one-job home stays held after `stop` and `expire`, including when the outcome is `quiescent`.
 
 ### The time bound
@@ -380,26 +380,37 @@ The record also keeps the highest clock reading it has seen.
 The watcher checks the deadline at every poll and the Stop hook checks it before its need gate, and either runs `expire`, which holds the home with the reason `expired` and then performs the same stop as `stop`.
 The spawn's bind step and the pane's launch gate also hold the home when the deadline has lapsed, so a first job that has no watcher yet cannot start late.
 A clock that reads more than 120 seconds below the recorded high-water mark has gone backward and can no longer say how long the job ran, so it expires the job with the reason `clock-rollback`.
-A rolled-back clock never extends a deadline, and an unreadable clock refuses a spawn or launch without holding the home.
+A rolled-back clock never extends a deadline.
+An unreadable clock refuses a spawn at the early gate and at the bind without writing a hold, and at the pane's launch gate it holds the home and records `launch=refused`.
+
+After the deadline passes, the detached `expire` the watcher and the Stop hook run does not report anywhere, and a worker whose stop came back `uncertain` is not retried.
+An operator should therefore run `bin/fm-attended-job.sh status` and, if the outcome is not `quiescent`, `bin/fm-attended-job.sh stop`, which is safe to repeat, and read its `worker=` and `outcome=` words.
+No new mechanism prompts that check.
 
 ### Leaving a hold
 
 This release has no way to leave a hold.
 `clear` is disabled pending a separate qualification: it prints an explanation, says whether the home is held, and exits 3 without taking a lock or changing, removing, or signalling anything, whatever arguments it is given.
-It never treats a stored `quiescent` outcome, a flag such as the old `--accept-unresolved-worker`, or a note as permission to release or rearm, because a stored outcome is only a record of what an earlier `stop` saw and no flag can verify who passed it or what happened to the worker.
+It never treats a stored `quiescent` outcome, a flag, or a note as permission to release or rearm, because a stored outcome is only a record of what an earlier `stop` saw and no flag can verify who passed it or what happened to the worker.
 A missing, invalid, or apparently quiescent record is held exactly like any other, and the supervision predicate, the arm wrapper, the watcher, and the host never resume on their account.
 `reserve` refuses while any record exists, so a held home is single-use here.
 Removing or editing state by hand is outside this contract and is not recognised as a release.
 
 ### Limits
 
-The hold is verified for the `tmux` backend and the `claude` harness with a pane shell that supports `return` from a sourced file (`sh`, `bash`, `zsh`).
+The hold is a supported trial subset for the `tmux` backend and the `claude` harness with a pane shell that supports `return` from a sourced file (`sh`, `bash`, `zsh`); it is proposed and not yet verified, and no real-harness verification record exists for it.
+Its tests use a stub control plane, a stub trust writer, a stub agent, and a fake or private `tmux`, so they are not production-harness evidence.
 The Stop hook, the arm wrapper, the watcher, and the supervision host's stand-down check read the hold.
 Other owners of supervision, including the Cursor park, the OpenCode and omp plugins, the Grok and Codex checkpoints, and the Pi branch, are not covered and must not be used in an opted-in home.
 `fm-control.sh relaunch` stops the old agent before it asks the spawn for a replacement, so in an opted-in home the spawn's refusal leaves that agent stopped.
 A launch claimed before a hold may still start; the result is reported `uncertain` until it is resolved, so this is not a guarantee that no worker ever starts after a hold.
 The time bound is measured on the machine's wall clock, so a clock set back while nothing observes the job is not detected until the next observation.
 A record deleted from a home that has no task record left is indistinguishable from a home that never reserved, and is not held.
+A same-user deletion of both `state/.attended-job` and `config/attended-one-job` reads as a home that is not an attended home, even with a task record present, so supervision can resume around a worker that is still running.
+The record, its checksum, and the flag are cooperative and non-cryptographic: anyone who can write the home's `state/` and `config/` can rewrite or remove them, and nothing here defends against that.
+The worker observation is not persisted beyond the last `outcome=`, so a `quiescent` result can be overwritten by a later `stop` or `expire` that sees `already-stopped` for the same worker and reports `uncertain`.
+If the launch gate's settle step cannot take the record mutex or write the refusal, the spawn exits nonzero with `UNCERTAIN`, says the home is not confirmed held, and leaves any late pane gate free to claim; run `bin/fm-attended-job.sh status` and then `stop`.
+That settle makes one bounded attempt (`FM_ATTENDED_LOCK_SECONDS`, 10 seconds by default) and never steals or clears a lock.
 Nothing here writes the Claude trust or import-consent store, and that consent stays a separate human step.
 
 ## Backlog backend (.tasks.toml / config/backlog-backend)

@@ -572,46 +572,68 @@ fm_attended_launch_gate() {
   return 0
 }
 
-# fm_attended_launch_receipt <state> <home> <id> <gen> [settle]
-# Prints claimed, refused, pending, or invalid for this generation. With "settle" a
-# still-pending launch is closed under the mutex (terminal, launch=refused) so a late
-# pane gate can only refuse; a claim that landed first is reported as claimed.
-fm_attended_launch_receipt() {
-  local state=$1 home=$2 id=$3 gen=$4 settle=${5:-} rc
-  home=$(fm_attended_physical "$home") || { echo invalid; return 0; }
-  if [ -n "$settle" ]; then
-    rc=0
-    fm_attended_lock "$state" || rc=$?
-    [ "$rc" -eq 0 ] || { echo invalid; return 0; }
-  fi
+# fm_attended_launch_settle <state> <home> <id> <gen>
+# The one bounded attempt to close a launch that was typed but not confirmed. It takes
+# the record mutex once, waiting at most FM_ATTENDED_LOCK_SECONDS and never retrying,
+# stealing, or clearing it, and under it makes a still-open launch terminal with
+# launch=refused so a late pane gate can only refuse. Prints one word:
+#   claimed    a claim landed first; it is left exactly as it was, and this is not a hold
+#   refused    the record is terminal with launch=refused; returns 0
+#   uncertain  the mutex, the record, or the write failed, so nothing is known to be
+#              held, a late pane gate may still claim and start a worker; returns 3
+fm_attended_launch_settle() {
+  local state=$1 home=$2 id=$3 gen=$4 rc
+  home=$(fm_attended_physical "$home") || { echo uncertain; return 3; }
+  rc=0
+  fm_attended_lock "$state" || rc=$?
+  [ "$rc" -eq 0 ] || { echo uncertain; return 3; }
   rc=0
   fm_attended_record_read "$state" "$home" || rc=$?
   if [ "$rc" -ne 0 ] || [ "$FM_ATT_TASK" != "$id" ] || [ "$FM_ATT_GEN" != "$gen" ]; then
-    [ -z "$settle" ] || fm_attended_unlock
+    fm_attended_unlock
+    echo uncertain
+    return 3
+  fi
+  case "$FM_ATT_LAUNCH" in
+    claimed) fm_attended_unlock; echo claimed; return 0 ;;
+    refused) fm_attended_unlock; echo refused; return 0 ;;
+  esac
+  FM_ATT_LAUNCH=refused
+  if [ "$FM_ATT_PHASE" != terminal ]; then
+    FM_ATT_PHASE=terminal
+    FM_ATT_REASON=launch-unconfirmed
+    FM_ATT_OUTCOME=
+  fi
+  if fm_attended_record_publish "$state"; then
+    fm_attended_unlock
+    echo refused
+    return 0
+  fi
+  fm_attended_unlock
+  echo uncertain
+  return 3
+}
+
+# fm_attended_launch_receipt <state> <home> <id> <gen> [settle]
+# Prints claimed, refused, pending, or invalid for this generation without taking the
+# mutex. With "settle" it is fm_attended_launch_settle and returns its status, so a
+# failed settle is a nonzero "uncertain" and never reads as held or refused.
+fm_attended_launch_receipt() {
+  local state=$1 home=$2 id=$3 gen=$4 settle=${5:-} rc
+  if [ -n "$settle" ]; then
+    fm_attended_launch_settle "$state" "$home" "$id" "$gen"
+    return $?
+  fi
+  home=$(fm_attended_physical "$home") || { echo invalid; return 0; }
+  rc=0
+  fm_attended_record_read "$state" "$home" || rc=$?
+  if [ "$rc" -ne 0 ] || [ "$FM_ATT_TASK" != "$id" ] || [ "$FM_ATT_GEN" != "$gen" ]; then
     echo invalid
     return 0
   fi
   case "$FM_ATT_LAUNCH" in
-    claimed) [ -z "$settle" ] || fm_attended_unlock; echo claimed ;;
-    refused) [ -z "$settle" ] || fm_attended_unlock; echo refused ;;
-    *)
-      if [ -n "$settle" ]; then
-        FM_ATT_LAUNCH=refused
-        if [ "$FM_ATT_PHASE" != terminal ]; then
-          FM_ATT_PHASE=terminal
-          FM_ATT_REASON=launch-unconfirmed
-          FM_ATT_OUTCOME=
-        fi
-        if fm_attended_record_publish "$state"; then
-          fm_attended_unlock
-          echo refused
-        else
-          fm_attended_unlock
-          echo invalid
-        fi
-      else
-        echo pending
-      fi
-      ;;
+    claimed) echo claimed ;;
+    refused) echo refused ;;
+    *) echo pending ;;
   esac
 }

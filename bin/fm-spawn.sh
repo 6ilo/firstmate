@@ -1286,7 +1286,16 @@ spawn_abort_cleanup() {
   # refuse. The mutex is taken after the per-task meta lock, the documented order.
   if [ "$SPAWN_ATTENDED_BOUND" = 1 ] && [ "$SPAWN_LAUNCH_SENT" = 1 ]; then
     SPAWN_ATTENDED_BOUND=0
-    fm_attended_launch_receipt "$STATE" "$FM_HOME" "$ID" "$SPAWN_GEN" settle >/dev/null 2>&1 || true
+    spawn_abort_settle=$(fm_attended_launch_receipt "$STATE" "$FM_HOME" "$ID" "$SPAWN_GEN" settle 2>/dev/null) || true
+    case "$spawn_abort_settle" in
+      refused) ;;
+      claimed)
+        echo "UNCERTAIN: attended one-job hold: the launch of $ID was claimed before this spawn unwound, so a worker may be running and the home is not held by this spawn; run bin/fm-attended-job.sh status, then stop" >&2
+        ;;
+      *)
+        echo "UNCERTAIN: attended one-job hold: the launch of $ID could not be settled (the record mutex or the record write failed once, bounded), so the home is NOT confirmed held and a late pane gate may still claim and start a worker; run bin/fm-attended-job.sh status, then stop" >&2
+        ;;
+    esac
   fi
   if [ "$RELAUNCH_REPLACEMENT_PENDING" = 1 ] &&
     [ "$SPAWN_META_PUBLISH_STARTED" = 1 ] &&
@@ -5305,7 +5314,9 @@ fi
 # The wait is counted in polls, not wall-clock time. A launch still pending after it is
 # settled under the record mutex, so exactly one of "claimed" and "refused" is true
 # from then on and a late pane gate can only refuse. Anything but claimed fails the
-# spawn through the ordinary unwind; the home stays held.
+# spawn through the ordinary unwind. The settle is one bounded attempt: when it cannot
+# take the mutex or write the refusal the result is UNCERTAIN, not held, and the abort
+# path does not try again.
 if [ "$SPAWN_ATTENDED" = 1 ]; then
   spawn_attended_polls=0
   SPAWN_ATTENDED_RECEIPT=pending
@@ -5316,10 +5327,18 @@ if [ "$SPAWN_ATTENDED" = 1 ]; then
     spawn_attended_polls=$((spawn_attended_polls + 1))
   done
   if [ "$SPAWN_ATTENDED_RECEIPT" = pending ]; then
-    SPAWN_ATTENDED_RECEIPT=$(fm_attended_launch_receipt "$STATE" "$FM_HOME" "$ID" "$SPAWN_GEN" settle)
+    SPAWN_ATTENDED_RECEIPT=$(fm_attended_launch_receipt "$STATE" "$FM_HOME" "$ID" "$SPAWN_GEN" settle) || true
   fi
   if [ "$SPAWN_ATTENDED_RECEIPT" != claimed ]; then
-    echo "error: attended one-job hold: the launch gate did not claim the launch of $ID ($SPAWN_ATTENDED_RECEIPT), so no worker is expected; the home stays held - run bin/fm-attended-job.sh stop to stop its chain and worker; nothing here releases the hold" >&2
+    SPAWN_ATTENDED_BOUND=0
+    case "$SPAWN_ATTENDED_RECEIPT" in
+      refused)
+        echo "error: attended one-job hold: the launch of $ID is recorded as refused, so the pane gate will refuse a late attempt and this spawn is abandoned; run bin/fm-attended-job.sh stop to stop its chain and worker; nothing here releases the hold" >&2
+        ;;
+      *)
+        echo "UNCERTAIN: attended one-job hold: the launch of $ID was not confirmed ($SPAWN_ATTENDED_RECEIPT) and could not be recorded as refused, so the home is NOT confirmed held and a late pane gate may still claim and start a worker; run bin/fm-attended-job.sh status, then stop" >&2
+        ;;
+    esac
     exit 1
   fi
   SPAWN_ATTENDED_BOUND=0
