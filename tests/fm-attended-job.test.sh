@@ -84,6 +84,23 @@ case "$mode" in
 esac
 SH
   chmod +x "$dir/fm-control.sh"
+  # Every farm replaces the three watcher side-band producers that are unrelated to
+  # the hold with stubs that only record the call. A real watcher runs them at its first
+  # poll in any home, and they reach outside the fixture home: the no-mistakes orphan
+  # sweep scans and signals this user's unrelated processes, the home-summary refresh
+  # runs the fleet snapshot, and the Today push reads a bridge configuration from the
+  # caller's environment. The arm wrapper, the watcher loop, and the hold, stop, and
+  # identity behavior stay real; see assert_sideband_stubs.
+  for f in fm-nm-reap-run-orphans.sh fm-home-summary-refresh.sh fm-today-autopush.sh; do
+    rm -f "$dir/$f"
+    cat > "$dir/$f" <<'SH'
+#!/usr/bin/env bash
+# Fixture-owned stub of an unrelated watcher side-band producer: records the call, does nothing.
+[ -z "${FM_HOME:-}" ] || printf '%s %s\n' "${0##*/}" "$*" >> "$FM_HOME/sideband-calls" 2>/dev/null
+exit 0
+SH
+    chmod +x "$dir/$f"
+  done
   [ "$arm" = stub ] || return 0
   rm -f "$dir/fm-watch-arm.sh"
   cat > "$dir/fm-watch-arm.sh" <<'SH'
@@ -98,10 +115,22 @@ SH
   chmod +x "$dir/fm-watch-arm.sh"
 }
 
+# Fail closed if a farm still holds a symlink, or nothing, where a side-band stub
+# belongs: the real producers must be unreachable from every script a case starts.
+assert_sideband_stubs() {  # <farm bin dir>
+  local f
+  for f in fm-nm-reap-run-orphans.sh fm-home-summary-refresh.sh fm-today-autopush.sh; do
+    [ -f "$1/$f" ] && [ ! -L "$1/$f" ] && [ -x "$1/$f" ] \
+      || fail "side-band stub $1/$f is missing, a symlink, or not executable, so the real producer may be reachable"
+  done
+}
+
 STUB_BIN="$TMP_ROOT/bin-stub"
 REAL_BIN="$TMP_ROOT/bin-real"
 make_bin_farm "$STUB_BIN" stub
 make_bin_farm "$REAL_BIN" real
+assert_sideband_stubs "$STUB_BIN"
+assert_sideband_stubs "$REAL_BIN"
 
 # --- home fixtures -------------------------------------------------------------------
 
@@ -585,6 +614,23 @@ start_real_watcher() {  # <home> -> sets WATCHER_PID
   done
   [ "$(cat "$c/state/.watch.lock/pid" 2>/dev/null || true)" = "$WATCHER_PID" ] \
     || fail "the real watcher did not take the lock: $(cat "$c/watch.out")"
+  wait_for_first_tick "$c"
+}
+
+# The real watcher's first poll starts its side-band producers, and the nm orphan sweep
+# is due at once in a home with no tick marker. This waits (iteration-counted, 10
+# seconds at most) until that stub has been called, so a case only goes on after the
+# real poll loop ran a tick against the farm's stubs, and a watcher that died or never
+# polled fails here with its own output instead of letting a later assertion pass on
+# nothing.
+wait_for_first_tick() {  # <home>
+  local c=$1 i=0
+  while [ "$i" -lt 100 ]; do
+    grep -q '^fm-nm-reap-run-orphans.sh' "$c/sideband-calls" 2>/dev/null && return 0
+    sleep 0.1
+    i=$((i + 1))
+  done
+  fail "the real watcher never reached its side-band tick: $(cat "$c/watch.out" 2>/dev/null)"
 }
 
 test_hold_ends_a_running_watcher_without_a_signal() {
@@ -972,6 +1018,7 @@ ensure_spawn_farm() {
     ln -s "$f" "$SPAWN_FARM/$name"
   done
   make_bin_farm "$SPAWN_FARM/bin" real
+  assert_sideband_stubs "$SPAWN_FARM/bin"
   cat > "$SPAWN_FARM/bin/fm-claude-trust.sh" <<'SH'
 #!/usr/bin/env bash
 # Fixture-owned stub: records that it was called, touches no trust store.
