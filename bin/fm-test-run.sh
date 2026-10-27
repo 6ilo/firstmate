@@ -2451,7 +2451,7 @@ run_script_bounded() {  # <script> <out> <stream> <id>
 run_one_serial() {
   local script=$1
   local base family expected out begin_iso begin_ms end_ms end_iso duration rc
-  local child_tmp= run_tmp_phys
+  local child_tmp='' run_tmp_phys
   base=$(basename "$script")
   family=$(family_for_basename "$base")
   expected=$(expected_gate_skip_for_family "$family")
