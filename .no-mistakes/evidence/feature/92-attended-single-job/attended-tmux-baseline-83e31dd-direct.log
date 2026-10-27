@@ -1,0 +1,18 @@
+### Baseline 83e31dd fixture, run directly with valid private TMPDIR=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmatt.thp6Wh, FM_ATTENDED_TMUX=1
+info - staged launch path, absent at preflight and owned by this run: /tmp/fm-attended-tmux-8250-refuse+0b157c177e8d4825c4421433214775b918669102221c673fbbb03ed27d1d1c29
+info - staged task root, absent at preflight and owned by this run: /tmp/fm-attended-tmux-8250-refuse
+info - staged launch path, absent at preflight and owned by this run: /tmp/fm-attended-tmux-8250-pass+f2f58e8841841a0cb12710df126ed9924183e90259743fcdfa7137dff2fce660
+info - staged task root, absent at preflight and owned by this run: /tmp/fm-attended-tmux-8250-pass
+info - staged launch path, absent at preflight and owned by this run: /tmp/fm-attended-tmux-8250-claim+47b37cc039d3fad1666e16a768a758b6a6b8387da4eba35574688448f88d7975
+info - staged task root, absent at preflight and owned by this run: /tmp/fm-attended-tmux-8250-claim
+info - private tmux directory, absent at preflight and owned by this run: /tmp/fmtx-8250
+info - private tmux socket path, 31 bytes: /tmp/fmtx-8250/tmux-501/default
+info - probe pane resolved claude and tmux to the fixture stubs
+not ok - the pane never showed the gate's refusal: 
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s /bin/zsh`.
+For more details, please visit https://support.apple.com/kb/HT208050.
+bash-3.2$ treehouse get
+bash-3.2$
+exit=1
+leftovers: [] TMPDIR: []

@@ -1,0 +1,23 @@
+### bin/fm-test-run.sh --jobs 1 tests/fm-attended-job-tmux.test.sh with caller TMPDIR UNSET and FM_ATTENDED_TMUX=1 (real tmux tmux 3.7c)
+FM_TEST_BEGIN 2026-10-27T07:20:23Z tests/fm-attended-job-tmux.test.sh family=live-harness-optin expected_gate_skip=live-capability
+info - staged launch path, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5851-refuse+c7e69e491b0acdaab37e5fa645955d8c66f69af5c49813f31413a94cf011469d
+info - staged task root, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5851-refuse
+info - staged launch path, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5851-pass+d568a386574a0fe8958c395dbdcd40c62df49a2c5a50bfbb92e355436f5b6971
+info - staged task root, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5851-pass
+info - staged launch path, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5851-claim+5c5e1b6860c71da40257f2745899b5701f4c919fc6132e126e34860a47b55d43
+info - staged task root, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5851-claim
+info - private tmux directory, absent at preflight and owned by this run: /tmp/fmtx-5851
+info - private tmux socket path, 31 bytes: /tmp/fmtx-5851/tmux-501/default
+info - probe pane resolved claude and tmux to the fixture stubs
+not ok - the pane never showed the gate's refusal: 
+The default interactive shell is now zsh.
+To update your account to use zsh, please run `chsh -s /bin/zsh`.
+For more details, please visit https://support.apple.com/kb/HT208050.
+bash-3.2$ treehouse get
+bash-3.2$
+FM_TEST_END 2026-10-27T07:21:43Z tests/fm-attended-job-tmux.test.sh exit=1 duration_ms=79456 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=79523
+FM_TEST_SUMMARY_FAMILY family=live-harness-optin count=1 duration_ms=79456 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-attended-job-tmux.test.sh duration_ms=79456
+runner exit=
+leftover /tmp fixture paths: []

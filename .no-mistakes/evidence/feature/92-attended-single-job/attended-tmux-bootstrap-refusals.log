@@ -1,0 +1,18 @@
+=== fixture with FM_ATTENDED_TMUX=1, TMPDIR case: unset
+not ok - fixture bootstrap: TMPDIR must be set to an absolute directory path (it is ''); tests/lib.sh would otherwise register its temp files under /tmp
+exit=1
+new /tmp fm* entries: []
+=== fixture with FM_ATTENDED_TMUX=1, TMPDIR case: empty
+not ok - fixture bootstrap: TMPDIR must be set to an absolute directory path (it is ''); tests/lib.sh would otherwise register its temp files under /tmp
+exit=1
+new /tmp fm* entries: []
+=== fixture with FM_ATTENDED_TMUX=1, TMPDIR case: relative
+not ok - fixture bootstrap: TMPDIR must be set to an absolute directory path (it is 'reltmp'); tests/lib.sh would otherwise register its temp files under /tmp
+exit=1
+new /tmp fm* entries: []
+cwd reltmp exists: no
+=== fixture with FM_ATTENDED_TMUX=1, TMPDIR case: groupwritable
+not ok - fixture bootstrap: TMPDIR '/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/gw' must be an existing directory that is either owned by this user and not group- or world-writable, or sticky
+exit=1
+new /tmp fm* entries: []
+group-writable TMPDIR contents: []

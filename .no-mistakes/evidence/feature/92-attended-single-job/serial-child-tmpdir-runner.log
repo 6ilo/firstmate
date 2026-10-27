@@ -1,0 +1,46 @@
+=== caller TMPDIR case: absolute
+FM_TEST_BEGIN 2026-10-27T07:19:18Z /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh family=unclassified expected_gate_skip=none
+child TMPDIR=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/valid HOME=/Users/anwulikaanigbodesktop
+drwx------@ 3 anwulikaanigbodesktop  staff  96 Oct 27 02:19 /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/valid
+physical=/private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fmrun-live.pd1ezJ/valid
+FM_TEST_END 2026-10-27T07:19:18Z /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh exit=0 duration_ms=28 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=113
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=28 failed=0
+FM_TEST_SLOWEST rank=1 script=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh duration_ms=28
+runner exit=
+after run: child dir '/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/valid' exists? yes
+=== caller TMPDIR case: unset
+FM_TEST_BEGIN 2026-10-27T07:19:18Z /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh family=unclassified expected_gate_skip=none
+child TMPDIR=/private/tmp/fm-test-run.UdgCyq/child-tmp.0 HOME=/Users/anwulikaanigbodesktop
+drwx------@ 2 anwulikaanigbodesktop  wheel  64 Oct 27 02:19 /private/tmp/fm-test-run.UdgCyq/child-tmp.0
+physical=/private/tmp/fm-test-run.UdgCyq/child-tmp.0
+FM_TEST_END 2026-10-27T07:19:18Z /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh exit=0 duration_ms=33 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=105
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=33 failed=0
+FM_TEST_SLOWEST rank=1 script=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh duration_ms=33
+runner exit=
+after run: child dir '/private/tmp/fm-test-run.UdgCyq/child-tmp.0' exists? no
+=== caller TMPDIR case: empty
+FM_TEST_BEGIN 2026-10-27T07:19:19Z /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh family=unclassified expected_gate_skip=none
+child TMPDIR=/private/tmp/fm-test-run.F9g8SJ/child-tmp.0 HOME=/Users/anwulikaanigbodesktop
+drwx------@ 2 anwulikaanigbodesktop  wheel  64 Oct 27 02:19 /private/tmp/fm-test-run.F9g8SJ/child-tmp.0
+physical=/private/tmp/fm-test-run.F9g8SJ/child-tmp.0
+FM_TEST_END 2026-10-27T07:19:19Z /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh exit=0 duration_ms=30 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=137
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=30 failed=0
+FM_TEST_SLOWEST rank=1 script=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh duration_ms=30
+runner exit=
+after run: child dir '/private/tmp/fm-test-run.F9g8SJ/child-tmp.0' exists? no
+=== caller TMPDIR case: relative
+FM_TEST_BEGIN 2026-10-27T07:19:19Z /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh family=unclassified expected_gate_skip=none
+child TMPDIR=/private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fmrun-live.pd1ezJ/repo/reltmp/fm-test-run.yiapnS/child-tmp.0 HOME=/Users/anwulikaanigbodesktop
+drwx------@ 2 anwulikaanigbodesktop  staff  64 Oct 27 02:19 /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fmrun-live.pd1ezJ/repo/reltmp/fm-test-run.yiapnS/child-tmp.0
+physical=/private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fmrun-live.pd1ezJ/repo/reltmp/fm-test-run.yiapnS/child-tmp.0
+FM_TEST_END 2026-10-27T07:19:19Z /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh exit=0 duration_ms=30 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=103
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=30 failed=0
+FM_TEST_SLOWEST rank=1 script=/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fmrun-live.pd1ezJ/probe.test.sh duration_ms=30
+runner exit=
+after run: child dir '/private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fmrun-live.pd1ezJ/repo/reltmp/fm-test-run.yiapnS/child-tmp.0' exists? no
+=== reltmp contents after relative run (should be empty): []
+=== caller valid TMPDIR still present: yes

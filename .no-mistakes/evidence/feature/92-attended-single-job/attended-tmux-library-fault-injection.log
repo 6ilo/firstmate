@@ -1,0 +1,26 @@
+### Fault 1: owner-identity probe yields nothing, so tests/lib.sh returns early
+114:FM_TEST_OWNER_IDENTITY=$(false) || {
+not ok - fixture bootstrap: required helper 'fm_live_gate' is not defined and tests/lib.sh recorded no owner identity for this shell, so its probe at tests/lib.sh:114-117 failed and the library returned early; the likely cause on a host without /proc is the per-PID query ps -p <pid> -o lstart= -o command= in fm_pid_identity, which is a hypothesis and was not measured here; no temp root or farm was created
+exit=1
+new /tmp fm* entries: []; TMPDIR contents: []
+
+### Fault 2: fm_test_tmproot succeeds but prints an empty root
+not ok - fixture bootstrap: fm_test_tmproot returned an empty task temp root
+exit=1
+new /tmp fm* entries: []; TMPDIR contents: []
+
+### Fault 3: fm_test_tmproot returns a group-writable root
+not ok - fixture bootstrap: the task temp root '/private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fmrun-live.pd1ezJ/tmpd/fm-attended-tmux.yXir9M' is not owned by this user or is group- or world-writable
+exit=1
+
+### Fault 4: fm_test_tmproot returns a root that is not in the cleanup registry
+not ok - fixture bootstrap: the task temp root '/private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fmrun-live.pd1ezJ/tmpd/fm-attended-tmux.4F2c5X' is not in the library's cleanup registry
+exit=1
+
+### Fault 5: logical (non-physical) TMPDIR path via symlink
+info - staged launch path, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5598-refuse+6160c4487faff8a45f9a7fc7bbd5f0b28853f61f2582061a73fa3709ccaeb091
+info - staged task root, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5598-refuse
+info - staged launch path, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5598-pass+8e084cbe6b8bcaabaf511d237831120c971d395d40ff7abfc0d2078bcd80b15c
+info - staged task root, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5598-pass
+info - staged launch path, absent at preflight and owned by this run: /tmp/fm-attended-tmux-5598-claim+878aa94fbf847eeb6e555415b80cb43fb559ca675a81e10610f3687640cc42aa
+exit=
