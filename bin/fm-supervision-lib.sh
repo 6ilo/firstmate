@@ -14,6 +14,12 @@
 
 # shellcheck source=bin/fm-beacon-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/fm-beacon-lib.sh"
+# The attended one-job hold is opt-in (bin/fm-attended-job-lib.sh); a checkout copy
+# without that library, or a home that never opted in, reads exactly as before.
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/fm-attended-job-lib.sh" ]; then
+  # shellcheck source=bin/fm-attended-job-lib.sh
+  . "$(dirname "${BASH_SOURCE[0]}")/fm-attended-job-lib.sh"
+fi
 
 # Portable mtime; Linux stat lacks -f, macOS stat lacks -c.
 fm_sup_stat_mtime() {
@@ -41,7 +47,10 @@ fm_sup_stat_mtime() {
 #   FM_SUP_NEEDED         true/false - in-flight work, an X-mode relay poll, a
 #                         registered event source (a source is a wait on an
 #                         external process, not a task, so it has no metadata),
-#                         or a registered custom check
+#                         or a registered custom check; always false while the
+#                         attended one-job hold applies
+#   FM_SUP_ATTENDED_HELD  true/false - fm_attended_home_held says this home is held
+#                         (bin/fm-attended-job-lib.sh); a held home needs no watcher
 #   FM_SUP_WATCHER_FRESH  true/false - a watcher beacon within the grace window,
 #                         in awake time (bin/fm-beacon-lib.sh)
 #   FM_SUP_BEACON_DESC    human-readable beacon age, for banners ("never" if absent)
@@ -81,6 +90,13 @@ fm_supervision_status() {
     || [ "$FM_SUP_SOURCES" -gt 0 ] \
     || [ "$FM_SUP_CHECKS" -gt 0 ]; then
     FM_SUP_NEEDED=true
+  fi
+  # shellcheck disable=SC2034 # Read by callers after sourcing.
+  FM_SUP_ATTENDED_HELD=false
+  if command -v fm_attended_home_held >/dev/null 2>&1 && fm_attended_home_held "$state"; then
+    # shellcheck disable=SC2034 # Read by callers after sourcing.
+    FM_SUP_ATTENDED_HELD=true
+    FM_SUP_NEEDED=false
   fi
 
   beat="$state/.last-watcher-beat"

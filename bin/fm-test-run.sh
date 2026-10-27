@@ -120,6 +120,14 @@
 # configuration, including one that sources no test helper of its own;
 # tests/git-config-helpers.sh owns that contract and its limits.
 #
+# Serial child TMPDIR: a script run serially (including the serial remainder after
+# concurrent phases) sees the caller's TMPDIR unchanged when it is a valid absolute
+# path. When TMPDIR is unset, empty, or relative, the child instead gets a private
+# mode-0700 directory at the physical path of child-tmp.<n> inside this run's own
+# temporary directory, which is removed with that directory when the runner exits.
+# The caller's own TMPDIR directory is never created, changed, or removed, and HOME is
+# left as the caller had it. Concurrent workers keep their own per-worker TMPDIR.
+#
 # Family labels, the changed-file map, and production portable-shard composition
 # live in this script only (one owner). The proven-isolated candidate set remains
 # owned by bin/fm-test-isolation-proof.sh; portable parallel shards are a
@@ -300,6 +308,7 @@ family_for_basename() {
     fm-daemon.test.sh|fm-guard-stale-banner.test.sh|fm-pi-watch-extension.test.sh|\
     fm-session-lock-ancestry.test.sh|fm-cursor-primary.test.sh|\
     fm-supervision-events.test.sh|fm-turnend-guard.test.sh|fm-wake-daemon-lifecycle-e2e.test.sh|\
+    fm-attended-job.test.sh|\
     fm-wake-drain-unread-status.test.sh|\
     fm-tool-update-check.test.sh|\
     fm-mail.test.sh|fm-mail-check.test.sh|\
@@ -361,7 +370,7 @@ family_for_basename() {
     fm-pi-primary-live-e2e.test.sh|fm-pi-codex-native.test.sh|fm-omp-primary-live-e2e.test.sh|\
     fm-pr-state-live-e2e.test.sh|\
     fm-sessionstart-hook-live-e2e.test.sh|fm-sessionstart-instruction-refresh-live-e2e.test.sh|\
-    fm-supervision-host-live-e2e.test.sh|\
+    fm-supervision-host-live-e2e.test.sh|fm-attended-job-tmux.test.sh|\
     fm-quota-array-dispatch-live-e2e.test.sh|fm-send-secondmate-marker-herdr-e2e.test.sh|\
     fm-send-inbox-doorbell-live-e2e.test.sh|\
     fm-calm-claude-mod-plugin.test.sh|fm-calm-claude-mod-live-e2e.test.sh|\
@@ -2442,6 +2451,7 @@ run_script_bounded() {  # <script> <out> <stream> <id>
 run_one_serial() {
   local script=$1
   local base family expected out begin_iso begin_ms end_ms end_iso duration rc
+  local child_tmp='' run_tmp_phys
   base=$(basename "$script")
   family=$(family_for_basename "$base")
   expected=$(expected_gate_skip_for_family "$family")
@@ -2449,12 +2459,31 @@ run_one_serial() {
   begin_iso=$(now_iso)
   begin_ms=$(now_ms)
 
+  # A serial child inherits the caller's TMPDIR. When that is unset, empty or not
+  # absolute, give the child a private absolute physical directory inside this run's
+  # own RUN_TMP instead, which the EXIT trap already removes. A valid absolute caller
+  # TMPDIR is passed through untouched. RUN_TMP itself is not rewritten, so the
+  # concurrent workers keep the TMPDIR they already get.
+  case "${TMPDIR-}" in
+    /*) ;;
+    *)
+      run_tmp_phys=$(cd -P -- "$RUN_TMP" 2>/dev/null && pwd -P) \
+        || die "cannot resolve the run directory $RUN_TMP to build a serial child TMPDIR"
+      child_tmp="$run_tmp_phys/child-tmp.$TOTAL"
+      mkdir -m 0700 "$child_tmp" || die "cannot create the serial child TMPDIR $child_tmp"
+      ;;
+  esac
+
   printf 'FM_TEST_BEGIN %s %s family=%s expected_gate_skip=%s\n' \
     "$begin_iso" "$script" "$family" "$expected"
 
   set +e
   # Stream live output while retaining a copy for gate-skip detection.
-  run_script_bounded "$script" "$out" 1 "s$TOTAL"
+  if [ -n "$child_tmp" ]; then
+    TMPDIR=$child_tmp run_script_bounded "$script" "$out" 1 "s$TOTAL"
+  else
+    run_script_bounded "$script" "$out" 1 "s$TOTAL"
+  fi
   rc=$?
   set -e
   : "${rc:=1}"

@@ -931,6 +931,82 @@ assert record["gate_skip_reason"] == "", record
   pass "a script that actually ran records no skip reason"
 }
 
+# A serial run hands each test the caller's TMPDIR as it found it. A test that needs a
+# private absolute TMPDIR (the attended fixtures refuse anything else) must still get one
+# when the caller's is unset, empty or relative, and a valid absolute TMPDIR of the
+# caller's must pass through untouched. The runner copy lives in a fixture tree so a
+# relative TMPDIR resolves inside that tree, not in this repository.
+test_serial_child_tmpdir_is_absolute_and_private() {
+  local tmp repo probe label rc state dir own mode phys home value
+  tmp=$(fm_test_tmproot fm-test-run-tmpdir)
+  repo="$tmp/repo"
+  probe="$tmp/tmpdir-probe.test.sh"
+  mkdir -p "$repo/bin" "$repo/tests" "$repo/reltmp" "$tmp/valid"
+  chmod 0700 "$tmp/valid"
+  cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
+  chmod +x "$repo/bin/fm-test-run.sh"
+  cat >"$probe" <<'SH'
+#!/usr/bin/env bash
+state=unset
+v='<unset>'
+if [ "${TMPDIR+set}" = set ]; then
+  v=$TMPDIR
+  case "$TMPDIR" in
+    '') state=empty ;;
+    /*) state=absolute ;;
+    *) state=relative ;;
+  esac
+fi
+dir=no own=no mode=none phys=no
+if [ "$state" != unset ] && [ "$state" != empty ] && [ -d "$TMPDIR" ]; then
+  dir=yes
+  [ -O "$TMPDIR" ] && own=yes
+  mode=$(stat -c %a "$TMPDIR" 2>/dev/null || stat -f %Lp "$TMPDIR" 2>/dev/null || echo none)
+  [ "$(cd -P "$TMPDIR" 2>/dev/null && pwd -P)" = "$TMPDIR" ] && phys=yes
+fi
+home=changed
+[ "${HOME-}" = "${PROBE_HOME-}" ] && home=same
+printf '%s %s %s %s %s %s %s\n' "$state" "$dir" "$own" "$mode" "$phys" "$home" "$v" >"$PROBE_OUT"
+SH
+  chmod +x "$probe"
+  for label in absolute unset empty relative; do
+    rc=0
+    case "$label" in
+      absolute) env TMPDIR="$tmp/valid" PROBE_OUT="$tmp/$label.rec" PROBE_HOME="${HOME-}" \
+        "$repo/bin/fm-test-run.sh" --jobs 1 "$probe" >"$tmp/$label.out" 2>"$tmp/$label.err" || rc=$? ;;
+      unset) env -u TMPDIR PROBE_OUT="$tmp/$label.rec" PROBE_HOME="${HOME-}" \
+        "$repo/bin/fm-test-run.sh" --jobs 1 "$probe" >"$tmp/$label.out" 2>"$tmp/$label.err" || rc=$? ;;
+      empty) env TMPDIR= PROBE_OUT="$tmp/$label.rec" PROBE_HOME="${HOME-}" \
+        "$repo/bin/fm-test-run.sh" --jobs 1 "$probe" >"$tmp/$label.out" 2>"$tmp/$label.err" || rc=$? ;;
+      relative) env TMPDIR=reltmp PROBE_OUT="$tmp/$label.rec" PROBE_HOME="${HOME-}" \
+        "$repo/bin/fm-test-run.sh" --jobs 1 "$probe" >"$tmp/$label.out" 2>"$tmp/$label.err" || rc=$? ;;
+    esac
+    [ "$rc" -eq 0 ] || fail "the serial run with a $label TMPDIR exited $rc: $(cat "$tmp/$label.err")"
+    grep -q 'FM_TEST_SUMMARY total=1 failed=0' "$tmp/$label.out" \
+      || fail "the serial run with a $label TMPDIR must run the probe once and pass: $(cat "$tmp/$label.out")"
+    assert_present "$tmp/$label.rec" "the probe never recorded the TMPDIR it saw ($label)"
+    IFS=' ' read -r state dir own mode phys home value <"$tmp/$label.rec"
+    assert_equals absolute "$state" "a serial child must see an absolute TMPDIR when the caller's is $label (it saw '$value')"
+    assert_equals yes "$dir" "the child's TMPDIR must be an existing directory ($label)"
+    assert_equals yes "$own" "the child's TMPDIR must be owned by the user ($label)"
+    assert_equals yes "$phys" "the child's TMPDIR must be its own physical path ($label)"
+    case "$mode" in
+      '' | *[!0-7]*) fail "the child's TMPDIR mode could not be read ($label): '$mode'" ;;
+    esac
+    [ $((8#$mode & 8#022)) -eq 0 ] \
+      || fail "the child's TMPDIR must not be group- or world-writable ($label): mode $mode"
+    assert_equals same "$home" "the runner must leave HOME as the caller had it ($label)"
+    if [ "$label" = absolute ]; then
+      assert_equals "$tmp/valid" "$value" "a valid absolute caller TMPDIR must reach the child unchanged"
+      assert_present "$tmp/valid" "the runner must not remove the caller's own TMPDIR"
+    else
+      assert_absent "$value" "the fallback TMPDIR must not outlive the run ($label)"
+    fi
+  done
+  pass "a serial child gets an absolute private TMPDIR, and a valid caller TMPDIR passes through"
+}
+
 test_live_guards_expect_a_capability_skip_class() {
   local tmp out
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-liveclass.XXXXXX")
@@ -1755,6 +1831,7 @@ test_aggregate_exit_behavior
 test_gate_skip_accounting
 test_gate_skip_reason_is_recorded
 test_a_run_that_ran_records_no_skip_reason
+test_serial_child_tmpdir_is_absolute_and_private
 test_live_guards_expect_a_capability_skip_class
 test_fail_on_gate_skip_token
 test_exclude_family

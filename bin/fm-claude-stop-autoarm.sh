@@ -189,6 +189,19 @@ fi
 # --- AFK: the away daemon owns the watcher and triage; never rewake ----------
 [ -e "$STATE/.afk" ] && exit 0
 
+# --- attended deadline: expire a lapsed one-job reservation before the need gate ----
+# A first job has no watcher chain yet, so nothing else observes its deadline. Without
+# the attended library or its record this is two file tests; with a due deadline the
+# expire runs the stop sequence, and the need gate below then reads the hold.
+if command -v fm_attended_observe >/dev/null 2>&1; then
+  ATTENDED_RC=0
+  fm_attended_observe "$STATE" "$CONFIG" "$FM_HOME" || ATTENDED_RC=$?
+  if [ "$ATTENDED_RC" -eq 10 ] && [ -x "$SCRIPT_DIR/fm-attended-job.sh" ]; then
+    FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_CONFIG_OVERRIDE="$CONFIG" \
+      "$SCRIPT_DIR/fm-attended-job.sh" expire >/dev/null 2>&1 || true
+  fi
+fi
+
 # --- need: whatever bin/fm-supervision-lib.sh counts as supervision need ------
 need_supervision() {
   fm_supervision_needed "$STATE" "$GRACE"
@@ -486,8 +499,12 @@ if [ "$ACTIONABLE" -eq 1 ]; then
     [ -z "$OUT" ] || rm -f "$OUT" 2>/dev/null || true
     exit 0
   fi
-  # The host owns its own successors and stops its cycle before handing back.
-  if [ "$HOST_MODE" -eq 0 ]; then
+  # The host owns its own successors and stops its cycle before handing back. A hold
+  # written during this cycle (bin/fm-attended-job-lib.sh) starts no detached
+  # successor; the arm wrapper would refuse it too, but nothing is forked at all.
+  if [ "$HOST_MODE" -eq 0 ] \
+    && ! { command -v fm_attended_home_held >/dev/null 2>&1 \
+      && fm_attended_home_held "$STATE" "$CONFIG" "$FM_HOME"; }; then
     start_handling_successor "$CLOSED_ARM_PID" || true
   fi
   {

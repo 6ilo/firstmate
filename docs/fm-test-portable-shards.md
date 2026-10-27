@@ -67,6 +67,8 @@ Balance is still worth keeping current, because enough unmeasured scripts let on
 That is not hypothetical: by 2026-09-01 the lane had grown from 116 to 139 scripts and from ~42 to ~63 minutes, 17 scripts were still unmeasured, and several hints were low by 2-5x, so shard 3 of 4 ran 17-20 minutes against its 20-minute cap while shard 1 ran 11.5 minutes and run [33574154856](https://github.com/kunchenguid/firstmate/actions/runs/33574154856) timed out seconds after a passing test.
 `bin/fm-test-run.sh --check-coverage` now reports the unmeasured share as `serial_unhinted=` and refuses past `PORTABLE_SERIAL_MAX_UNHINTED_PERCENT`, so hint drift fails the coverage guard instead of silently pushing one shard into its job cap.
 Refresh the hints whenever the serial lane gains scripts, rather than waiting for that bound to trip.
+`tests/fm-attended-job.test.sh` joined the `watcher-wake-lock` family and `tests/fm-attended-job-tmux.test.sh` joined `live-harness-optin` with no measured hint, because no CI run had measured either.
+Both use the default weight until a green run supplies a duration.
 
 `bin/fm-test-run.sh` owns the per-shard packing, so its `--check-coverage` output is the current account of lane size and coverage rather than a copied inventory.
 Nine serial runners pack the refreshed measurements into a longest modeled script sum of 697969 ms (11m38s), with other shards near 10m36s.

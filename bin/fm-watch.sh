@@ -241,6 +241,12 @@ WATCH_HOME_EXISTED=0
 # and wake emission (secondmate_liveness_tick below).
 # shellcheck source=/dev/null # Analyzed separately as a canonical lint root.
 . "$SCRIPT_DIR/fm-secondmate-liveness-lib.sh"
+# The attended one-job hold is opt-in; a checkout without the library, or a home that
+# never opted in, runs exactly as before.
+if [ -f "$SCRIPT_DIR/fm-attended-job-lib.sh" ]; then
+  # shellcheck source=bin/fm-attended-job-lib.sh
+  . "$SCRIPT_DIR/fm-attended-job-lib.sh"
+fi
 
 WATCH_LOCK="$STATE/.watch.lock"
 WATCH_PATH="$SCRIPT_DIR/fm-watch.sh"
@@ -2459,6 +2465,14 @@ evict_stalled_holder() {
   ! fm_pid_alive "$pid"
 }
 
+# A held attended one-job home (bin/fm-attended-job-lib.sh) starts no watcher, even one
+# launched directly rather than through the arm wrapper. Nothing is signalled.
+if command -v fm_attended_home_held >/dev/null 2>&1 \
+  && fm_attended_home_held "$STATE" "$CONFIG" "$FM_HOME"; then
+  echo "watcher: not starting - the attended one-job hold is in force ($FM_ATT_HOLD_REASON)" >&2
+  exit 0
+fi
+
 EVICTED_PID=
 EVICTED_BEAT_AGE=
 BEAT="$STATE/.last-watcher-beat"
@@ -2749,6 +2763,33 @@ while :; do
   # and doubling every wake.
   if [ "$(cat "$WATCH_LOCK/pid" 2>/dev/null || true)" != "$WATCHER_PID" ]; then
     exit 0
+  fi
+
+  # A hold written while this watcher runs ends it at the next poll, the same
+  # self-contained shape as the self-eviction above: it signals nothing, so a
+  # watcher that started in the window before the hold stands down by itself.
+  if command -v fm_attended_home_held >/dev/null 2>&1 \
+    && fm_attended_home_held "$STATE" "$CONFIG" "$FM_HOME"; then
+    echo "watcher: exiting - the attended one-job hold is in force ($FM_ATT_HOLD_REASON)" >&2
+    exit 0
+  fi
+
+  # The attended job's deadline (bin/fm-attended-job-lib.sh). When it is due, or the
+  # clock went backward, a detached one-shot runs `fm-attended-job.sh expire`: the
+  # stop it performs ends this watcher, so the watcher cannot be the one running it.
+  # The fire time is remembered so a failed expire is retried at most once a minute.
+  if command -v fm_attended_observe >/dev/null 2>&1; then
+    attended_rc=0
+    fm_attended_observe "$STATE" "$CONFIG" "$FM_HOME" || attended_rc=$?
+    if [ "$attended_rc" -eq 10 ] && [ -x "$SCRIPT_DIR/fm-attended-job.sh" ] \
+      && [ $(( $(date +%s) - ${ATTENDED_EXPIRE_FIRED_AT:-0} )) -ge 60 ]; then
+      ATTENDED_EXPIRE_FIRED_AT=$(date +%s)
+      (
+        set -m 2>/dev/null || true
+        FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_CONFIG_OVERRIDE="$CONFIG" \
+          nohup "$SCRIPT_DIR/fm-attended-job.sh" expire >/dev/null 2>&1 </dev/null &
+      )
+    fi
   fi
 
   # Liveness beacon for fm-guard.sh: a fresh mtime here means a watcher is

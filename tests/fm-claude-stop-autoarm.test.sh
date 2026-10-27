@@ -29,6 +29,7 @@ install_autoarm_scripts() {
   cp "$ROOT/bin/fm-claude-stop-autoarm.sh" "$dir/bin/fm-claude-stop-autoarm.sh"
   cp "$ROOT/bin/fm-primary-scope-lib.sh" "$dir/bin/fm-primary-scope-lib.sh"
   cp "$ROOT/bin/fm-supervision-lib.sh" "$dir/bin/fm-supervision-lib.sh"
+  cp "$ROOT/bin/fm-attended-job-lib.sh" "$dir/bin/fm-attended-job-lib.sh"
   cp "$ROOT/bin/fm-beacon-lib.sh" "$dir/bin/fm-beacon-lib.sh"
   cp "$ROOT/bin/fm-wake-lib.sh" "$dir/bin/fm-wake-lib.sh"
   cp "$ROOT/bin/fm-session-lock-lib.sh" "$dir/bin/fm-session-lock-lib.sh"
@@ -1502,6 +1503,125 @@ test_fm_lock_status_still_works_with_shared_lib() {
   pass "fm-lock: shared session-lock lib preserves the status path"
 }
 
+# --- attended one-job hold (bin/fm-attended-job-lib.sh, docs/configuration.md) -----
+#
+# Write a valid record through the library's own writer so these cases pin the hook
+# against the real record format rather than a hand-copied one. The existing cases
+# above are the control: none of them opts in, and none of them changes.
+write_attended_record() {  # <dir> <phase> [launch] [reason] [age: seconds since the reservation, 0 = open job]
+  local dir=$1 phase=$2 launch=${3:-none} reason=${4:-} age=${5:-0}
+  mkdir -p "$dir/config"
+  : > "$dir/config/attended-one-job"
+  FM_HOME="$dir" bash -c '
+    . "$1/bin/fm-attended-job-lib.sh"
+    FM_ATT_SEQ=0
+    FM_ATT_PHASE=$2
+    FM_ATT_TASK=attended-task
+    FM_ATT_HOME=$(fm_attended_physical "$1")
+    FM_ATT_GEN=gen-1
+    FM_ATT_WORKTREE=$1/worktree
+    FM_ATT_HARNESS=claude
+    FM_ATT_BACKEND=tmux
+    FM_ATT_BRIEF=digest
+    FM_ATT_LAUNCH=$3
+    FM_ATT_REASON=$4
+    FM_ATT_OUTCOME=
+    FM_ATT_CREATED=$(( $(date +%s) - $5 ))
+    if [ "$5" -gt 0 ]; then FM_ATT_BOUND=$FM_ATTENDED_BOUND_MIN; else FM_ATT_BOUND=$FM_ATTENDED_BOUND_MAX; fi
+    FM_ATT_DEADLINE=$((FM_ATT_CREATED + FM_ATT_BOUND))
+    FM_ATT_HW=$FM_ATT_CREATED
+    fm_attended_record_publish "$1/state"
+  ' _ "$dir" "$phase" "$launch" "$reason" "$age" || fail "could not write the attended record fixture"
+}
+
+assert_hook_inert_when_held() {  # <dir> <label>
+  local dir=$1 label=$2 out status
+  write_arm_fixture "$dir" actionable
+  out=$(run_autoarm "$dir" 2>/dev/null); status=$?
+  expect_code 0 "$status" "$label: a held attended home must not rewake"
+  [ ! -e "$dir/state/arm-ran" ] || fail "$label: the hook armed a held attended home"
+  [ ! -e "$dir/state/successor-ran" ] || fail "$label: the hook started a successor in a held attended home"
+  [ ! -e "$dir/state/.claude-autoarm-epoch" ] || fail "$label: the hook claimed a generation in a held attended home"
+}
+
+test_attended_terminal_hold_leaves_the_hook_inert() {
+  local dir
+  dir=$(make_primary_dir "$TMP_ROOT/attended-terminal")
+  : > "$dir/state/task.meta"
+  write_attended_record "$dir" terminal claimed stop
+  assert_hook_inert_when_held "$dir" "terminal record"
+  pass "auto-arm: a terminal attended hold keeps the hook inert although a task record exists"
+}
+
+test_attended_hold_survives_flag_removal() {
+  local dir
+  dir=$(make_primary_dir "$TMP_ROOT/attended-flag-removed")
+  : > "$dir/state/task.meta"
+  write_attended_record "$dir" terminal refused launch-refused
+  rm -f "$dir/config/attended-one-job"
+  assert_hook_inert_when_held "$dir" "flag removed"
+  pass "auto-arm: record presence dominates the opt-in flag, so deleting the flag does not resume arming"
+}
+
+test_attended_deleted_record_holds_without_rearm() {
+  local dir
+  dir=$(make_primary_dir "$TMP_ROOT/attended-deleted")
+  : > "$dir/state/task.meta"
+  mkdir -p "$dir/config"
+  : > "$dir/config/attended-one-job"
+  assert_hook_inert_when_held "$dir" "deleted record"
+  pass "auto-arm: an opted-in home with a task record and no attended record is held, not rearmed"
+}
+
+test_attended_invalid_record_holds_without_rearm() {
+  local dir
+  dir=$(make_primary_dir "$TMP_ROOT/attended-invalid")
+  : > "$dir/state/task.meta"
+  write_attended_record "$dir" armed none
+  printf 'phase=armed\n' >> "$dir/state/.attended-job"
+  assert_hook_inert_when_held "$dir" "invalid record"
+  pass "auto-arm: an altered attended record holds the home instead of being ignored"
+}
+
+test_attended_armed_job_still_arms() {
+  local dir out status
+  dir=$(make_primary_dir "$TMP_ROOT/attended-armed")
+  : > "$dir/state/task.meta"
+  write_attended_record "$dir" armed claimed
+  write_arm_fixture "$dir" actionable
+  out=$(run_autoarm "$dir" 2>/dev/null); status=$?
+  expect_code 2 "$status" "an armed attended job is supervised like any task"
+  [ -e "$dir/state/arm-ran" ] || fail "the hook did not arm an attended home that is not held"
+  pass "auto-arm: an opted-in home with an armed job is supervised as before"
+}
+
+# A first job has no watcher yet, so the hook is the one that sees a lapsed deadline.
+# The expire command is a stub here: it records that it was called and writes the hold
+# the real command writes first, which pins the hook's order (expire, then the need
+# gate) and nothing about the command itself; tests/fm-attended-job.test.sh runs the
+# real expire.
+test_attended_due_deadline_is_expired_before_the_need_gate() {
+  local dir out status
+  dir=$(make_primary_dir "$TMP_ROOT/attended-due")
+  : > "$dir/state/task.meta"
+  write_attended_record "$dir" armed claimed "" 1000
+  cat > "$dir/bin/fm-attended-job.sh" <<'SH'
+#!/usr/bin/env bash
+printf 'expire %s\n' "$*" >> "$FM_HOME/state/expire-calls"
+. "$(dirname "$0")/fm-attended-job-lib.sh"
+home=$(fm_attended_physical "$FM_HOME")
+fm_attended_record_read "$FM_HOME/state" "$home" || exit 1
+fm_attended_hold_locked "$FM_HOME/state" expired
+SH
+  chmod +x "$dir/bin/fm-attended-job.sh"
+  write_arm_fixture "$dir" actionable
+  out=$(run_autoarm "$dir" 2>/dev/null); status=$?
+  expect_code 0 "$status" "a lapsed deadline must be expired and the held home left alone"
+  assert_equals "expire expire" "$(cat "$dir/state/expire-calls" 2>/dev/null || true)" "the hook did not run expire exactly once"
+  [ ! -e "$dir/state/arm-ran" ] || fail "the hook armed a home whose deadline had lapsed"
+  pass "auto-arm: a lapsed attended deadline is expired before the need gate, so nothing is armed"
+}
+
 test_inert_in_child_worktree
 test_inert_without_session_lock
 test_reclaims_stale_session_lock_before_arming
@@ -1553,4 +1673,10 @@ test_host_handback_carries_every_host_line
 test_host_stand_down_is_silent
 test_host_crash_is_retried_then_reported
 test_fm_lock_status_still_works_with_shared_lib
+test_attended_terminal_hold_leaves_the_hook_inert
+test_attended_hold_survives_flag_removal
+test_attended_deleted_record_holds_without_rearm
+test_attended_invalid_record_holds_without_rearm
+test_attended_armed_job_still_arms
+test_attended_due_deadline_is_expired_before_the_need_gate
 test_stands_down_only_on_pi_code_transcript_path
