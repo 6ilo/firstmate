@@ -96,9 +96,9 @@
 #            twice. Until this is called, the result stays eligible for
 #            bounded re-announcement on every reconcile. Marking a result
 #            handled does not retire its source registration or claim, with one
-#            exception: a task-owned source cannot be re-armed, so
-#            acknowledging its last open round also drops the registration
-#            that kept it with its owner, and reports `retired:` too.
+#            exception: acknowledging the terminal round of a task-owned source
+#            is that board's conclude step, so it also drops the registration
+#            that kept the board with its owner, and reports `retired:` too.
 # retire     Drop a registration, stop a runner this home owns, release the claim.
 #            Idempotent, and still the supported explicit path after a source has
 #            already retired itself on its adapter's terminal verdict. Existing
@@ -673,7 +673,7 @@ publish_result() {  # <result-file>
           esac
         fi
         unset FM_PROCEVENT_CAPTURE_SOURCE_LOCK_HELD
-        message="Process-event feedback is captured for task $owner_task at $result. Read it and apply the round. The source cannot be re-armed; acknowledge this round with bin/fm-procevent.sh handled $id $seq, which retires the source once no other captured round is open."
+        message="Process-event feedback is captured for task $owner_task at $result. Read it and apply the round, acknowledge it with bin/fm-procevent.sh handled $id $seq, then retire the source with bin/fm-procevent.sh retire $id."
       fi
       record=$(fm_task_inbox_write_idempotent "$STATE" "$owner_task" "$message" 2>/dev/null || true)
       case "$record" in
@@ -1828,7 +1828,7 @@ cmd_classify() {
 }
 
 cmd_handled() {
-  local id=${1-} seq=${2-} status result='' conclude=0 registration='' retained=''
+  local id=${1-} seq=${2-} status result='' result_adapter='' conclude=0 registration='' retained=''
   fm_procevent_source_id_valid "$id" || die "source id must be path-safe: $id"
   case "$seq" in ''|*[!0-9]*) die "sequence must be a nonnegative integer: $seq" ;; esac
   owner_lease_refresh
@@ -1836,7 +1836,8 @@ cmd_handled() {
   if [ "$(source_kind "$id" 2>/dev/null || true)" = task-owned ]; then
     result=$(source_pending "$id" | awk -v want="/$id.$seq.result" 'index($0, want) { print; exit }')
     if [ -n "$result" ] \
-      && [ -z "$(source_pending "$id" | awk -v want="/$id.$seq.result" '!index($0, want) { print; exit }')" ]; then
+      && result_adapter=$(fm_procevent_result_adapter "$result" 2>/dev/null) \
+      && adapter_result_is_terminal "$result_adapter" "$result"; then
       conclude=1
     fi
   fi
@@ -1875,7 +1876,7 @@ cmd_handled() {
     *) die "cannot durably record handling: $id $seq" ;;
   esac
   if [ "$conclude" -eq 1 ]; then
-    printf 'retired: %s (owner acknowledged its last open round)\n' "$id"
+    printf 'retired: %s (owner acknowledged its terminal round)\n' "$id"
   fi
 }
 

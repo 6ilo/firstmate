@@ -2946,8 +2946,8 @@ kill -KILL -"$CRASH_PID" 2>/dev/null || true
 #
 # register-task has no supporting built-in adapter, so it refuses every
 # registration and writes nothing. A task-owned record from before that removal
-# names an adapter that is no longer installed and can never be re-armed, so its
-# owner acknowledging its last open round is what retires it.
+# names an adapter that is no longer installed, so its rounds are nonterminal:
+# the owner acknowledges them with handled and then retires the record.
 
 HTASK="$TMP_ROOT/task-owned"; new_home "$HTASK"
 new_task_endpoint "$HTASK" old-task
@@ -2973,6 +2973,8 @@ pe "$HTASK" reconcile >/dev/null 2>&1 || true
 inbox_text=$(cat "$HTASK/state/old-task.inbox"/*.msg 2>/dev/null || true)
 assert_contains "$inbox_text" "bin/fm-procevent.sh handled old-board 1" \
   "a captured round of a task-owned record reaches its owner with the acknowledge step"
+assert_contains "$inbox_text" "bin/fm-procevent.sh retire old-board" \
+  "a captured round of a task-owned record names the retire step"
 assert_not_contains "$inbox_text" "re-arm the source" \
   "the owner is not told to re-arm a source that cannot be re-armed"
 assert_absent "$HTASK/state/procevent/old-board.runner" \
@@ -2985,15 +2987,14 @@ out=$(pe "$HTASK" register plain old-board -- "$BLOCKER" "$TMP_ROOT/never" 2>&1)
 assert_contains "$out" "retire old-board" "a refused register names the retire step"
 assert_present "$HTASK/state/procevent/old-board.source" "a refused retirement left the record in place"
 
-out=$(pe "$HTASK" handled old-board 1) || fail "acknowledging the first open round failed"
-assert_contains "$out" "handled: old-board 1" "the first round is acknowledged"
-assert_not_contains "$out" "retired:" "a record with another open round was retired early"
-assert_present "$HTASK/state/procevent/old-board.source" "the record stays while a round is open"
-
-out=$(pe "$HTASK" handled old-board 2) || fail "acknowledging the last open round failed"
-assert_contains "$out" "retired: old-board" "acknowledging the last open round retires the record"
-assert_absent "$HTASK/state/procevent/old-board.source" "the concluded record was left registered"
-pe "$HTASK" retire old-board >/dev/null || fail "retire is not idempotent after a conclusion"
-pass "register-task refuses, and a task-owned record left on disk is concluded by handled"
+for seq in 1 2; do
+  out=$(pe "$HTASK" handled old-board "$seq") || fail "acknowledging round $seq failed"
+  assert_contains "$out" "handled: old-board $seq" "round $seq is acknowledged"
+  assert_not_contains "$out" "retired:" "a nonterminal round retired the record"
+done
+assert_present "$HTASK/state/procevent/old-board.source" "handled retired a record on a nonterminal round"
+out=$(pe "$HTASK" retire old-board) || fail "retire refused a task-owned record with no open round"
+assert_absent "$HTASK/state/procevent/old-board.source" "retire left the task-owned record registered"
+pass "register-task refuses, and a task-owned record left on disk is retired after handled"
 
 printf '\nall procevent tests passed\n'
