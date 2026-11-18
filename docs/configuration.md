@@ -2045,7 +2045,8 @@ A long-polling external process is registered as a *source* through its adapter,
 
 `register-task` records a worker-owned source whose captured rounds go to that task's steering inbox rather than to firstmate.
 It was built for the removed Lavish adapter, and no remaining built-in adapter supports it, so it refuses every registration.
-The task-owned handling below stays only so a record left on disk from before the removal is still retired safely: while any captured round of a task-owned source is unacknowledged, every retirement path refuses, and acknowledging its terminal round with `bin/fm-procevent.sh handled <source-id> <sequence>` concludes and retires it.
+The task-owned handling below stays only so a record left on disk from before the removal is still retired safely: while any captured round of a task-owned source is unacknowledged, every retirement path refuses, and acknowledging its last open round with `bin/fm-procevent.sh handled <source-id> <sequence>` concludes and retires it, because such a source can no longer be re-armed.
+A task-owned record with no open round is cleared with `bin/fm-procevent.sh retire <source-id>`.
 
 **Register deterministic condition and action watches**
 
@@ -2110,7 +2111,7 @@ Under the default ordering, this happens after the initial `check` publication.
 - A failed terminal removal stays durably terminal and is completed by ordinary reconciliation without restarting its poll, while a concurrently replaced registration survives and becomes independently runnable after the old claim releases.
 - Any registration refuses to replace an external registration while its prior runner claim is live, uncertain, orphaned, or terminal-pending; replacement becomes eligible only after that generation is proved gone or its terminal retirement completes.
 - A source that has ended therefore captures at most one terminal result, is never restarted, and leaves no recurring poll work.
-- For ordinary sources, explicit `retire` stays the supported and idempotent path afterwards; a task-owned source instead refuses `retire` until its owner concludes the open terminal round with `handled`.
+- For ordinary sources, explicit `retire` stays the supported and idempotent path afterwards; a task-owned source instead refuses `retire` until its owner acknowledges every open round with `handled`.
 
 **Apply built-in results automatically**
 

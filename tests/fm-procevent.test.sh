@@ -2942,4 +2942,58 @@ kill -0 -"$CRASH_PID" 2>/dev/null \
 pass "a group whose leader died to something else is still refused, not signalled"
 kill -KILL -"$CRASH_PID" 2>/dev/null || true
 
+# --- task ownership is refused, and records left on disk still retire -------
+#
+# register-task has no supporting built-in adapter, so it refuses every
+# registration and writes nothing. A task-owned record from before that removal
+# names an adapter that is no longer installed and can never be re-armed, so its
+# owner acknowledging its last open round is what retires it.
+
+HTASK="$TMP_ROOT/task-owned"; new_home "$HTASK"
+new_task_endpoint "$HTASK" old-task
+out=$(pe "$HTASK" register-task plain new-board old-task -- "$BLOCKER" "$TMP_ROOT/never" 2>&1) \
+  && fail "register-task accepted a registration"
+assert_contains "$out" "register-task: no built-in adapter supports task ownership: plain" \
+  "register-task names why it refuses"
+assert_absent "$HTASK/state/procevent/new-board.source" "a refused register-task wrote a source record"
+
+fm_test_track_procevent_home "$HTASK"
+mkdir -p "$HTASK/state/procevent" "$HTASK/state/procevent-inbox"
+printf 'adapter=retired-adapter\nkind=task-owned\nowner_task=old-task\nargc=1\nargv:\n%s\n' \
+  "$TMP_ROOT/removed-adapter-child" > "$HTASK/state/procevent/old-board.source"
+chmod 0600 "$HTASK/state/procevent/old-board.source"
+for seq in 1 2; do
+  printf 'round %s\n' "$seq" > "$HTASK/state/procevent-inbox/old-board.$seq.result"
+  printf 'retired-adapter\n' > "$HTASK/state/procevent-inbox/old-board.$seq.adapter"
+  printf 'old-task\n' > "$HTASK/state/procevent-inbox/old-board.$seq.owner-task"
+  chmod 0600 "$HTASK/state/procevent-inbox/old-board.$seq".*
+done
+
+pe "$HTASK" reconcile >/dev/null 2>&1 || true
+inbox_text=$(cat "$HTASK/state/old-task.inbox"/*.msg 2>/dev/null || true)
+assert_contains "$inbox_text" "bin/fm-procevent.sh handled old-board 1" \
+  "a captured round of a task-owned record reaches its owner with the acknowledge step"
+assert_not_contains "$inbox_text" "re-arm the source" \
+  "the owner is not told to re-arm a source that cannot be re-armed"
+assert_absent "$HTASK/state/procevent/old-board.runner" \
+  "reconcile launched a task-owned record while its rounds were open"
+
+out=$(pe "$HTASK" retire old-board 2>&1) && fail "retire dropped a task-owned record with open rounds"
+assert_contains "$out" "handled old-board <sequence>" "a refused retire names the acknowledge step"
+out=$(pe "$HTASK" register plain old-board -- "$BLOCKER" "$TMP_ROOT/never" 2>&1) \
+  && fail "register replaced a task-owned record"
+assert_contains "$out" "retire old-board" "a refused register names the retire step"
+assert_present "$HTASK/state/procevent/old-board.source" "a refused retirement left the record in place"
+
+out=$(pe "$HTASK" handled old-board 1) || fail "acknowledging the first open round failed"
+assert_contains "$out" "handled: old-board 1" "the first round is acknowledged"
+assert_not_contains "$out" "retired:" "a record with another open round was retired early"
+assert_present "$HTASK/state/procevent/old-board.source" "the record stays while a round is open"
+
+out=$(pe "$HTASK" handled old-board 2) || fail "acknowledging the last open round failed"
+assert_contains "$out" "retired: old-board" "acknowledging the last open round retires the record"
+assert_absent "$HTASK/state/procevent/old-board.source" "the concluded record was left registered"
+pe "$HTASK" retire old-board >/dev/null || fail "retire is not idempotent after a conclusion"
+pass "register-task refuses, and a task-owned record left on disk is concluded by handled"
+
 printf '\nall procevent tests passed\n'

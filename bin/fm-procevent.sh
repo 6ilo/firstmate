@@ -26,12 +26,9 @@
 #            splitting. Built-in adapters register sources; nothing here parses
 #            user text.
 # register-task
-#            Record a worker-owned built-in source. Its one source record
-#            persists across rounds, and re-registration by the same task
-#            acknowledges nonterminal captured rounds without touching the
-#            source claim. Terminal rounds are concluded with `handled`.
-#            No built-in adapter supports it now, so it always refuses; the
-#            task-owned record handling below stays for records left on disk.
+#            Refuses every registration, because no built-in adapter supports
+#            a worker-owned source. The task-owned record handling below stays
+#            for records left on disk.
 # register-extension
 #            Resolve an explicitly enabled home-local process-event-adapter/1
 #            binding, verify its package and handshake, and record the source
@@ -99,9 +96,9 @@
 #            twice. Until this is called, the result stays eligible for
 #            bounded re-announcement on every reconcile. Marking a result
 #            handled does not retire its source registration or claim, with one
-#            exception: acknowledging the terminal round of a task-owned source
-#            is that board's conclude step, so it also drops the registration
-#            that kept the board with its owner, and reports `retired:` too.
+#            exception: a task-owned source cannot be re-armed, so
+#            acknowledging its last open round also drops the registration
+#            that kept it with its owner, and reports `retired:` too.
 # retire     Drop a registration, stop a runner this home owns, release the claim.
 #            Idempotent, and still the supported explicit path after a source has
 #            already retired itself on its adapter's terminal verdict. Existing
@@ -524,7 +521,7 @@ cmd_register() {
   if [ "$(source_kind "$id" 2>/dev/null || true)" = task-owned ]; then
     owner_task=$(source_owner_task "$id")
     fm_procevent_source_lock_release "$id"
-    die "cannot arm task-owned source $id owned by task $owner_task; steer that task to re-arm it"
+    die "cannot arm task-owned source $id owned by task $owner_task; acknowledge its open rounds with bin/fm-procevent.sh handled $id <sequence> or retire it with bin/fm-procevent.sh retire $id"
   fi
   if ! extension_registration_replacement_safe_locked "$id"; then
     fm_procevent_source_lock_release "$id"
@@ -540,129 +537,9 @@ cmd_register() {
 }
 
 cmd_register_task() {
-  local adapter=${1-} id=${2-} task=${3-} sep=${4-} result pending pending_adapter
-  local reply_source='' reply_dest='' stale arg i adopting=0 pending_owner prior_record=''
-  local pending_rounds=0
-  local -a argv=()
-  shift 4 2>/dev/null || usage
   # Task ownership was built for the removed Lavish adapter, and no remaining
   # built-in adapter supports it, so every registration is refused.
-  die "register-task: no built-in adapter supports task ownership: ${adapter:-<none>}"
-  fm_procevent_adapter_valid "$adapter" || die "adapter name must be lowercase alphanumeric or dash: $adapter"
-  fm_procevent_source_id_valid "$id" || die "source id must be path-safe and at most 64 characters: $id"
-  fm_pr_task_id_valid "$task" || die "task id is invalid: $task"
-  [ "$sep" = -- ] || usage
-  [ "$#" -ge 1 ] || die "register-task needs at least one argv element after --"
-  argv=("$@")
-  for arg in "${argv[@]}"; do
-    case "$arg" in *$'\n'*) die "argv elements cannot contain newlines" ;; esac
-  done
-  [ -f "$(adapter_script "$adapter")" ] || die "no installed adapter for: $adapter"
-  state_root_bind create || die "cannot safely prepare the process-event state root"
-  fm_backend_validate_task_endpoint "$STATE/$task.meta" "$task" >/dev/null \
-    || die "cannot own a board for task $task; its captured feedback would reach no endpoint"
-  (umask 077; mkdir -p "$REG") || die "cannot prepare the process-event registry"
-  fm_procevent_source_lock_acquire "$id" || die "cannot lock the source"
-  if [ -e "$(source_file "$id")" ] || [ -L "$(source_file "$id")" ]; then
-    if [ "$(source_kind "$id" 2>/dev/null || true)" != task-owned ]; then
-      fm_procevent_source_lock_release "$id"
-      die "cannot task-own firstmate-registered source $id; firstmate is the holder"
-    fi
-    if [ "$(source_owner_task "$id")" != "$task" ]; then
-      reply_source=$(source_owner_task "$id")
-      fm_procevent_source_lock_release "$id"
-      die "cannot replace task-owned source $id owned by task $reply_source; steer that task to re-arm its board"
-    fi
-  else
-    adopting=1
-  fi
-  while IFS= read -r pending; do
-    [ -n "$pending" ] || continue
-    pending_rounds=$((pending_rounds + 1))
-    if [ "$adopting" -eq 1 ]; then
-      pending_owner=$(fm_procevent_result_owner_task "$pending" 2>/dev/null || true)
-      if [ "$pending_owner" != "$task" ]; then
-        fm_procevent_source_lock_release "$id"
-        die "cannot arm source $id while its unacknowledged capture $pending belongs to ${pending_owner:-firstmate}; that owner acknowledges it first"
-      fi
-    fi
-    pending_adapter=$(fm_procevent_result_adapter "$pending" 2>/dev/null || true)
-    if [ -n "$pending_adapter" ] && adapter_result_is_terminal "$pending_adapter" "$pending"; then
-      fm_procevent_source_lock_release "$id"
-      die "cannot re-arm terminal result $pending; stop and conclude the round"
-    fi
-  done < <(source_pending "$id")
-  if [ "$adopting" -eq 0 ] && [ "$pending_rounds" -eq 0 ]; then
-    fm_procevent_source_lock_release "$id"
-    die "cannot re-arm source $id: task $task already holds this board and no captured round is waiting to be acknowledged"
-  fi
-  # Each generation stages its reply under its own path, so nothing a failed
-  # re-arm does can reach the reply the prior registration still references.
-  i=0
-  while [ "$i" -lt "${#argv[@]}" ]; do
-    if [ "${argv[$i]}" = --agent-reply-file ]; then
-      [ "$((i + 1))" -lt "${#argv[@]}" ] || { fm_procevent_source_lock_release "$id"; usage; }
-      reply_source=${argv[$((i + 1))]}
-      [ -f "$reply_source" ] && [ ! -L "$reply_source" ] || {
-        [ -z "$reply_dest" ] || rm -f -- "$reply_dest"
-        fm_procevent_source_lock_release "$id"
-        die "agent reply file does not exist: $reply_source"
-      }
-      reply_dest=$(umask 077; mktemp "$REG/.$id.reply.XXXXXX") || {
-        fm_procevent_source_lock_release "$id"
-        die "cannot stage agent reply"
-      }
-      if ! cat -- "$reply_source" > "$reply_dest" || ! chmod 0600 "$reply_dest"; then
-        rm -f -- "$reply_dest"
-        fm_procevent_source_lock_release "$id"
-        die "cannot persist agent reply"
-      fi
-      argv[i + 1]=$reply_dest
-      i=$((i + 2))
-    else
-      i=$((i + 1))
-    fi
-  done
-  if [ "$adopting" -eq 0 ]; then
-    prior_record=$(umask 077; mktemp "$REG/.$id.prior.XXXXXX") || {
-      [ -z "$reply_dest" ] || rm -f -- "$reply_dest"
-      fm_procevent_source_lock_release "$id"
-      die "cannot stage the registration this re-arm replaces: $id"
-    }
-    if ! cat -- "$(source_file "$id")" > "$prior_record"; then
-      rm -f -- "$prior_record"
-      [ -z "$reply_dest" ] || rm -f -- "$reply_dest"
-      fm_procevent_source_lock_release "$id"
-      die "cannot read the registration this re-arm replaces: $id"
-    fi
-  fi
-  if ! fm_procevent_task_registration_publish_locked "$STATE" "$adapter" "$id" "$task" "${argv[@]}"; then
-    [ -z "$prior_record" ] || rm -f -- "$prior_record"
-    [ -z "$reply_dest" ] || rm -f -- "$reply_dest"
-    fm_procevent_source_lock_release "$id"
-    die "cannot publish task-owned registration"
-  fi
-  # Re-arm is the worker's acknowledgement of every open nonterminal round.
-  # It deliberately does not inspect, acquire, release, or replace the claim.
-  while IFS= read -r pending; do
-    [ -n "$pending" ] || continue
-    result=$pending
-    fm_procevent_mark_handled "$STATE" "$id" "$(fm_procevent_result_sequence "$result")" >/dev/null 2>&1 || {
-      [ -z "$prior_record" ] || mv -f -- "$prior_record" "$(source_file "$id")"
-      [ -z "$reply_dest" ] || rm -f -- "$reply_dest"
-      fm_procevent_source_lock_release "$id"
-      die "cannot acknowledge captured round: $result"
-    }
-  done < <(source_pending "$id")
-  [ -z "$prior_record" ] || rm -f -- "$prior_record"
-  for stale in "$REG/.$id.reply."*; do
-    [ -e "$stale" ] || continue
-    case "$stale" in "$reply_dest") continue ;; esac
-    rm -f -- "$stale"
-  done
-  fm_procevent_source_lock_release "$id"
-  owner_lease_refresh
-  printf 'registered: %s (%s, task=%s)\n' "$id" "$adapter" "$task"
+  die "register-task: no built-in adapter supports task ownership: ${1:-<none>}"
 }
 
 new_extension_registration_token() {
@@ -741,7 +618,7 @@ cmd_register_extension() {
     owner_task=$(source_owner_task "$id")
     fm_procevent_source_lock_release "$id"
     extension_lifecycle_lock_release
-    die "cannot replace task-owned source $id owned by task $owner_task; steer that task to re-arm its board"
+    die "cannot replace task-owned source $id owned by task $owner_task; acknowledge its open rounds with bin/fm-procevent.sh handled $id <sequence> or retire it with bin/fm-procevent.sh retire $id"
   fi
   if ! extension_registration_replacement_safe_locked "$id"; then
     fm_procevent_source_lock_release "$id"
@@ -782,7 +659,7 @@ publish_result() {  # <result-file>
   if ! fm_procevent_is_handled "$STATE" "$id" "$seq"; then
     if [ -n "$owner_task" ]; then
       if adapter_result_is_terminal "$adapter" "$result"; then
-        message="Process-event result $id sequence $seq is terminal at $result. Read it, stop and conclude the round, and do not re-arm the source. The source stays yours until you acknowledge this round with bin/fm-procevent.sh handled $id $seq, which retires it."
+        message="Process-event result $id sequence $seq is terminal at $result. Read it and conclude the round. The source stays yours until you acknowledge this round with bin/fm-procevent.sh handled $id $seq, which retires it."
       else
         export FM_PROCEVENT_CAPTURE_SOURCE_LOCK_HELD=1
         if adapter_result_is_silent "$adapter" "$result"; then
@@ -796,7 +673,7 @@ publish_result() {  # <result-file>
           esac
         fi
         unset FM_PROCEVENT_CAPTURE_SOURCE_LOCK_HELD
-        message="Process-event feedback is captured for task $owner_task at $result. Read it, apply the round, and re-arm the source with the reply."
+        message="Process-event feedback is captured for task $owner_task at $result. Read it and apply the round. The source cannot be re-armed; acknowledge this round with bin/fm-procevent.sh handled $id $seq, which retires the source once no other captured round is open."
       fi
       record=$(fm_task_inbox_write_idempotent "$STATE" "$owner_task" "$message" 2>/dev/null || true)
       case "$record" in
@@ -1951,7 +1828,7 @@ cmd_classify() {
 }
 
 cmd_handled() {
-  local id=${1-} seq=${2-} status result='' result_adapter='' conclude=0 registration='' retained=''
+  local id=${1-} seq=${2-} status result='' conclude=0 registration='' retained=''
   fm_procevent_source_id_valid "$id" || die "source id must be path-safe: $id"
   case "$seq" in ''|*[!0-9]*) die "sequence must be a nonnegative integer: $seq" ;; esac
   owner_lease_refresh
@@ -1959,8 +1836,7 @@ cmd_handled() {
   if [ "$(source_kind "$id" 2>/dev/null || true)" = task-owned ]; then
     result=$(source_pending "$id" | awk -v want="/$id.$seq.result" 'index($0, want) { print; exit }')
     if [ -n "$result" ] \
-      && result_adapter=$(fm_procevent_result_adapter "$result" 2>/dev/null) \
-      && adapter_result_is_terminal "$result_adapter" "$result"; then
+      && [ -z "$(source_pending "$id" | awk -v want="/$id.$seq.result" '!index($0, want) { print; exit }')" ]; then
       conclude=1
     fi
   fi
@@ -1999,7 +1875,7 @@ cmd_handled() {
     *) die "cannot durably record handling: $id $seq" ;;
   esac
   if [ "$conclude" -eq 1 ]; then
-    printf 'retired: %s (owner acknowledged its terminal round)\n' "$id"
+    printf 'retired: %s (owner acknowledged its last open round)\n' "$id"
   fi
 }
 
