@@ -68,7 +68,7 @@ One token serves both endpoints, and rotating it means writing a new token into 
 
 The snapshot is the whole fleet as Today shows it: every piece of the fleet's work, the main home and every secondmate home together.
 Its top level carries `generator_version` (the bridge's version), `generated_at` (UTC), `home` (the label of the home the bridge runs in, as bearings labels it), and `sections`, and may carry `passkeys` and `enrolment`, described under "The passkey".
-Where a fact already exists in the bearings snapshot (`bin/fm-bearings-snapshot.sh`) or the `fm-bearings-board.v1` payload (`bin/fm-bearings-board.sh`), the field keeps that name and meaning.
+Where a fact already exists in the bearings snapshot (`bin/fm-bearings-snapshot.sh`) or the retired `fm-bearings-board.v1` payload, the field keeps that name and meaning.
 
 | Section | Rows | Meaning |
 | --- | --- | --- |
@@ -77,7 +77,7 @@ Where a fact already exists in the bearings snapshot (`bin/fm-bearings-snapshot.
 | `charted_next` | `id`, `title`, `reason`, `dispatchable`, `repo`, optional `kind`, `filed`, `blocked_by`, `owner` | Work filed but not started, as the board's Charted Next; `kind` is `queued` or `warning`, and a `warning` row is never dispatchable. |
 | `landed` | `id`, `title`, `owner`, `repo`, optional `pr_url`, `landed_at`, `subject` | Recently finished work, as the board's landed rows; `owner` is `(main)` or the secondmate home that recorded it. |
 | `health` | `supervision`, `unhealthy[]` | `supervision` is `live`, `lapsed`, or `unknown`; each unhealthy row is a worker id with `endpoint_exists` and `agent_alive` (`null` when unknown), as bearings' unhealthy endpoints without their machine detail. |
-| `boards` | `owner_task`, `state`, `round`, `last_changed`, `link` | Open review boards: the owning task, `listening`, `round-open`, or `owner-gone`, the count of captured rounds, when the board last changed, and its local address on the captain's machine. |
+| `boards` | `owner_task`, `state`, `round`, `last_changed`, `link` | Open review boards: the owning task, `listening`, `round-open`, or `owner-gone`, the count of captured rounds, when the board last changed, and its local address on the captain's machine. This fork no longer produces boards (they were Lavish sessions), so the bridge always sends an empty list. |
 | `day` | `date`, `ends_at`, `blocks[]` of `id`, `title`, `starts_at`, `ends_at` | The captain's calendar for one day, as the board's Today lane: `ends_at` is the instant the day is over in the captain's own time zone, each block's `id` is stable across snapshots, and its times are instants with an explicit UTC offset, ending at or after they start; at most 200 blocks. |
 
 `repo` is always present, as `owner/name`, or `null` when the work genuinely has no repository.

@@ -19,10 +19,10 @@
 # and a captured result with no durable handled acknowledgement remains eligible
 # for bounded re-announcement - including across a restart between publication
 # and handling - until `fm-procevent.sh handled` records it. It proves nothing
-# about the source side of the handoff. In particular the currently published
-# `lavish-axi poll` destructively clears feedback before returning it, so a
-# result lost between that clearing and this runner reading the process output
-# is unrecoverable. A Firstmate wrapper cannot close that window, and marking a
+# about the source side of the handoff. A source that destructively clears its
+# output before returning it can lose a result between that clearing and this
+# runner reading the process output, and such a loss is unrecoverable. A
+# Firstmate wrapper cannot close that window, and marking a
 # result handled says nothing about whether a paired external effect performed
 # before that call actually completed: a crash between the effect and the
 # acknowledgement can still repeat the effect on replay. Never describe this

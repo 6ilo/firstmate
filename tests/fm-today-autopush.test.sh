@@ -20,7 +20,6 @@ TMP_ROOT=$(fm_test_tmproot fm-today-autopush)
 FAKEBIN=$(fm_fakebin "$TMP_ROOT")
 TOKEN="tok-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')"
 export TZ=UTC
-export LAVISH_AXI_STATE_DIR="$TMP_ROOT/lavish"
 unset FM_TODAY_PORTAL_URL FM_TODAY_BRIDGE_TOKEN FM_TODAY_DAY_FILE \
   FM_TODAY_PUSH_MIN_SECS FM_TODAY_PUSH_TOPUP_SECS FM_TODAY_PUSH_TIMEOUT FM_TODAY_PUSH_CHECK_SECS
 STUB_PID=

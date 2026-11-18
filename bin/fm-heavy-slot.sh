@@ -258,7 +258,7 @@ memory_refusal() {
   elif [ "$GATE_SWAP_MB" != unknown ] && num_ge "$GATE_SWAP_MB" "$MAX_SWAP_MB"; then
     echo "swap used ${GATE_SWAP_MB}MB is at or above ${MAX_SWAP_MB}MB"
   elif [ "$GATE_PAGES" != unknown ] && num_gt "$GATE_PAGES" "$MAX_PAGES"; then
-    echo "$GATE_PAGES browser page processes exceed $MAX_PAGES; close finished Playwright browsers and preview or Lavish tabs"
+    echo "$GATE_PAGES browser page processes exceed $MAX_PAGES; close finished Playwright browsers and preview tabs"
   fi
 }
 

@@ -30,6 +30,8 @@
 #            persists across rounds, and re-registration by the same task
 #            acknowledges nonterminal captured rounds without touching the
 #            source claim. Terminal rounds are concluded with `handled`.
+#            No built-in adapter supports it now, so it always refuses; the
+#            task-owned record handling below stays for records left on disk.
 # register-extension
 #            Resolve an explicitly enabled home-local process-event-adapter/1
 #            binding, verify its package and handshake, and record the source
@@ -522,7 +524,7 @@ cmd_register() {
   if [ "$(source_kind "$id" 2>/dev/null || true)" = task-owned ]; then
     owner_task=$(source_owner_task "$id")
     fm_procevent_source_lock_release "$id"
-    die "cannot arm task-owned Lavish source $id owned by task $owner_task; steer that task to re-arm its board"
+    die "cannot arm task-owned source $id owned by task $owner_task; steer that task to re-arm it"
   fi
   if ! extension_registration_replacement_safe_locked "$id"; then
     fm_procevent_source_lock_release "$id"
@@ -543,7 +545,9 @@ cmd_register_task() {
   local pending_rounds=0
   local -a argv=()
   shift 4 2>/dev/null || usage
-  [ "$adapter" = lavish ] || die "register-task is reserved for the Lavish adapter"
+  # Task ownership was built for the removed Lavish adapter, and no remaining
+  # built-in adapter supports it, so every registration is refused.
+  die "register-task: no built-in adapter supports task ownership: ${adapter:-<none>}"
   fm_procevent_adapter_valid "$adapter" || die "adapter name must be lowercase alphanumeric or dash: $adapter"
   fm_procevent_source_id_valid "$id" || die "source id must be path-safe and at most 64 characters: $id"
   fm_pr_task_id_valid "$task" || die "task id is invalid: $task"
@@ -585,7 +589,7 @@ cmd_register_task() {
     pending_adapter=$(fm_procevent_result_adapter "$pending" 2>/dev/null || true)
     if [ -n "$pending_adapter" ] && adapter_result_is_terminal "$pending_adapter" "$pending"; then
       fm_procevent_source_lock_release "$id"
-      die "cannot re-arm terminal Lavish result $pending; stop and conclude the review"
+      die "cannot re-arm terminal result $pending; stop and conclude the round"
     fi
   done < <(source_pending "$id")
   if [ "$adopting" -eq 0 ] && [ "$pending_rounds" -eq 0 ]; then
@@ -778,7 +782,7 @@ publish_result() {  # <result-file>
   if ! fm_procevent_is_handled "$STATE" "$id" "$seq"; then
     if [ -n "$owner_task" ]; then
       if adapter_result_is_terminal "$adapter" "$result"; then
-        message="Lavish review result $id sequence $seq is terminal at $result. Read it with bin/fm-procevent-lavish.sh read $result, stop and conclude the review, and do not re-arm the board. The board stays yours until you acknowledge this round with bin/fm-procevent.sh handled $id $seq, which retires it."
+        message="Process-event result $id sequence $seq is terminal at $result. Read it, stop and conclude the round, and do not re-arm the source. The source stays yours until you acknowledge this round with bin/fm-procevent.sh handled $id $seq, which retires it."
       else
         export FM_PROCEVENT_CAPTURE_SOURCE_LOCK_HELD=1
         if adapter_result_is_silent "$adapter" "$result"; then
@@ -792,7 +796,7 @@ publish_result() {  # <result-file>
           esac
         fi
         unset FM_PROCEVENT_CAPTURE_SOURCE_LOCK_HELD
-        message="Lavish review feedback is captured for task $owner_task at $result. Read it with bin/fm-procevent-lavish.sh read $result, apply the round, and re-arm the board with the reply."
+        message="Process-event feedback is captured for task $owner_task at $result. Read it, apply the round, and re-arm the source with the reply."
       fi
       record=$(fm_task_inbox_write_idempotent "$STATE" "$owner_task" "$message" 2>/dev/null || true)
       case "$record" in
