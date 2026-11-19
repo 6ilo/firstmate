@@ -4745,10 +4745,10 @@ test_busy_declared_pause_is_rechecked_not_wedge_escalated() {
   dir=$(make_case busy-declared-pause); state="$dir/state"; fakebin="$dir/fakebin"
   out="$dir/watch.out"; capture_file="$dir/pane.txt"; window="test:fm-review-scout"
   statusf="$state/review-scout.status"
-  printf 'Working... (7200.4s) lavish-axi poll' > "$capture_file"
+  printf 'Working... (7200.4s) review-tool poll' > "$capture_file"
   printf 'window=%s\nkind=scout\nharness=pi\n' "$window" > "$state/review-scout.meta"
   record_pi_busy "$state" review-scout
-  printf 'paused: hosting the Lavish review, awaiting captain feedback\n' > "$statusf"
+  printf 'paused: hosting the visual review, awaiting captain feedback\n' > "$statusf"
   sig=$(seen_sig "$statusf"); printf '%s' "$sig" > "$state/.seen-review-scout_status"
   key=$(printf '%s' "$window" | tr ':/.' '___')
   # No completed turn for hours (the single blocking poll call): age the spawn
@@ -4852,10 +4852,10 @@ test_afk_busy_declared_pause_hands_off_plain_stale() {
   dir=$(make_case afk-busy-declared-pause); state="$dir/state"; fakebin="$dir/fakebin"
   out="$dir/watch.out"; capture_file="$dir/pane.txt"; window="test:fm-afk-review-scout"
   statusf="$state/afk-review-scout.status"
-  printf 'Working... (7200.4s) lavish-axi poll' > "$capture_file"
+  printf 'Working... (7200.4s) review-tool poll' > "$capture_file"
   printf 'window=%s\nkind=scout\nharness=pi\n' "$window" > "$state/afk-review-scout.meta"
   record_pi_busy "$state" afk-review-scout
-  printf 'paused: hosting the Lavish review, awaiting captain feedback\n' > "$statusf"
+  printf 'paused: hosting the visual review, awaiting captain feedback\n' > "$statusf"
   sig=$(seen_sig "$statusf"); printf '%s' "$sig" > "$state/.seen-afk-review-scout_status"
   key=$(printf '%s' "$window" | tr ':/.' '___')
   touch -t 200001010000 "$state/afk-review-scout.meta"
@@ -4948,7 +4948,7 @@ case "${1:-}" in
   capture-pane)
     n=$(( $(cat "$FM_FAKE_TMUX_TICKS" 2>/dev/null || echo 0) + 1 ))
     echo "$n" > "$FM_FAKE_TMUX_TICKS"
-    printf 'Working... (%d.%ds) lavish-axi poll' "$(( 7200 + n ))" "$(( n % 10 ))"
+    printf 'Working... (%d.%ds) review-tool poll' "$(( 7200 + n ))" "$(( n % 10 ))"
     exit 0 ;;
   display-message)
     case "$*" in
@@ -4960,7 +4960,7 @@ SH
   chmod +x "$fakebin/tmux"
   printf 'window=%s\nkind=scout\nharness=pi\n' "$window" > "$state/afk-ticking-scout.meta"
   record_pi_busy "$state" afk-ticking-scout
-  printf 'paused: hosting the Lavish review, awaiting captain feedback\n' > "$statusf"
+  printf 'paused: hosting the visual review, awaiting captain feedback\n' > "$statusf"
   sig=$(seen_sig "$statusf"); printf '%s' "$sig" > "$state/.seen-afk-ticking-scout_status"
   key=$(printf '%s' "$window" | tr ':/.' '___')
   touch -t 200001010000 "$state/afk-ticking-scout.meta"
@@ -5476,14 +5476,21 @@ SH
 # actionable wake uses - rather than leaving it to be found by a manual drain.
 
 # Run the runner against a case home. FM_ROOT_OVERRIDE (exported by the shared
-# wake harness to keep the drain's tangle check inert) would otherwise point the
-# runner at a root with no installed adapters, and the claim root must stay
-# inside the case so nothing here can observe a real home's source ownership.
+# wake harness to keep the drain's tangle check inert) points the runner at a
+# root with no installed adapters, so each case gets its own root holding only
+# the `plain` fixture adapter, which knows nothing about its results. The claim
+# root stays inside the case so nothing here can observe a real home's source
+# ownership.
 pe_case() {  # <dir> <command>...
   local dir=$1
   dir=$(cd "$dir" && pwd -P) || return 1
   shift
-  (unset FM_ROOT_OVERRIDE
+  mkdir -p "$dir/adapter-root/bin"
+  [ -x "$dir/adapter-root/bin/fm-procevent-plain.sh" ] || {
+    printf '#!/usr/bin/env bash\nexit 2\n' > "$dir/adapter-root/bin/fm-procevent-plain.sh"
+    chmod +x "$dir/adapter-root/bin/fm-procevent-plain.sh"
+  }
+  (FM_ROOT_OVERRIDE="$dir/adapter-root" \
    FM_PROCEVENT_CLAIM_ROOT="$dir/claims" FM_HOME="$dir" "$ROOT/bin/fm-procevent.sh" "$@")
 }
 
@@ -5492,7 +5499,7 @@ pe_case() {  # <dir> <command>...
 # captured, unhandled, queued result and no remaining poll work.
 seed_captured_procevent_result() {  # <dir>
   local dir=$1 i=0
-  pe_case "$dir" register lavish delivery-src -- \
+  pe_case "$dir" register plain delivery-src -- \
     /bin/sh -c 'printf "session:\n  file: /a.html\n  status: waiting\n"' >/dev/null || return 1
   pe_case "$dir" reconcile >/dev/null || return 1
   while [ "$i" -lt 100 ]; do
@@ -5532,7 +5539,7 @@ test_procevent_captured_result_surfaces_proactively() {
   dir=$(make_case procevent-delivery); state="$dir/state"
   out="$dir/watch.out"; drain_out="$dir/drain.out"
   seed_captured_procevent_result "$dir" || fail "the fixture captured no process-event result"
-  grep -F "procevent lavish delivery-src 1" "$state/.wake-queue" >/dev/null \
+  grep -F "procevent plain delivery-src 1" "$state/.wake-queue" >/dev/null \
     || fail "the captured result was never published to the durable queue"
 
   procevent_watch_bg "$dir" "$out"
@@ -5548,7 +5555,7 @@ test_procevent_captured_result_surfaces_proactively() {
   [ "$beacon_age" -lt 60 ] || fail "the surfacing watcher was not a healthy one (beacon age ${beacon_age}s)"
 
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "drain after the process-event wake failed"
-  grep "$(printf '\tcheck\t')" "$drain_out" | grep -F "procevent lavish delivery-src 1" >/dev/null \
+  grep "$(printf '\tcheck\t')" "$drain_out" | grep -F "procevent plain delivery-src 1" >/dev/null \
     || fail "the process-event result was not queued for the drain that follows the wake"
   pass "a captured process-event result wakes a healthy watcher proactively, with no manual drain"
 }
@@ -5575,7 +5582,7 @@ test_procevent_unacknowledged_result_redrains_until_handled() {
     || fail "the successor did not report recovery for the unacknowledged result: $(cat "$out")"
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$replay_out" 2> "$replay_err" \
     || fail "the successor could not re-drain the unacknowledged process-event result"
-  grep "$(printf '\tcheck\t')" "$replay_out" | grep -F 'procevent lavish delivery-src 1' >/dev/null \
+  grep "$(printf '\tcheck\t')" "$replay_out" | grep -F 'procevent plain delivery-src 1' >/dev/null \
     || fail "the successor drain did not re-print the durable process-event row"
 
   pe_case "$dir" handled delivery-src 1 >/dev/null || fail "could not acknowledge the captured result"
@@ -5632,7 +5639,7 @@ surface_once() {  # <dir> <out> [limit-ticks]: run one watcher to its wake, retu
 test_procevent_headlines_classify_queue_keys() {
   local dir state out
   dir=$(make_case procevent-headline-captured); state="$dir/state"; out="$dir/watch.out"
-  append_wake "$state" check "procevent:cap-src:1" "check: procevent lavish cap-src 1"
+  append_wake "$state" check "procevent:cap-src:1" "check: procevent plain cap-src 1"
   surface_once "$dir" "$out" || fail "a captured-result key was not surfaced: $(cat "$out")"
   grep -F "check: process-event result captured: procevent:cap-src:1" "$out" >/dev/null \
     || fail "a captured result did not surface under its own headline: $(cat "$out")"
@@ -5652,7 +5659,7 @@ test_procevent_headlines_classify_queue_keys() {
   FM_STATE_OVERRIDE="$state" "$DRAIN" >/dev/null 2>&1 || fail "stranded headline fixture drain failed"
 
   dir=$(make_case procevent-headline-joined); state="$dir/state"; out="$dir/watch.out"
-  append_wake "$state" check "procevent:cap2-src:1" "check: procevent lavish cap2-src 1"
+  append_wake "$state" check "procevent:cap2-src:1" "check: procevent plain cap2-src 1"
   append_wake "$state" check "procevent:str2-src:stranded:tok-2" "check: process-event source str2-src is registered but nothing can arm it"
   surface_once "$dir" "$out" || fail "a mixed cycle was not surfaced: $(cat "$out")"
   grep -F "check: process-event result captured: procevent:cap2-src:1; process-event source stranded: procevent:str2-src:stranded:tok-2" "$out" >/dev/null \

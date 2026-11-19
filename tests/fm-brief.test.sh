@@ -976,39 +976,21 @@ test_scout_and_secondmate_load_decision_hold_policy() {
   pass "fm-brief.sh: investigation and visual-review completions load the shared decision policy"
 }
 
-# A scout brief offers the Lavish review loop only when bootstrap confirms the
-# supported lavish-axi floor at scaffold time; a missing or older build gets a
-# text-report instruction instead, so a scout never drives a below-floor Lavish.
-test_scout_lavish_line_follows_presentation_floor() {
-  local base label version expect case_dir fakebin brief n=0
-  local hosting='use the lavish-axi rule'
-  local text_only='deliver your findings as a text report without Lavish'
-  base=$(fm_test_base_path_sans "${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}" lavish-axi)
-  while IFS='^' read -r label version expect; do
-    [ -n "$label" ] || continue
-    n=$((n + 1))
-    case_dir="$TMP_ROOT/scout-lavish-$n"
-    mkdir -p "$case_dir/home/data"
-    fakebin=$(fm_fakebin "$case_dir")
-    [ "$version" = absent ] || fm_fake_version_tool "$fakebin" lavish-axi FM_FAKE_LAVISH_AXI_VERSION "$version"
-    PATH="$fakebin:$base" FM_HOME="$case_dir/home" \
-      "$ROOT/bin/fm-brief.sh" scout-lavish alpha --scout >/dev/null \
-      || fail "$label: scout scaffold failed"
-    brief="$case_dir/home/data/scout-lavish/brief.md"
-    if [ "$expect" = hosting ]; then
-      assert_grep "$hosting" "$brief" "$label: scout brief did not offer the Lavish review loop"
-      assert_no_grep "$text_only" "$brief" "$label: scout brief withheld Lavish from a compatible build"
-    else
-      assert_grep "$text_only" "$brief" "$label: scout brief did not ask for a text report"
-      assert_no_grep "$hosting" "$brief" "$label: scout brief offered a below-floor Lavish"
-    fi
-  done <<'ROWS'
-lavish-axi at the floor^0.1.77^hosting
-lavish-axi above the floor^0.2.0^hosting
-lavish-axi just below the floor^0.1.76^text
-absent lavish-axi^absent^text
-ROWS
-  pass "fm-brief.sh: scout Lavish hosting follows the bootstrap lavish-axi floor"
+# Lavish is removed, so a scout brief names no Lavish review loop and points at
+# no Lavish adapter, whatever is installed.
+test_scout_brief_names_no_lavish_loop() {
+  local case_dir brief
+  case_dir="$TMP_ROOT/scout-plain-case"
+  mkdir -p "$case_dir/home/data"
+  FM_HOME="$case_dir/home" "$ROOT/bin/fm-brief.sh" scout-plain alpha --scout >/dev/null \
+    || fail "scout scaffold failed"
+  brief="$case_dir/home/data/scout-plain/brief.md"
+  # Match the tool and its adapter, not the word alone: the checkout path itself
+  # may contain it.
+  if grep -Eq 'lavish-axi|fm-procevent-lavish|Lavish (review|is unavailable)' "$brief"; then
+    fail "scout brief still names Lavish: $(grep -E 'lavish-axi|fm-procevent-lavish|Lavish' "$brief")"
+  fi
+  pass "fm-brief.sh: scout brief names no Lavish review loop"
 }
 
 # Scout and secondmate paths still scaffold well-formed briefs.
@@ -1364,7 +1346,7 @@ test_crewmate_scaffolds_carry_the_heavy_slot_rule() {
     assert_grep "Playwright or any headless browser" "$brief" "$kind brief does not list what is heavy"
     assert_grep "Not heavy: single affected test files, lint, one-package typecheck" "$brief" \
       "$kind brief does not list what is not heavy"
-    assert_grep "close the Playwright browsers and preview or Lavish tabs" "$brief" \
+    assert_grep "close the Playwright browsers and preview tabs" "$brief" \
       "$kind brief does not tell the worker to close browsers"
     # shellcheck disable=SC2016 # Literal backticks and brackets must remain unexpanded.
     assert_grep 'paused [at=<epoch>]: waiting for a heavy validation slot' "$brief" \
@@ -1421,7 +1403,7 @@ test_pause_verb_override_renders_all_brief_scaffolds
 test_ship_and_scout_teach_validation_round_pause
 test_scout_and_secondmate_load_decision_hold_policy
 test_scout_and_secondmate_scaffold
-test_scout_lavish_line_follows_presentation_floor
+test_scout_brief_names_no_lavish_loop
 test_home_brief_include_is_appended_last
 test_ship_branch_prefix_defaults_to_legacy_fm
 test_ship_branch_prefix_override_is_consistent_across_modes

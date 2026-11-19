@@ -19,10 +19,10 @@
 # and a captured result with no durable handled acknowledgement remains eligible
 # for bounded re-announcement - including across a restart between publication
 # and handling - until `fm-procevent.sh handled` records it. It proves nothing
-# about the source side of the handoff. In particular the currently published
-# `lavish-axi poll` destructively clears feedback before returning it, so a
-# result lost between that clearing and this runner reading the process output
-# is unrecoverable. A Firstmate wrapper cannot close that window, and marking a
+# about the source side of the handoff. A source that destructively clears its
+# output before returning it can lose a result between that clearing and this
+# runner reading the process output, and such a loss is unrecoverable. A
+# Firstmate wrapper cannot close that window, and marking a
 # result handled says nothing about whether a paired external effect performed
 # before that call actually completed: a crash between the effect and the
 # acknowledgement can still repeat the effect on replay. Never describe this
@@ -376,41 +376,6 @@ fm_procevent_registration_publish_locked() {  # <state> <adapter> <source-id> <a
   tmp=$(umask 077; mktemp "$reg/.source.XXXXXX") || return 1
   if {
     printf 'adapter=%s\n' "$adapter"
-    printf 'argc=%s\n' "$#"
-    printf 'argv:\n'
-    printf '%s\n' "$@"
-  } > "$tmp" && chmod 0600 "$tmp" \
-    && identity=$(fm_pr_file_identity "$tmp") \
-    && fm_procevent_launch_floor_reset_locked "$state" "$id" "$identity" \
-    && mv -f -- "$tmp" "$dest"; then
-    fm_procevent_launch_floor_prune_locked "$state" "$id" "$identity" 2>/dev/null || :
-    return 0
-  fi
-  rm -f -- "$tmp"
-  return 1
-}
-
-# Publish one task-owned registration. The single source record persists across
-# rounds; the handled marker, not a second ownership record, holds the round open.
-fm_procevent_task_registration_publish_locked() {  # <state> <adapter> <source-id> <task-id> <argv...>
-  local state=$1 adapter=$2 id=$3 task=$4 reg dest tmp arg identity
-  shift 4
-  fm_procevent_adapter_valid "$adapter" || return 1
-  fm_procevent_source_id_valid "$id" || return 1
-  fm_pr_task_id_valid "$task" || return 1
-  [ "$#" -ge 1 ] || return 1
-  for arg in "$@"; do
-    case "$arg" in *$'\n'*) return 1 ;; esac
-  done
-  reg=$(fm_procevent_registry_dir "$state")
-  (umask 077; mkdir -p "$reg") || return 1
-  [ -d "$reg" ] && [ ! -L "$reg" ] || return 1
-  dest="$reg/$id.source"
-  tmp=$(umask 077; mktemp "$reg/.source.XXXXXX") || return 1
-  if {
-    printf 'adapter=%s\n' "$adapter"
-    printf 'kind=task-owned\n'
-    printf 'owner_task=%s\n' "$task"
     printf 'argc=%s\n' "$#"
     printf 'argv:\n'
     printf '%s\n' "$@"
