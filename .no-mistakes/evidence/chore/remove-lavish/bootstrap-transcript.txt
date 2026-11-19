@@ -1,0 +1,9 @@
+# lavish-axi is not on PATH on this machine:
+lavish-axi: not found
+$ FM_BOOTSTRAP_DETECT_ONLY=1 bin/fm-bootstrap.sh
+exit=0
+$ bin/fm-bootstrap.sh lavish-compatible
+exit=0
+$ bin/fm-bootstrap.sh install lavish-axi
+error: unknown tool lavish-axi
+exit=1

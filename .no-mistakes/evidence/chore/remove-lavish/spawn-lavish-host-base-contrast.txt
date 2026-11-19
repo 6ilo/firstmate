@@ -1,0 +1,4 @@
+# contrast: base 3c29728 fm-spawn.sh, same lab home and malformed config/lavish-axi-host
+$ <base>/bin/fm-spawn.sh no-such-task demo
+error: config/lavish-axi-host must contain one non-empty address without whitespace
+exit=

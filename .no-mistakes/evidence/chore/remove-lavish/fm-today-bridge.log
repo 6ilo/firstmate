@@ -1,0 +1,25 @@
+ok - the snapshot passes the contract and each rule family's call is withheld whole
+ok - the snapshot carries underway, charted, and landed work from bearings
+ok - recorded options reach the card before reconcile and pass the text check
+ok - every card carries the contract's card_hash
+ok - every card and work row carries repo, null when no repository is found
+ok - every main-home card and work row carries owner (main)
+ok - every decision card ends with the one reconcile option, labelled Already settled
+ok - second mates' calls and work travel under their owner, keyed with the task id, owner hashed
+skip - portal cross-check: FM_TODAY_PORTAL_DIR is not set
+ok - text bearings cut short loses its trailing partial word before the check
+ok - a cut field with a number in the five words before the cut is withheld
+ok - a cut in the middle of a hold-noted summary loses its partial word before the check
+ok - the day comes from the day file, titles unchecked but capped, and is empty when missing or stale
+ok - the boards section stays an empty list
+ok - push sends a valid snapshot with the bearer token and prints heard_at
+ok - push reads the URL and token from the home .env
+ok - push refuses an invalid snapshot and sends nothing
+ok - push exits non-zero naming the portal's status
+ok - push refuses a portal URL that is neither https nor loopback http
+ok - a missing URL or token exits 2 naming it
+ok - --dry-run writes the checked snapshot and sends nothing
+ok - push --snapshot sends the given document unchanged and still refuses one that fails the check
+fm-captain-hold: tasks-axi show call-dob exceeded its 10s backlog read bound
+not ok - could not hold a credential call
+exit=1

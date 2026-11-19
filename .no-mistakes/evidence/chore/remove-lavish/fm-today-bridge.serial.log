@@ -1,0 +1,14 @@
+ok - the snapshot passes the contract and each rule family's call is withheld whole
+ok - the snapshot carries underway, charted, and landed work from bearings
+ok - recorded options reach the card before reconcile and pass the text check
+ok - every card carries the contract's card_hash
+ok - every card and work row carries repo, null when no repository is found
+ok - every main-home card and work row carries owner (main)
+ok - every decision card ends with the one reconcile option, labelled Already settled
+ok - second mates' calls and work travel under their owner, keyed with the task id, owner hashed
+skip - portal cross-check: FM_TODAY_PORTAL_DIR is not set
+ok - text bearings cut short loses its trailing partial word before the check
+ok - a cut field with a number in the five words before the cut is withheld
+ok - a cut in the middle of a hold-noted summary loses its partial word before the check
+not ok - day date is not today
+exit=1

@@ -1,0 +1,6 @@
+$ bin/fm-brief.sh scout-1 demo --scout
+scaffolded: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.ZKtBmV/data/scout-1/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+{FIRSTMATE_SPEC} is behavioral: name a file path only when the worker must go there.
+exit=0
+$ grep -ci lavish data/scout-1/brief.md
+0

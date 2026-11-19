@@ -1,0 +1,6 @@
+ok - no configured source means no generated state and no process
+ok - one blocking completion yields exactly one bounded normalized event
+not ok - the symlinked-ancestor home publishes the committed result sequence (missing: 'procevent plain symlinked-src 1')
+--- output ---
+check: process-event source symlinked-src is registered but its launch did not prove it took the source's claim within FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS, so nothing is confirmed to be collecting from it; reconcile reports that as failed= and keeps launching it every supervision cycle. If it stays that way, check the source command and the adapter binary the registration names, and run an attached bin/fm-procevent.sh start symlinked-src to reproduce a refusal on its stderr - the detached launch discards it, and a hand-run reconcile only counts it as failed=. A later cycle that finds the source owned ends this episode on its own, so a runner that was merely slow to claim needs nothing from you.
+exit=1

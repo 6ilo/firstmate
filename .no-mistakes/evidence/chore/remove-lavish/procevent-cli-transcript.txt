@@ -1,0 +1,29 @@
+$ bin/fm-procevent.sh register-task plain new-board old-task -- /bin/sleep 1
+error: register-task: no built-in adapter supports task ownership: plain
+exit=1
+$ ls state/procevent
+ls: /var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T//fm-lab.ZKtBmV/state/procevent: No such file or directory
+# seeded leftover adapter=lavish task-owned record with one captured round
+$ bin/fm-procevent.sh reconcile
+reconciled: published=1 started=0 stopped=0 uncertain=0 failed=0
+exit=0
+$ cat state/old-task.inbox/*.msg
+schema=fm-task-inbox.v1
+at=2026-11-18T23:36:26Z
+--
+Process-event feedback is captured for task old-task at /private/var/folders/b9/s6ct4lbj0ys1bhnjr43rp0cm0000gn/T/fm-lab.ZKtBmV/state/procevent-inbox/old-board.1.result. Read it and apply the round, acknowledge it with bin/fm-procevent.sh handled old-board 1, then retire the source with bin/fm-procevent.sh retire old-board.$ bin/fm-procevent.sh status
+error: unknown command: status
+exit=1
+$ bin/fm-procevent.sh retire old-board
+error: cannot retire task-owned source old-board while a captured round for task old-task is unacknowledged; acknowledge it with bin/fm-procevent.sh handled old-board <sequence>
+exit=1
+$ bin/fm-procevent.sh register plain old-board -- /bin/sleep 1
+error: no installed adapter for: plain
+exit=1
+$ bin/fm-procevent.sh handled old-board 1
+handled: old-board 1
+exit=0
+$ bin/fm-procevent.sh retire old-board
+retired: old-board
+exit=0
+$ ls state/procevent

@@ -1,0 +1,39 @@
+{
+  "schema": "fm-today-snapshot.v1",
+  "generator_version": "1.4.0",
+  "generated_at": "2026-11-18T23:39:34Z",
+  "home": "/fm-lab.ZKtBmV",
+  "sections": {
+    "calls": [],
+    "underway": [
+      {
+        "id": "old-task",
+        "title": "old-task",
+        "kind": "ship",
+        "state": "unknown",
+        "doing": "worktree gone (torn down?)",
+        "repo": null,
+        "owner": "(main)",
+        "type": "ship"
+      }
+    ],
+    "charted_next": [],
+    "landed": [],
+    "health": {
+      "supervision": "unknown",
+      "unhealthy": [
+        {
+          "id": "old-task",
+          "endpoint_exists": false,
+          "agent_alive": null
+        }
+      ]
+    },
+    "boards": [],
+    "day": {
+      "date": "2026-11-18",
+      "ends_at": "2026-11-19T00:00:00-06:00",
+      "blocks": []
+    }
+  }
+}

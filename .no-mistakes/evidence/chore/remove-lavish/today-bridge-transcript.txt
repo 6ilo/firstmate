@@ -1,0 +1,21 @@
+# config/lavish-axi-host present in the home (ignored by design)
+$ bin/fm-today-bridge.sh snapshot | jq "{schema, boards: .sections.boards, keys: (.sections|keys)}"
+exit=0
+{
+  "schema": "fm-today-snapshot.v1",
+  "boards": [],
+  "keys": [
+    "boards",
+    "calls",
+    "charted_next",
+    "day",
+    "health",
+    "landed",
+    "underway"
+  ]
+}
+$ bin/fm-today-bridge.sh push --dry-run out.json
+ok
+dry-run: wrote /Users/anwulikaanigbodesktop/.no-mistakes/evidence/01M7RDKWA137TH975KRHRSX6DB/today-push-dryrun.json; nothing was sent
+exit=0
+[]

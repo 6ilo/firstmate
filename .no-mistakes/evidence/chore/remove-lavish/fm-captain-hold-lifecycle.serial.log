@@ -1,0 +1,10 @@
+ok - report-only unresolved captain call is reproduced and completion refuses before loss
+not ok - cleanup of a captain-held row failed where allow_nonref is not on by default: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: sample-nonref-scout's endpoint and local copy are cleaned up, but its captain-held backlog item could not be returned to Queued atomically (tasks-axi show sample-nonref-scout exceeded its 10s backlog read bound); the pending retention is recorded and the next session start retries it
+exit=1
